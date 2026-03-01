@@ -1,0 +1,53 @@
+name: Home-Base Weekly Briefing
+
+on:
+  schedule:
+    # Every Sunday at 12:00 UTC = 7:00 AM EST / 8:00 AM EDT
+    - cron: '0 12 * * 0'
+  workflow_dispatch:
+    # Allow manual trigger for testing without waiting for Sunday
+
+jobs:
+  briefing:
+    name: Generate & send weekly briefing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Decode Google OAuth token
+        # The token.json is stored base64-encoded as a GitHub secret.
+        # It contains the refresh token and client credentials needed
+        # for automatic access-token renewal during the run.
+        run: |
+          echo "$GOOGLE_OAUTH_TOKEN" | base64 -d > /tmp/google_token.json
+        env:
+          GOOGLE_OAUTH_TOKEN: ${{ secrets.GOOGLE_OAUTH_TOKEN }}
+
+      - name: Run Home-Base briefing agent
+        env:
+          GOOGLE_TOKEN_PATH: /tmp/google_token.json
+
+          ASANA_PAT: ${{ secrets.ASANA_PAT }}
+          ASANA_WORKSPACE_GID: ${{ secrets.ASANA_WORKSPACE_GID }}
+
+          OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}
+
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Hardcoded — not sensitive
+          BRIEFING_EMAIL_TO: ncduncan@gmail.com
+          WORK_EMAIL: Nathaniel.duncan@geaerospace.com
+
+        run: python -m agent.main
