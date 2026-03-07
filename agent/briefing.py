@@ -1,90 +1,60 @@
 """
 AI briefing generator.
 
-Sends all collected data to Gemini and receives:
-  1. A warm, concise Sunday morning narrative for Nate
-  2. A list of personal calendar events that warrant work awareness at GE Aerospace
-
-The work awareness events are then created as Google Calendar invites sent to
-Nathaniel.duncan@geaerospace.com, appearing directly in his M365/Outlook inbox.
+Sends collected data to Gemini and receives a concise Sunday morning narrative
+for Nate. AMION shift interpretation is the primary AI task; everything else
+(calendar filtering, Asana filtering, work awareness events) is handled
+deterministically in Python before this step.
 """
 
-import json
-import re
 import time
-from datetime import datetime
 
 import httpx
 
 from agent.config import settings
-from agent.models import BriefingData, WorkAwarenessEvent
+from agent.models import BriefingData
 
 SYSTEM_PROMPT = """\
 You are Home-Base, a personal assistant for Nathaniel Duncan (Nate).
 
-Your job each Sunday morning is to write a clear, friendly weekly briefing and
-identify which of Nate's personal calendar events his colleagues at GE Aerospace
-should be aware of.
+Your job each Sunday morning is to write a clear, friendly weekly briefing.
 
 About Nate:
 - Lives in Boston, MA
-- Works at GE Aerospace; work email: Nathaniel.duncan@geaerospace.com
+- Works at GE Aerospace (work email: Nathaniel.duncan@geaerospace.com)
 - Personal Gmail: ncduncan@gmail.com
 - "Gus" is his dog
 
-Tone: warm, direct, helpful — like a well-organized friend giving a heads-up over
-coffee. No filler phrases ("Certainly!", "Great news!"). Short paragraphs.
-Use plain prose — no bullet points in the narrative section.
+Tone: warm, direct — like a well-organized friend giving a heads-up over coffee.
+No filler phrases ("Certainly!", "Great news!"). 2–4 short paragraphs, plain prose.
 
-AMION SCHEDULING NOTE:
-Nate's calendar includes AMION shift events (medical/shift scheduling system).
-⚠️  AMION interpretation is PENDING clarification from Nate.
-For now, include AMION events in the briefing as-is, noting the shift code.
-Flag any AMION events in your narrative so Nate can verify they're correct.
+AMION SHIFTS (from the "Caitie Work" calendar):
+These are medical shift scheduling events. Common codes:
+- Events starting with "Call" = on-call shift (likely all or most of the day)
+- Other short codes (e.g. "DAY", "NIGHT", "ONC") = scheduled shift
+- Interpret these for Nate clearly: what kind of shift and when.
+Vacation and Leave events are already filtered out — ignore references to them.
 """
 
 BRIEFING_PROMPT = """\
-Today is Sunday, {today}. Here is Nate's data for the week of {week_start} through {week_end}.
+Today is Sunday, {today}. Here is Nate's data for the week of {week_start}–{week_end}.
 
-== CALENDAR EVENTS (upcoming week) ==
+CALENDAR EVENTS:
 {events}
 
-== ASANA TASKS (incomplete — should be actioned before the weekend ends) ==
+ASANA TASKS (past due or due this week):
 {tasks}
 
-== BOSTON WEATHER (7-day forecast) ==
+BOSTON WEATHER:
 {weather}
 
-Please produce a JSON response with exactly these two keys:
+Write a friendly Sunday morning briefing in 2–4 short paragraphs. Cover:
+- What the week looks like at a glance (busy vs light, any notable days)
+- AMION shifts: interpret the shift codes clearly and call out any on-call days
+- Any urgent Asana tasks to handle today
+- Weather highlights (rain, cold snaps, or anything worth noting)
 
-1. "narrative" — A friendly Sunday morning briefing in 2–4 short paragraphs.
-   Cover: what the week looks like at a glance, anything urgent to finish today,
-   weather highlights (especially rain, cold snaps, or any day worth calling out),
-   and any scheduling notes Nate should be aware of (conflicts, tight days, etc.).
-   If there are AMION shift events, mention them and note that the codes are
-   pending interpretation. Keep it tight — Nate is reading this over coffee.
-
-2. "work_awareness_events" — A JSON array of personal calendar events from the
-   list above that Nate's GE Aerospace colleagues should be aware of because they
-   affect his work-hours availability (e.g., doctor appointments, vet visits,
-   picking up Gus, school events, medical procedures, personal obligations during
-   9am–6pm weekdays).
-
-   Only include weekday events between 8am–7pm that a reasonable manager or
-   colleague would want a heads-up about. Exclude purely work events, evening
-   events, and weekend-only events that don't affect work hours.
-
-   Each object in the array:
-   {{
-     "title": "OOO: [brief, professional description]",
-     "start": "<ISO8601 datetime with timezone offset>",
-     "end": "<ISO8601 datetime with timezone offset>",
-     "note": "<one sentence: why colleagues should know>"
-   }}
-
-   Return [] if no events qualify.
-
-Respond with valid JSON only — no markdown, no code fences, no extra text.
+Plain prose only — no bullet points, no headers, no markdown.
 """
 
 
@@ -130,21 +100,10 @@ def _fmt_weather(data: BriefingData) -> str:
     return "\n".join(lines)
 
 
-def _parse_response(text: str) -> dict:
-    """Parse Claude's JSON response, handling accidental markdown fences."""
-    text = text.strip()
-    # Strip ```json ... ``` or ``` ... ``` wrappers if present
-    fence_match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
-    if fence_match:
-        text = fence_match.group(1)
-    return json.loads(text)
-
-
 def generate_briefing(data: BriefingData) -> BriefingData:
     """
-    Call Claude to generate the narrative and identify work awareness events.
-    Mutates and returns the BriefingData object with narrative and
-    work_awareness_events populated.
+    Call Gemini to generate the narrative. Returns BriefingData with narrative set.
+    Work awareness events are generated deterministically in main.py.
     """
     prompt = BRIEFING_PROMPT.format(
         today=data.generated_at.strftime("%A, %B %-d, %Y"),
@@ -158,7 +117,7 @@ def generate_briefing(data: BriefingData) -> BriefingData:
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 2048},
+        "generationConfig": {"maxOutputTokens": 600},
     }
 
     # Try primary model, then fall back to gemini-1.5-flash if still rate-limited.
@@ -189,19 +148,5 @@ def generate_briefing(data: BriefingData) -> BriefingData:
             print(f"  [gemini/{model}] exhausted retries; trying fallback model...")
     resp.raise_for_status()
 
-    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    result = _parse_response(text)
-    data.narrative = result.get("narrative", "")
-
-    work_events_raw = result.get("work_awareness_events") or []
-    data.work_awareness_events = [
-        WorkAwarenessEvent(
-            title=e["title"],
-            start=datetime.fromisoformat(e["start"]),
-            end=datetime.fromisoformat(e["end"]),
-            note=e.get("note", ""),
-        )
-        for e in work_events_raw
-    ]
-
+    data.narrative = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     return data

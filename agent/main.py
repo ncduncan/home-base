@@ -19,15 +19,54 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from agent.briefing import generate_briefing
-from agent.collectors.asana import fetch_weekend_tasks
+from agent.collectors.asana import fetch_week_tasks
 from agent.collectors.calendar import fetch_week_events
 from agent.collectors.weather import fetch_boston_forecast
 from agent.config import settings
-from agent.models import BriefingData
+from agent.models import BriefingData, CalendarEvent, WorkAwarenessEvent
 from agent.publishers.calendar_invites import create_work_awareness_events
 from agent.publishers.email import send_briefing_email
 
 EASTERN = ZoneInfo("America/New_York")
+
+# Weekday work hours window for work-awareness flagging
+_WORK_HOUR_START = 8   # 8am
+_WORK_HOUR_END = 18    # 6pm
+
+
+def _build_work_awareness_events(
+    events: list[CalendarEvent], now: datetime
+) -> list[WorkAwarenessEvent]:
+    """
+    Deterministically identify personal calendar events that GE Aerospace
+    colleagues should know about. Rules:
+    - Must be on a weekday (Mon–Fri)
+    - Must NOT be an AMION shift event (those are personal/medical schedule)
+    - If timed: start hour must fall within 8am–6pm
+    - If all-day: always flag (vacation days, full-day appointments, etc.)
+    """
+    result = []
+    today = now.date()
+    for event in events:
+        # Only look at future weekday events (Mon=0 … Fri=4)
+        if event.start.weekday() > 4:
+            continue
+        if event.start.date() < today:
+            continue
+        if event.is_amion:
+            continue
+        if not event.all_day:
+            if not (_WORK_HOUR_START <= event.start.hour < _WORK_HOUR_END):
+                continue
+        result.append(
+            WorkAwarenessEvent(
+                title=f"OOO: {event.title}",
+                start=event.start,
+                end=event.end,
+                note="Personal appointment during work hours.",
+            )
+        )
+    return result
 
 
 def main() -> None:
@@ -49,8 +88,8 @@ def main() -> None:
     calendar_events = fetch_week_events(week_start, week_end)
     print(f"  calendar : {len(calendar_events)} events")
 
-    asana_tasks = fetch_weekend_tasks()
-    print(f"  asana    : {len(asana_tasks)} incomplete tasks")
+    asana_tasks = fetch_week_tasks(week_end.date())
+    print(f"  asana    : {len(asana_tasks)} tasks due this week")
 
     weather = fetch_boston_forecast()
     print(f"  weather  : {len(weather)} forecast days")
@@ -68,8 +107,11 @@ def main() -> None:
     # ── 3. Generate AI briefing ──────────────────────────────────────
     print("[home-base] Generating briefing with Gemini...")
     data = generate_briefing(data)
-    print(f"  narrative          : {len(data.narrative)} chars")
-    print(f"  work-awareness     : {len(data.work_awareness_events)} events identified")
+    print(f"  narrative : {len(data.narrative)} chars")
+
+    # ── 3b. Determine work awareness events deterministically ─────────
+    data.work_awareness_events = _build_work_awareness_events(calendar_events, now)
+    print(f"  work-awareness : {len(data.work_awareness_events)} events")
 
     # ── 4. Publish ────────────────────────────────────────────────────
     print("[home-base] Publishing...")

@@ -8,7 +8,10 @@ Uses the Asana REST API directly via httpx (avoids SDK version churn).
 Auth: Personal Access Token stored as ASANA_PAT secret.
 """
 
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
+EASTERN = ZoneInfo("America/New_York")
 
 import httpx
 
@@ -22,13 +25,14 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {settings.asana_pat}"}
 
 
-def fetch_weekend_tasks() -> list[AsanaTask]:
+def fetch_week_tasks(week_end: date) -> list[AsanaTask]:
     """
-    Fetch all incomplete tasks assigned to me in the configured workspace.
-    Sorted by due date ascending (overdue/soonest first, no-due-date last).
+    Fetch incomplete tasks assigned to me that are past due, due today, or due
+    within the coming week (up to week_end). Tasks with no due date are excluded.
 
     'completed_since=now' returns only incomplete tasks (Asana API convention).
     """
+    today = datetime.now(tz=EASTERN).date()
     params: dict[str, str] = {
         "assignee": "me",
         "workspace": settings.asana_workspace_gid,
@@ -91,6 +95,9 @@ def fetch_weekend_tasks() -> list[AsanaTask]:
             else:
                 break
 
-    # Sort: overdue/soonest first, no due date at the end
-    tasks.sort(key=lambda t: t.due_on or date(9999, 12, 31))
+    # Keep only tasks that are past due, due today, or due within the week window
+    tasks = [t for t in tasks if t.due_on is not None and t.due_on <= week_end]
+
+    # Sort: overdue/soonest first
+    tasks.sort(key=lambda t: t.due_on)
     return tasks

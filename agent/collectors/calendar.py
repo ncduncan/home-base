@@ -48,31 +48,31 @@ def get_service(service_name: str, version: str):
     return build(service_name, version, credentials=load_credentials())
 
 
-def _is_amion_event(raw: dict) -> bool:
+AMION_CALENDAR_NAME = "Caitie Work"
+
+# AMION event titles to always skip
+_AMION_SKIP_TITLES = {"Vacation", "Leave"}
+
+
+def _is_amion_event(cal_name: str) -> bool:
+    """AMION shift events come from the 'Caitie Work' calendar subscription."""
+    return cal_name == AMION_CALENDAR_NAME
+
+
+def _should_skip_amion_event(raw: dict) -> bool:
     """
-    Detect AMION shift scheduling events.
-
-    ⚠️  AMION INTERPRETATION PENDING — see CLAUDE.md section "AMION Calendar Nuances"
-
-    AMION syncs to Google Calendar via an iCal subscription. Events typically have:
-    - Cryptic shift codes as titles (e.g., "J", "DAY", "CALL", "NIGHT", "ONC")
-    - All-day format for shift days
-    - A specific organizer/creator domain
-
-    This placeholder checks for "amion" in creator/organizer email or event title.
-    Update this logic once Nate explains the actual AMION event format, shift codes,
-    and which calendar the subscription appears under.
+    Filter out AMION events that should not appear in the briefing:
+    - Vacation / Leave events (not actionable shift info)
+    - All-day recurring events (these duplicate the timed 'Call'-prefixed shift events)
     """
-    title = raw.get("summary", "").lower()
-    creator = raw.get("creator", {}).get("email", "").lower()
-    organizer = raw.get("organizer", {}).get("email", "").lower()
-
-    return (
-        "amion" in creator
-        or "amion" in organizer
-        or "amion" in title
-        # TODO: add Nate's actual AMION calendar name / organizer domain once clarified
-    )
+    title = raw.get("summary", "")
+    if title in _AMION_SKIP_TITLES:
+        return True
+    start_raw = raw.get("start", {})
+    all_day = "date" in start_raw and "dateTime" not in start_raw
+    if all_day and raw.get("recurringEventId"):
+        return True
+    return False
 
 
 def _parse_event(raw: dict, cal_id: str, cal_name: str) -> CalendarEvent | None:
@@ -97,7 +97,7 @@ def _parse_event(raw: dict, cal_id: str, cal_name: str) -> CalendarEvent | None:
         all_day=all_day,
         calendar_id=cal_id,
         calendar_name=cal_name,
-        is_amion=_is_amion_event(raw),
+        is_amion=_is_amion_event(cal_name),
     )
 
 
@@ -134,6 +134,8 @@ def fetch_week_events(week_start: datetime, week_end: datetime) -> list[Calendar
             )
             for raw in result.get("items", []):
                 if raw.get("status") == "cancelled":
+                    continue
+                if _is_amion_event(cal_name) and _should_skip_amion_event(raw):
                     continue
                 event = _parse_event(raw, cal_id, cal_name)
                 if event:
