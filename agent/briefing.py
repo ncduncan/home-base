@@ -155,24 +155,39 @@ def generate_briefing(data: BriefingData) -> BriefingData:
         weather=_fmt_weather(data),
     )
 
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models"
-        f"/{settings.gemini_model}:generateContent"
-    )
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"maxOutputTokens": 2048},
     }
+
+    # Try primary model, then fall back to gemini-1.5-flash if still rate-limited.
+    models_to_try = [settings.gemini_model]
+    if settings.gemini_model != "gemini-1.5-flash":
+        models_to_try.append("gemini-1.5-flash")
+
+    resp = None
     with httpx.Client(timeout=60.0) as client:
-        for attempt, delay in enumerate([0, 30, 60, 120]):
-            if delay:
-                print(f"  [gemini] rate-limited; retrying in {delay}s (attempt {attempt + 1}/4)...")
-                time.sleep(delay)
-            resp = client.post(url, json=payload, params={"key": settings.gemini_api_key})
+        for model in models_to_try:
+            url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models"
+                f"/{model}:generateContent"
+            )
+            for attempt, default_delay in enumerate([0, 30, 60, 120]):
+                if default_delay:
+                    retry_after = int(resp.headers.get("Retry-After", default_delay))
+                    print(
+                        f"  [gemini/{model}] rate-limited; retrying in {retry_after}s"
+                        f" (attempt {attempt + 1}/4)..."
+                    )
+                    time.sleep(retry_after)
+                resp = client.post(url, json=payload, params={"key": settings.gemini_api_key})
+                if resp.status_code != 429:
+                    break
             if resp.status_code != 429:
                 break
-        resp.raise_for_status()
+            print(f"  [gemini/{model}] exhausted retries; trying fallback model...")
+    resp.raise_for_status()
 
     text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     result = _parse_response(text)
