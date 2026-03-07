@@ -11,6 +11,7 @@ Nathaniel.duncan@geaerospace.com, appearing directly in his M365/Outlook inbox.
 
 import json
 import re
+import time
 from datetime import datetime
 
 import httpx
@@ -164,7 +165,13 @@ def generate_briefing(data: BriefingData) -> BriefingData:
         "generationConfig": {"maxOutputTokens": 2048},
     }
     with httpx.Client(timeout=60.0) as client:
-        resp = client.post(url, json=payload, params={"key": settings.gemini_api_key})
+        for attempt, delay in enumerate([0, 30, 60, 120]):
+            if delay:
+                print(f"  [gemini] rate-limited; retrying in {delay}s (attempt {attempt + 1}/4)...")
+                time.sleep(delay)
+            resp = client.post(url, json=payload, params={"key": settings.gemini_api_key})
+            if resp.status_code != 429:
+                break
         resp.raise_for_status()
 
     text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]

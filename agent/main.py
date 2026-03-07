@@ -66,7 +66,7 @@ def main() -> None:
     )
 
     # ── 3. Generate AI briefing ──────────────────────────────────────
-    print("[home-base] Generating briefing with Claude...")
+    print("[home-base] Generating briefing with Gemini...")
     data = generate_briefing(data)
     print(f"  narrative          : {len(data.narrative)} chars")
     print(f"  work-awareness     : {len(data.work_awareness_events)} events identified")
