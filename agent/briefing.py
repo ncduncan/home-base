@@ -1,7 +1,7 @@
 """
 AI briefing generator.
 
-Sends all collected data to Claude (claude-sonnet-4-6) and receives:
+Sends all collected data to Gemini and receives:
   1. A warm, concise Sunday morning narrative for Nate
   2. A list of personal calendar events that warrant work awareness at GE Aerospace
 
@@ -13,7 +13,7 @@ import json
 import re
 from datetime import datetime
 
-from anthropic import Anthropic
+import httpx
 
 from agent.config import settings
 from agent.models import BriefingData, WorkAwarenessEvent
@@ -145,8 +145,6 @@ def generate_briefing(data: BriefingData) -> BriefingData:
     Mutates and returns the BriefingData object with narrative and
     work_awareness_events populated.
     """
-    client = Anthropic(api_key=settings.anthropic_api_key)
-
     prompt = BRIEFING_PROMPT.format(
         today=data.generated_at.strftime("%A, %B %-d, %Y"),
         week_start=data.week_start.strftime("%B %-d"),
@@ -156,14 +154,21 @@ def generate_briefing(data: BriefingData) -> BriefingData:
         weather=_fmt_weather(data),
     )
 
-    message = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=2048,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models"
+        f"/{settings.gemini_model}:generateContent"
     )
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 2048},
+    }
+    with httpx.Client(timeout=60.0) as client:
+        resp = client.post(url, json=payload, params={"key": settings.gemini_api_key})
+        resp.raise_for_status()
 
-    result = _parse_response(message.content[0].text)
+    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    result = _parse_response(text)
     data.narrative = result.get("narrative", "")
 
     work_events_raw = result.get("work_awareness_events") or []

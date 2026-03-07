@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     openweathermap_api_key: str
     weather_city: str = "Boston,MA,US"
 
-    # ── Anthropic / Claude ────────────────────────────────────────────────────
-    anthropic_api_key: str
-    anthropic_model: str = "claude-sonnet-4-6"
+    # ── Gemini ────────────────────────────────────────────────────────────────
+    gemini_api_key: str
+    gemini_model: str = "gemini-2.0-flash"
 
     # ── Email + Calendar ──────────────────────────────────────────────────────
     briefing_email_to: str = "ncduncan@gmail.com"

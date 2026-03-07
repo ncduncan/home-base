@@ -44,7 +44,7 @@ jobs:
 
           OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}
 
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
           # Hardcoded — not sensitive
           BRIEFING_EMAIL_TO: ncduncan@gmail.com

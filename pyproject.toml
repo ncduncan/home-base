@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Personal Sunday briefing agent for Nate Duncan"
 requires-python = ">=3.11"
 dependencies = [
-    "anthropic>=0.40",
     "google-api-python-client>=2.100",
     "google-auth-oauthlib>=1.2",
     "google-auth-httplib2>=0.2",
