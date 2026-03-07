@@ -18,7 +18,7 @@ It runs every Sunday morning via GitHub Actions and produces a smart weekly brie
 1. Reads personal Google Calendar events for the upcoming week
 2. Pulls incomplete Asana tasks that should be actioned before the weekend ends
 3. Fetches Boston, MA 7-day weather from OpenWeatherMap
-4. Sends all data to Claude (`claude-sonnet-4-6`) which writes a concise, friendly briefing narrative and identifies which personal appointments warrant work awareness
+4. Sends all data to Gemini (`gemini-2.0-flash`) which writes a concise, friendly briefing narrative and identifies which personal appointments warrant work awareness
 5. Sends an HTML briefing email to ncduncan@gmail.com via Gmail API
 6. Creates Google Calendar events (with invites to Nathaniel.duncan@geaerospace.com) for personal appointments that affect work availability — these land directly in Nate's M365/Outlook inbox and calendar
 
@@ -33,7 +33,7 @@ home-base/
 │   ├── main.py                             # Orchestrator: collect → brief → publish
 │   ├── config.py                           # pydantic-settings; reads all env vars
 │   ├── models.py                           # BriefingData and all Pydantic models
-│   ├── briefing.py                         # Claude AI: narrative + work event detection
+│   ├── briefing.py                         # Gemini AI: narrative + work event detection
 │   ├── collectors/
 │   │   ├── calendar.py                     # Google Calendar reader
 │   │   ├── asana.py                        # Asana tasks (httpx, no SDK)
@@ -128,7 +128,7 @@ it in his Google account security settings).
 | `ASANA_PAT` | Asana Personal Access Token | https://app.asana.com/0/my-apps |
 | `ASANA_WORKSPACE_GID` | Asana workspace numeric ID | From Asana URL or API |
 | `OPENWEATHERMAP_API_KEY` | OWM API key | https://openweathermap.org/api |
-| `ANTHROPIC_API_KEY` | Claude API key | https://console.anthropic.com/ |
+| `GEMINI_API_KEY` | Gemini API key | https://aistudio.google.com/app/apikey |
 
 **Hardcoded in workflow (not secrets, they're not sensitive):**
 - `BRIEFING_EMAIL_TO=ncduncan@gmail.com`
@@ -190,7 +190,7 @@ No changes needed to collectors, models, or the core briefing logic.
 | `agent/main.py` | Entrypoint; orchestrates collect → brief → publish |
 | `agent/config.py` | All env var definitions via `pydantic-settings` |
 | `agent/models.py` | `BriefingData`, `CalendarEvent`, `AsanaTask`, `WeatherDay`, `WorkAwarenessEvent` |
-| `agent/briefing.py` | Claude API call; fills `narrative` and `work_awareness_events` |
+| `agent/briefing.py` | Gemini API call; fills `narrative` and `work_awareness_events` |
 | `agent/collectors/calendar.py` | Google Calendar API; includes AMION detection placeholder |
 | `agent/collectors/asana.py` | Asana REST API via httpx; fetches incomplete tasks |
 | `agent/collectors/weather.py` | OpenWeatherMap; 7-day Boston forecast; falls back to 5-day |
