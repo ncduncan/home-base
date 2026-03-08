@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Home-Base</title>
+  <script>
+    // GitHub Pages SPA redirect: sends 404s back to index.html
+    // Encodes the path into a query param so the app can restore it.
+    var base = '/home-base';
+    var path = window.location.pathname.slice(base.length);
+    var search = window.location.search;
+    var hash = window.location.hash;
+    window.location.replace(
+      base + '/?p=' + encodeURIComponent(path + search) + hash
+    );
+  </script>
+</head>
+<body></body>
+</html>

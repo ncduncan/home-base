@@ -10,7 +10,7 @@ Read this before making any changes.
 **Home-Base** is a personal automation agent for Nathaniel Duncan (Nate).
 It runs every Sunday morning via GitHub Actions and produces a smart weekly briefing.
 
-**Owner:** Nate Duncan
+**Owner:** Nat Duncan
 **Personal Gmail:** ncduncan@gmail.com
 **Work email:** Nathaniel.duncan@geaerospace.com (GE Aerospace, Microsoft 365/Outlook)
 
@@ -26,23 +26,52 @@ It runs every Sunday morning via GitHub Actions and produces a smart weekly brie
 
 ## Architecture
 
+> **Current state (2026-03-08):** The project has been migrated to a web dashboard.
+> The `agent/` directory is dormant (not deleted). The Sunday cron is disabled.
+> See `PLAN.md` for the full implementation plan.
+
 ```
 home-base/
-├── .github/workflows/weekly_briefing.yml   # Cron: every Sunday 12:00 UTC
-├── agent/
-│   ├── main.py                             # Orchestrator: collect → brief → publish
-│   ├── config.py                           # pydantic-settings; reads all env vars
-│   ├── models.py                           # BriefingData and all Pydantic models
-│   ├── briefing.py                         # Gemini AI: narrative + work event detection
-│   ├── collectors/
-│   │   ├── calendar.py                     # Google Calendar reader
-│   │   ├── asana.py                        # Asana tasks (httpx, no SDK)
-│   │   └── weather.py                      # OpenWeatherMap 7-day forecast
-│   └── publishers/
-│       ├── email.py                        # Gmail API: send HTML briefing
-│       ├── calendar_invites.py             # Google Calendar: create work awareness events
-│       └── templates/briefing.html.j2      # Jinja2 HTML email template
-└── scripts/generate_token.py              # One-time local OAuth setup
+├── .github/workflows/
+│   ├── weekly_briefing.yml   # DORMANT — cron disabled, workflow_dispatch retained
+│   └── deploy.yml            # Builds web/ and deploys to GitHub Pages on push to main
+├── web/                      # React + Vite SPA (the active app)
+│   ├── src/
+│   │   ├── App.tsx           # Session routing (login ↔ dashboard)
+│   │   ├── lib/
+│   │   │   ├── supabase.ts   # Supabase client singleton
+│   │   │   └── calendar.ts   # Google Calendar API calls (direct from browser)
+│   │   ├── components/
+│   │   │   ├── Header.tsx    # User avatar + sign-out
+│   │   │   ├── CalendarView.tsx  # Upcoming week events
+│   │   │   └── TodoList.tsx  # Shared + private todo CRUD
+│   │   ├── pages/
+│   │   │   ├── LoginPage.tsx
+│   │   │   └── DashboardPage.tsx
+│   │   └── types/index.ts    # CalendarEvent, Todo interfaces
+│   └── vite.config.ts        # base: '/home-base/', Tailwind v4 plugin
+├── agent/                    # DORMANT — original Python briefing agent
+│   ├── main.py               # Orchestrator (unused)
+│   ├── briefing.py           # Gemini AI (unused)
+│   ├── collectors/           # calendar.py, asana.py, weather.py (unused)
+│   └── publishers/           # email.py, calendar_invites.py (unused)
+└── scripts/generate_token.py # One-time local OAuth setup (for agent, if re-enabled)
+```
+
+### Web App Stack
+- **Framework:** React 19 + Vite (static SPA)
+- **Auth:** Supabase Auth — Google OAuth; only ncduncan@gmail.com and caitante@gmail.com allowed
+- **Database:** Supabase Postgres — todos with shared/private visibility + Row Level Security
+- **Calendar:** Google Calendar REST API called directly from browser using `session.provider_token`
+- **Hosting:** GitHub Pages (deployed by `deploy.yml` on push to `main`)
+- **No server code required** — Supabase handles the OAuth callback
+
+### Web App Local Dev
+```bash
+cd web
+cp .env.example .env.local   # fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm install
+npm run dev                  # http://localhost:5173
 ```
 
 ### Key Design Principles

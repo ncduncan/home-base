@@ -1,11 +1,12 @@
 name: Home-Base Weekly Briefing
 
 on:
-  schedule:
-    # Every Sunday at 12:00 UTC = 7:00 AM EST / 8:00 AM EDT
-    - cron: '0 12 * * 0'
+  # schedule disabled 2026-03-08: replaced by the web dashboard (web/)
+  # To re-enable: uncomment the schedule block below
+  # schedule:
+  #   - cron: '0 12 * * 0'
   workflow_dispatch:
-    # Allow manual trigger for testing without waiting for Sunday
+    # Manual trigger retained for testing
 
 jobs:
   briefing:
