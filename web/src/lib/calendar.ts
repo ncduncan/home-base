@@ -8,8 +8,6 @@ export class CalendarAuthError extends Error {
   }
 }
 
-const AMION_CALENDAR_NAME = 'Caitie Work'
-
 async function getProviderToken(): Promise<string> {
   const { data } = await supabase.auth.getSession()
   let token = data.session?.provider_token
@@ -23,7 +21,7 @@ async function getProviderToken(): Promise<string> {
 
 // ── AMION helpers ──────────────────────────────────────────────────────────────
 
-type AmionType = 'skip' | 'vacation' | 'am' | 'pm' | 'backup' | 'call' | 'rotation'
+type AmionType = 'skip' | 'vacation' | 'am' | 'pm' | 'backup' | 'nc-pool' | 'nc-call' | 'call' | 'rotation'
 
 function classifyAmionTitle(title: string): AmionType {
   if (/^Week\s+\d/i.test(title)) return 'skip'
@@ -31,21 +29,19 @@ function classifyAmionTitle(title: string): AmionType {
   if (title.startsWith('AM:')) return 'am'
   if (title.startsWith('PM:')) return 'pm'
   if (title.includes('SC')) return 'backup'
+  if (/^Call:\s*NC-/i.test(title)) return 'nc-call'  // check before general NC-
+  if (/^NC-/i.test(title)) return 'nc-pool'           // NC- pool blocks: only shown with nc-call
   if (title.startsWith('Call:')) return 'call'
   return 'rotation'
 }
 
 function isWeekend(dateStr: string): boolean {
-  // Parse as local date using noon to avoid DST edge cases
-  const d = new Date(`${dateStr}T12:00:00`)
-  const day = d.getDay()
+  const day = new Date(`${dateStr}T12:00:00`).getDay()
   return day === 0 || day === 6
 }
 
 function localDT(dateStr: string, hours: number, minutes = 0): string {
-  const hh = String(hours).padStart(2, '0')
-  const mm = String(minutes).padStart(2, '0')
-  return `${dateStr}T${hh}:${mm}:00`
+  return `${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`
 }
 
 function nextDay(dateStr: string): string {
@@ -59,11 +55,7 @@ function getDateStr(e: Record<string, unknown>): string {
   return start.date ?? (start.dateTime ?? '').slice(0, 10)
 }
 
-function processAmionEvents(
-  rawItems: Array<Record<string, unknown>>,
-  calId: string,
-): CalendarEvent[] {
-  // Classify and group by date
+function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarEvent[] {
   const byDate = new Map<string, { type: AmionType; raw: Record<string, unknown> }[]>()
 
   for (const item of rawItems) {
@@ -87,10 +79,12 @@ function processAmionEvents(
     const backups   = entries.filter(e => e.type === 'backup')
     const ams       = entries.filter(e => e.type === 'am')
     const pms       = entries.filter(e => e.type === 'pm')
+    const ncCalls   = entries.filter(e => e.type === 'nc-call')
+    // nc-pool entries are intentionally ignored unless ncCalls is non-empty
 
     let emittedWorking = false
 
-    // 1. Vacation / Leave → all-day vacation block
+    // 1. Vacation / Leave
     if (vacations.length > 0) {
       results.push({
         id: `amion-vac-${dateStr}`,
@@ -99,14 +93,30 @@ function processAmionEvents(
         end: localDT(dateStr, 0),
         location: null,
         all_day: true,
-        calendar_name: calId,
+        calendar_name: 'Caitie Work',
         is_amion: true,
         amion_kind: 'vacation',
       })
       emittedWorking = true
     }
 
-    // 2. AM: half-day morning
+    // 2. Night call (Call: NC-X) → On Call 6pm–8am next day
+    if (ncCalls.length > 0) {
+      results.push({
+        id: `amion-nccall-${dateStr}`,
+        title: '',
+        start: localDT(dateStr, 18),
+        end: localDT(nextDay(dateStr), 8),
+        location: null,
+        all_day: false,
+        calendar_name: 'Caitie Work',
+        is_amion: true,
+        amion_kind: 'oncall',
+      })
+      emittedWorking = true
+    }
+
+    // 3. AM: half-day morning
     for (const e of ams) {
       results.push({
         id: (e.raw.id as string) ?? `amion-am-${dateStr}`,
@@ -115,14 +125,14 @@ function processAmionEvents(
         end: localDT(dateStr, 12),
         location: null,
         all_day: false,
-        calendar_name: calId,
+        calendar_name: 'Caitie Work',
         is_amion: true,
         amion_kind: 'working',
       })
       emittedWorking = true
     }
 
-    // 3. PM: half-day afternoon
+    // 4. PM: half-day afternoon
     for (const e of pms) {
       results.push({
         id: (e.raw.id as string) ?? `amion-pm-${dateStr}`,
@@ -131,18 +141,18 @@ function processAmionEvents(
         end: localDT(dateStr, 17),
         location: null,
         all_day: false,
-        calendar_name: calId,
+        calendar_name: 'Caitie Work',
         is_amion: true,
         amion_kind: 'working',
       })
       emittedWorking = true
     }
 
-    // 4. Rotation blocks
+    // 5. Regular rotation blocks (non-NC-prefixed)
     if (rotations.length > 0) {
       if (isWeekend(dateStr)) {
         if (calls.length > 0) {
-          // Weekend rotation + call → 24h On Call shift
+          // Weekend rotation + call → 24h on-call shift
           results.push({
             id: `amion-oncall-${dateStr}`,
             title: '',
@@ -150,15 +160,15 @@ function processAmionEvents(
             end: localDT(nextDay(dateStr), 8),
             location: null,
             all_day: false,
-            calendar_name: calId,
+            calendar_name: 'Caitie Work',
             is_amion: true,
             amion_kind: 'oncall',
           })
           emittedWorking = true
         }
-        // else: weekend rotation with no call → skip (she's off)
+        // else: weekend rotation, no call → off, emit nothing
       } else {
-        // Weekday rotation → standard shift
+        // Weekday rotation → standard 8–6 shift
         results.push({
           id: `amion-rot-${dateStr}`,
           title: '',
@@ -166,7 +176,7 @@ function processAmionEvents(
           end: localDT(dateStr, 18),
           location: null,
           all_day: false,
-          calendar_name: calId,
+          calendar_name: 'Caitie Work',
           is_amion: true,
           amion_kind: 'working',
         })
@@ -174,7 +184,7 @@ function processAmionEvents(
       }
     }
 
-    // 5. Standalone call (no rotation on this day) → she goes in
+    // 6. Standalone regular call (no rotation on this day)
     if (calls.length > 0 && rotations.length === 0 && !emittedWorking) {
       results.push({
         id: `amion-call-${dateStr}`,
@@ -183,14 +193,14 @@ function processAmionEvents(
         end: localDT(dateStr, 18),
         location: null,
         all_day: false,
-        calendar_name: calId,
+        calendar_name: 'Caitie Work',
         is_amion: true,
         amion_kind: 'working',
       })
       emittedWorking = true
     }
 
-    // 6. Backup (SC) — only if nothing working/oncall/vacation was emitted
+    // 7. Backup (SC) — only if nothing else was emitted
     if (backups.length > 0 && !emittedWorking) {
       results.push({
         id: `amion-backup-${dateStr}`,
@@ -199,7 +209,7 @@ function processAmionEvents(
         end: localDT(dateStr, 0),
         location: null,
         all_day: true,
-        calendar_name: calId,
+        calendar_name: 'Caitie Work',
         is_amion: true,
         amion_kind: 'backup',
       })
@@ -226,9 +236,11 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
     { headers: { Authorization: `Bearer ${token}` } }
   )
   if (!listResp.ok) throw new Error('Failed to fetch calendar list')
-  const { items: calendars = [] } = await listResp.json() as { items: Array<{ id: string; summary: string; selected?: boolean }> }
+  const { items: calendars = [] } = await listResp.json() as {
+    items: Array<{ id: string; summary: string; selected?: boolean }>
+  }
 
-  const results = await Promise.all(
+  const calendarData = await Promise.all(
     calendars
       .filter(cal => cal.selected !== false)
       .map(async cal => {
@@ -243,34 +255,42 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
           `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`,
           { headers: { Authorization: `Bearer ${token}` } }
         )
-        if (!resp.ok) return [] as CalendarEvent[]
-
+        if (!resp.ok) return { cal, items: [] as Array<Record<string, unknown>> }
         const { items = [] } = await resp.json() as { items: Array<Record<string, unknown>> }
-        const isAmion = cal.summary === AMION_CALENDAR_NAME
-
-        if (isAmion) {
-          return processAmionEvents(items, cal.summary)
-        }
-
-        return items
-          .filter(e => e.status !== 'cancelled')
-          .map(e => {
-            const start = e.start as Record<string, string> ?? {}
-            const end = e.end as Record<string, string> ?? {}
-            const allDay = 'date' in start && !('dateTime' in start)
-            return {
-              id: e.id as string,
-              title: (e.summary as string) ?? '(No title)',
-              start: allDay ? `${start.date}T00:00:00` : start.dateTime,
-              end: allDay ? `${end.date}T00:00:00` : end.dateTime,
-              location: (e.location as string) ?? null,
-              all_day: allDay,
-              calendar_name: cal.summary,
-              is_amion: false,
-            } as CalendarEvent
-          })
+        return { cal, items }
       })
   )
 
-  return results.flat().sort((a, b) => a.start.localeCompare(b.start))
+  // Detect AMION events by iCalUID (contains '@amion.com') — reliable regardless of calendar name
+  const amionItems: Array<Record<string, unknown>> = []
+  const regularEvents: CalendarEvent[] = []
+
+  for (const { cal, items } of calendarData) {
+    for (const item of items) {
+      const uid = (item.iCalUID as string) ?? ''
+      if (uid.includes('@amion.com')) {
+        amionItems.push(item)
+        continue
+      }
+      if (item.status === 'cancelled') continue
+      const title = (item.summary as string) ?? ''
+      if (/^Week\s+\d+\s+of/i.test(title)) continue  // skip "Week N of YYYY" globally
+      const start = item.start as Record<string, string> ?? {}
+      const end = item.end as Record<string, string> ?? {}
+      const allDay = 'date' in start && !('dateTime' in start)
+      regularEvents.push({
+        id: item.id as string,
+        title: title || '(No title)',
+        start: allDay ? `${start.date}T00:00:00` : start.dateTime,
+        end: allDay ? `${end.date}T00:00:00` : end.dateTime,
+        location: (item.location as string) ?? null,
+        all_day: allDay,
+        calendar_name: cal.summary,
+        is_amion: false,
+      })
+    }
+  }
+
+  const amionEvents = processAmionEvents(amionItems)
+  return [...regularEvents, ...amionEvents].sort((a, b) => a.start.localeCompare(b.start))
 }
