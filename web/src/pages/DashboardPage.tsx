@@ -1,13 +1,56 @@
+import { useEffect, useState, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import { fetchCalendarEvents, CalendarAuthError } from '../lib/calendar'
+import type { Session } from '@supabase/supabase-js'
+import type { Todo, CalendarEvent } from '../types'
 import Header from '../components/Header'
 import CalendarView from '../components/CalendarView'
 import TodoList from '../components/TodoList'
-import type { Session } from '@supabase/supabase-js'
 
 interface Props {
   session: Session
 }
 
 export default function DashboardPage({ session }: Props) {
+  // ── Todos ─────────────────────────────────────────────────────────────────
+  const [todos, setTodos] = useState<Todo[]>([])
+  const [todosLoading, setTodosLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('todos')
+      .select('*')
+      .order('completed', { ascending: true })
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setTodos(data as Todo[])
+        setTodosLoading(false)
+      })
+  }, [])
+
+  // ── Calendar events ────────────────────────────────────────────────────────
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [eventsLoading, setEventsLoading] = useState(true)
+  const [eventsError, setEventsError] = useState<string | null>(null)
+  const [eventsAuthError, setEventsAuthError] = useState(false)
+
+  const fetchEvents = useCallback(() => {
+    setEventsLoading(true)
+    setEventsError(null)
+    setEventsAuthError(false)
+    fetchCalendarEvents()
+      .then(setEvents)
+      .catch((e: unknown) => {
+        if (e instanceof CalendarAuthError) setEventsAuthError(true)
+        else setEventsError(e instanceof Error ? e.message : 'Failed to load calendar')
+      })
+      .finally(() => setEventsLoading(false))
+  }, [])
+
+  useEffect(() => { fetchEvents() }, [fetchEvents])
+
+  // ──────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       <Header session={session} />
@@ -19,7 +62,14 @@ export default function DashboardPage({ session }: Props) {
             <div className="px-4 py-3 border-b border-gray-100">
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">This Week</h2>
             </div>
-            <CalendarView />
+            <CalendarView
+              events={events}
+              loading={eventsLoading}
+              error={eventsError}
+              authError={eventsAuthError}
+              onRefresh={fetchEvents}
+              todos={todos}
+            />
           </div>
 
           {/* Todos panel */}
@@ -27,7 +77,12 @@ export default function DashboardPage({ session }: Props) {
             <div className="px-4 py-3 border-b border-gray-100">
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">To Do</h2>
             </div>
-            <TodoList session={session} />
+            <TodoList
+              session={session}
+              todos={todos}
+              loading={todosLoading}
+              onSetTodos={setTodos}
+            />
           </div>
 
         </div>

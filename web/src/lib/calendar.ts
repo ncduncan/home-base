@@ -1,6 +1,13 @@
 import { supabase } from './supabase'
 import type { CalendarEvent } from '../types'
 
+export class CalendarAuthError extends Error {
+  constructor() {
+    super('Google calendar token expired — please sign out and sign back in')
+    this.name = 'CalendarAuthError'
+  }
+}
+
 const AMION_CALENDAR_NAME = 'Caitie Work'
 const SKIP_TITLES = new Set(['Vacation', 'Leave'])
 
@@ -11,7 +18,7 @@ async function getProviderToken(): Promise<string> {
     const { data: refreshed } = await supabase.auth.refreshSession()
     token = refreshed.session?.provider_token
   }
-  if (!token) throw new Error('No Google access token — please sign in again')
+  if (!token) throw new CalendarAuthError()
   return token
 }
 
@@ -78,5 +85,25 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
       })
   )
 
-  return results.flat().sort((a, b) => a.start.localeCompare(b.start))
+  const sorted = results.flat().sort((a, b) => a.start.localeCompare(b.start))
+
+  // Cache events in Supabase for TRMNL e-ink display (fire and forget)
+  void supabase.from('calendar_cache').upsert(
+    sorted.map(e => ({
+      id: e.id,
+      title: e.title,
+      start_time: e.start,
+      end_time: e.end,
+      all_day: e.all_day,
+      location: e.location,
+      calendar_name: e.calendar_name,
+      is_amion: e.is_amion,
+      cached_at: new Date().toISOString(),
+    })),
+    { onConflict: 'id' }
+  )
+  // Prune past events
+  void supabase.from('calendar_cache').delete().lt('start_time', new Date().toISOString())
+
+  return sorted
 }
