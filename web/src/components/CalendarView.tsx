@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react'
-import { format, parseISO, isSameDay } from 'date-fns'
-import { RefreshCw } from 'lucide-react'
+import { format, parseISO, isSameDay, addDays, startOfToday } from 'date-fns'
+import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { CalendarEvent, Todo } from '../types'
+import { wmoToIcon } from '../lib/weather'
+import type { CalendarEvent, Todo, WeatherDay } from '../types'
 
 interface Props {
   events: CalendarEvent[]
@@ -13,44 +14,125 @@ interface Props {
   authError: boolean
   onRefresh: () => void
   todos: Todo[]
+  weather: WeatherDay[]
+  weekOffset: number
+  onWeekChange: (delta: number) => void
 }
 
-export default function CalendarView({ events, loading, error, authError, onRefresh, todos }: Props) {
+function amionBadge(kind: CalendarEvent['amion_kind']) {
+  switch (kind) {
+    case 'working':  return <Badge className="text-xs border-0 py-0 bg-teal-100 text-teal-700">Working</Badge>
+    case 'oncall':   return <Badge className="text-xs border-0 py-0 bg-orange-100 text-orange-700">On Call</Badge>
+    case 'backup':   return <Badge className="text-xs border-0 py-0 bg-gray-100 text-gray-500">Backup</Badge>
+    case 'vacation': return <Badge className="text-xs border-0 py-0 bg-purple-100 text-purple-700">Vacation</Badge>
+    default:         return <Badge variant="secondary" className="text-xs border-0 py-0">AMION</Badge>
+  }
+}
+
+function formatAmionTime(event: CalendarEvent): string {
+  if (event.all_day) return 'all day'
+  const start = parseISO(event.start)
+  const end = parseISO(event.end)
+  // Check if end is next day (on-call)
+  const startDate = event.start.slice(0, 10)
+  const endDate = event.end.slice(0, 10)
+  if (startDate !== endDate) {
+    return `${format(start, 'h a')}–${format(end, 'h a')} +1`
+  }
+  return `${format(start, 'h')}–${format(end, 'h a')}`
+}
+
+function weekLabel(weekOffset: number): string {
+  if (weekOffset === 0) return 'This Week'
+  const start = addDays(startOfToday(), weekOffset * 7)
+  const end = addDays(start, 6)
+  if (start.getMonth() === end.getMonth()) {
+    return `${format(start, 'MMM d')}–${format(end, 'd')}`
+  }
+  return `${format(start, 'MMM d')}–${format(end, 'MMM d')}`
+}
+
+export default function CalendarView({
+  events, loading, error, authError, onRefresh, todos,
+  weather, weekOffset, onWeekChange,
+}: Props) {
   const [refreshing, setRefreshing] = useState(false)
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     onRefresh()
-    // Give a brief spin animation
     setTimeout(() => setRefreshing(false), 1200)
   }, [onRefresh])
 
-  if (loading) return <div className="p-4 text-gray-400 text-sm">Loading calendar...</div>
+  const weatherByDate = new Map(weather.map(w => [w.date, w]))
+
+  // ── Header (always shown) ─────────────────────────────────────────────────
+  const header = (
+    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <button
+        onClick={() => onWeekChange(-1)}
+        className="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
+        aria-label="Previous week"
+      >
+        <ChevronLeft size={15} />
+      </button>
+      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
+        {weekLabel(weekOffset)}
+      </h2>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => void handleRefresh()}
+          disabled={refreshing}
+          className="text-gray-300 hover:text-gray-500 transition-colors disabled:opacity-40"
+          aria-label="Refresh calendar"
+        >
+          <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+        </button>
+        <button
+          onClick={() => onWeekChange(1)}
+          className="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
+          aria-label="Next week"
+        >
+          <ChevronRight size={15} />
+        </button>
+      </div>
+    </div>
+  )
+
+  if (loading) return <div>{header}<div className="p-4 text-gray-400 text-sm">Loading calendar...</div></div>
 
   if (authError) {
     return (
-      <div className="p-4 space-y-2">
-        <p className="text-sm text-amber-600">
-          Calendar session expired. Sign out and back in to refresh.
-        </p>
-        <Button variant="outline" size="sm" onClick={() => void supabase.auth.signOut()}>
-          Sign out
-        </Button>
+      <div>
+        {header}
+        <div className="p-4 space-y-2">
+          <p className="text-sm text-amber-600">
+            Calendar session expired. Sign out and back in to refresh.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void supabase.auth.signOut()}>
+            Sign out
+          </Button>
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="p-4 space-y-2">
-        <p className="text-red-500 text-sm">{error}</p>
-        <Button variant="outline" size="sm" onClick={handleRefresh}>Retry</Button>
+      <div>
+        {header}
+        <div className="p-4 space-y-2">
+          <p className="text-red-500 text-sm">{error}</p>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>Retry</Button>
+        </div>
       </div>
     )
   }
 
-  if (!events.length && !todos.some(t => !t.completed && t.due_date)) {
-    return <div className="p-4 text-gray-400 text-sm">Nothing on the calendar this week.</div>
+  const incompleteTodosWithDue = todos.filter(t => !t.completed && t.due_date)
+
+  if (!events.length && !incompleteTodosWithDue.length) {
+    return <div>{header}<div className="p-4 text-gray-400 text-sm">Nothing on the calendar this week.</div></div>
   }
 
   // Group events by day
@@ -63,7 +145,6 @@ export default function CalendarView({ events, loading, error, authError, onRefr
   }
 
   // Also collect days that only have todos (no events)
-  const incompleteTodosWithDue = todos.filter(t => !t.completed && t.due_date)
   for (const todo of incompleteTodosWithDue) {
     const d = parseISO(todo.due_date!)
     if (!days.find(g => isSameDay(g.date, d))) {
@@ -74,26 +155,25 @@ export default function CalendarView({ events, loading, error, authError, onRefr
 
   return (
     <div>
-      {/* Refresh button */}
-      <div className="flex justify-end px-4 py-1">
-        <button
-          onClick={() => void handleRefresh()}
-          disabled={refreshing}
-          className="text-gray-300 hover:text-gray-500 transition-colors disabled:opacity-40"
-          aria-label="Refresh calendar"
-        >
-          <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-        </button>
-      </div>
+      {header}
 
       {days.map(({ date, events: dayEvents }) => {
         const dayDateStr = format(date, 'yyyy-MM-dd')
         const dayTodos = incompleteTodosWithDue.filter(t => t.due_date === dayDateStr)
+        const wx = weatherByDate.get(dayDateStr)
 
         return (
           <div key={date.toISOString()} className="border-b border-gray-50 last:border-0">
-            <div className="px-4 py-2 bg-gray-50/60 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {format(date, 'EEEE, MMM d')}
+            <div className="px-4 py-2 bg-gray-50/60 flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                {format(date, 'EEEE, MMM d')}
+              </span>
+              {wx && (
+                <span className="text-xs text-gray-400 flex items-center gap-1">
+                  <span>{wmoToIcon(wx.weatherCode)}</span>
+                  <span>{wx.tempMin}–{wx.tempMax}°F</span>
+                </span>
+              )}
             </div>
 
             {/* Calendar events */}
@@ -102,18 +182,20 @@ export default function CalendarView({ events, loading, error, authError, onRefr
                 {dayEvents.map(event => (
                   <li key={event.id} className="flex gap-3 px-4 py-2.5 items-start hover:bg-gray-50/50">
                     <div className="w-16 shrink-0 text-xs text-gray-400 pt-0.5">
-                      {event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
+                      {event.is_amion
+                        ? formatAmionTime(event)
+                        : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-gray-900">{event.title}</span>
-                        {event.is_amion && (
-                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border-0 py-0">
-                            AMION
-                          </Badge>
+                        {!event.is_amion && (
+                          <span className="text-sm text-gray-900">{event.title}</span>
                         )}
+                        {event.is_amion
+                          ? amionBadge(event.amion_kind)
+                          : null}
                       </div>
-                      {event.location && (
+                      {event.location && !event.is_amion && (
                         <div className="text-xs text-gray-400 mt-0.5 truncate">{event.location}</div>
                       )}
                     </div>
@@ -142,4 +224,3 @@ export default function CalendarView({ events, loading, error, authError, onRefr
     </div>
   )
 }
-

@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchCalendarEvents, CalendarAuthError } from '../lib/calendar'
+import { fetchWeatherForecast } from '../lib/weather'
 import type { Session } from '@supabase/supabase-js'
-import type { Todo, CalendarEvent } from '../types'
+import type { Todo, CalendarEvent, WeatherDay } from '../types'
 import Header from '../components/Header'
 import CalendarView from '../components/CalendarView'
 import TodoList from '../components/TodoList'
@@ -34,12 +35,13 @@ export default function DashboardPage({ session }: Props) {
   const [eventsLoading, setEventsLoading] = useState(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
   const [eventsAuthError, setEventsAuthError] = useState(false)
+  const [weekOffset, setWeekOffset] = useState(0)
 
-  const fetchEvents = useCallback(() => {
+  const fetchEvents = useCallback((offset: number) => {
     setEventsLoading(true)
     setEventsError(null)
     setEventsAuthError(false)
-    fetchCalendarEvents()
+    fetchCalendarEvents(offset)
       .then(setEvents)
       .catch((e: unknown) => {
         if (e instanceof CalendarAuthError) setEventsAuthError(true)
@@ -48,7 +50,14 @@ export default function DashboardPage({ session }: Props) {
       .finally(() => setEventsLoading(false))
   }, [])
 
-  useEffect(() => { fetchEvents() }, [fetchEvents])
+  useEffect(() => { fetchEvents(weekOffset) }, [fetchEvents, weekOffset])
+
+  // ── Weather ────────────────────────────────────────────────────────────────
+  const [weather, setWeather] = useState<WeatherDay[]>([])
+
+  useEffect(() => {
+    fetchWeatherForecast().then(setWeather).catch(() => {/* non-critical */})
+  }, [])
 
   // ──────────────────────────────────────────────────────────────────────────
   return (
@@ -59,16 +68,16 @@ export default function DashboardPage({ session }: Props) {
 
           {/* Calendar panel */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">This Week</h2>
-            </div>
             <CalendarView
               events={events}
               loading={eventsLoading}
               error={eventsError}
               authError={eventsAuthError}
-              onRefresh={fetchEvents}
+              onRefresh={() => fetchEvents(weekOffset)}
               todos={todos}
+              weather={weather}
+              weekOffset={weekOffset}
+              onWeekChange={delta => setWeekOffset(o => o + delta)}
             />
           </div>
 

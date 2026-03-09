@@ -18,4 +18,12 @@ export interface CalendarEvent {
   all_day: boolean
   calendar_name: string
   is_amion: boolean
+  amion_kind?: 'working' | 'oncall' | 'backup' | 'vacation'
+}
+
+export interface WeatherDay {
+  date: string        // 'YYYY-MM-DD'
+  weatherCode: number // WMO weather interpretation code
+  tempMin: number     // °F
+  tempMax: number     // °F
 }
