@@ -1,154 +1,105 @@
 # Home-Base
 
-Personal Sunday morning briefing agent for Nat Duncan.
+Personal dashboard and weekly briefing agent for Nat and Caitie.
 
-Runs every Sunday at ~7–8am ET via GitHub Actions. Reads your Google Calendar,
-Asana tasks, and Boston weather, then uses Claude AI to write a friendly briefing
-email — and fires Google Calendar invites to your work Outlook inbox for any
-personal appointments your GE Aerospace colleagues should know about.
+**Live dashboard:** https://ncduncan.github.io/home-base/
 
 ---
 
-## What You Get Each Sunday
+## What it is
 
-1. **HTML email** → `ncduncan@gmail.com`
-   - AI-written narrative: week at a glance, urgent tasks, weather highlights
-   - Full calendar table (Mon–Sun)
-   - Asana tasks due before the weekend ends (color-coded by urgency)
-   - Boston 7-day weather forecast
+Two things in one repo:
 
-2. **Outlook calendar invites** → `Nathaniel.duncan@geaerospace.com`
-   - Claude identifies personal events that affect work availability
-   - Events appear directly in M365/Outlook — no M365 API needed
+### 1. Web Dashboard (active)
+A private React SPA deployed to GitHub Pages. Shows:
+- **Google Calendar** — current week's events with AMION shift badges
+- **Asana Tasks** — everything past due, due today, or due this week; create / edit / complete / delete / reassign between Nat and Caitie
+- **Weather** — 7-day Boston forecast inline with each calendar day
+
+Access restricted to `ncduncan@gmail.com` and `caitante@gmail.com` via Google OAuth.
+
+### 2. Sunday Briefing Agent (dormant)
+A Python agent that runs via GitHub Actions cron. Reads Google Calendar, Asana tasks, and Boston weather → feeds it to Gemini → sends an HTML email briefing to `ncduncan@gmail.com` and fires Google Calendar invites to `Nathaniel.duncan@geaerospace.com` for personal events affecting work availability.
 
 ---
 
-## One-Time Setup
+## Repository structure
 
-### 1. Google Cloud Project
-
-1. Go to [console.cloud.google.com](https://console.cloud.google.com/)
-2. Create a project (e.g., `home-base`)
-3. Enable these APIs:
-   - **Google Calendar API**
-   - **Gmail API**
-4. Go to **Credentials → Create Credentials → OAuth 2.0 Client ID**
-   - Application type: **Desktop app**
-5. Download the JSON → save as `client_secret.json` in the project root
-
-### 2. Generate the OAuth Token (run once on your laptop)
-
-```bash
-pip install -e .
-python scripts/generate_token.py
+```
+home-base/
+├── web/                        # React + Vite SPA (active)
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── pages/              # LoginPage, DashboardPage
+│   │   ├── components/         # CalendarView, AsanaTaskList, Header
+│   │   ├── lib/                # asana.ts, calendar.ts, weather.ts, supabase.ts
+│   │   └── types/index.ts
+│   └── vite.config.ts
+├── agent/                      # Python briefing agent (dormant)
+│   ├── main.py
+│   ├── collectors/             # calendar.py, asana.py, weather.py
+│   └── publishers/             # email.py, calendar_invites.py
+├── .github/workflows/
+│   ├── deploy.yml              # Builds web/ → GitHub Pages on push to main
+│   └── weekly_briefing.yml     # DORMANT — Sunday cron (workflow_dispatch retained)
+└── scripts/
+    └── generate_token.py       # One-time Google OAuth setup (for agent)
 ```
 
-A browser tab opens → log in as **ncduncan@gmail.com** → grant permissions.
-This writes `token.json` to the project root.
+---
 
-### 3. Encode and Store as GitHub Secret
+## Web Dashboard — Setup
+
+### Local dev
 
 ```bash
-# Linux:
-base64 -w 0 token.json
-
-# macOS:
-base64 -i token.json
+cd web
+cp .env.example .env.local   # fill in values
+npm install
+npm run dev                  # http://localhost:5173
 ```
 
-Copy the output. In your GitHub repo:
-**Settings → Secrets and variables → Actions → New repository secret**
+### Environment variables
 
-| Secret name | Value |
+| Variable | Where to get it |
 |---|---|
-| `GOOGLE_OAUTH_TOKEN` | base64 of `token.json` |
-| `ASANA_PAT` | Your [Asana Personal Access Token](https://app.asana.com/0/my-apps) |
-| `ASANA_WORKSPACE_GID` | Your Asana workspace ID (see below) |
-| `OPENWEATHERMAP_API_KEY` | [OpenWeatherMap API key](https://openweathermap.org/api) (free tier works) |
-| `ANTHROPIC_API_KEY` | Your [Claude API key](https://console.anthropic.com/) |
+| `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
+| `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
+| `VITE_ASANA_PAT` | https://app.asana.com/0/my-apps |
+| `VITE_ASANA_WORKSPACE_GID` | Your Asana workspace GID |
 
-**Finding your Asana workspace GID:**
-```bash
-curl -H "Authorization: Bearer YOUR_ASANA_PAT" \
-     https://app.asana.com/api/1.0/workspaces
-```
+### GitHub Actions secrets (for deploy)
 
-### 4. Test It
+| Secret | Value |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
+| `ASANA_PAT` | Asana Personal Access Token |
+| `ASANA_WORKSPACE_GID` | Asana workspace GID |
 
-Trigger a manual run without waiting for Sunday:
-
-**GitHub → Actions → "Home-Base Weekly Briefing" → Run workflow**
+Pushes to `main` that touch `web/**` auto-deploy to GitHub Pages.
 
 ---
 
-## Running Locally
+## Briefing Agent — Setup (if re-enabling)
+
+### GitHub Actions secrets
+
+| Secret | Where to get it |
+|---|---|
+| `GOOGLE_OAUTH_TOKEN` | Run `python scripts/generate_token.py`, then `base64 -w 0 token.json` |
+| `ASANA_PAT` | https://app.asana.com/0/my-apps |
+| `ASANA_WORKSPACE_GID` | `curl -H "Authorization: Bearer YOUR_PAT" https://app.asana.com/api/1.0/workspaces` |
+| `OPENWEATHERMAP_API_KEY` | https://openweathermap.org/api (free tier) |
+| `GEMINI_API_KEY` | https://aistudio.google.com/app/apikey |
+
+### Run locally
 
 ```bash
-# Install
 pip install -e ".[dev]"
-
-# Create .env from template
-cp .env.example .env
-# Edit .env — fill in ASANA_PAT, OPENWEATHERMAP_API_KEY, ANTHROPIC_API_KEY
-# Set GOOGLE_TOKEN_PATH=token.json (if you ran generate_token.py)
-# Keep BRIEFING_DRY_RUN=true while testing
-
-# Dry run (prints briefing, skips email + calendar invites)
-BRIEFING_DRY_RUN=true python -m agent.main
-
-# Real run
-python -m agent.main
+cp .env.example .env        # fill in credentials
+BRIEFING_DRY_RUN=true python -m agent.main   # prints briefing, skips email/calendar
+python -m agent.main                          # real run
 ```
 
----
-
-## Architecture
-
-```
-agent/
-├── main.py                    # Orchestrator
-├── config.py                  # All env vars (pydantic-settings)
-├── models.py                  # BriefingData + supporting models
-├── briefing.py                # Claude AI: narrative + work event detection
-├── collectors/
-│   ├── calendar.py            # Google Calendar reader
-│   ├── asana.py               # Asana REST API (httpx)
-│   └── weather.py             # OpenWeatherMap (OneCall + 5-day fallback)
-└── publishers/
-    ├── email.py               # Gmail API sender
-    ├── calendar_invites.py    # Google Calendar invite creator
-    └── templates/
-        └── briefing.html.j2   # Jinja2 HTML email template
-
-scripts/
-└── generate_token.py          # One-time local OAuth setup
-
-.github/workflows/
-└── weekly_briefing.yml        # Cron: Sunday 12:00 UTC
-```
-
----
-
-## AMION Calendar (Pending Clarification)
-
-Nat's calendar includes AMION shift scheduling events. These are currently
-detected by a placeholder heuristic and flagged with `[AMION]` in the briefing.
-
-**TODO:** Nat needs to explain the AMION event format. See `CLAUDE.md` →
-"AMION Calendar Nuances" for the full list of questions.
-
-Once clarified, update:
-- `agent/collectors/calendar.py` → `_is_amion_event()`
-- `agent/briefing.py` → `SYSTEM_PROMPT`
-
----
-
-## Future: E-Ink Display
-
-The `BriefingData` model is JSON-serializable. To add e-ink display support:
-
-1. Set `EINK_ENABLED=true` and `EINK_OUTPUT_PATH=/path/to/briefing.json` in the workflow
-2. The agent writes the full structured briefing to that path after publishing
-3. Add `agent/publishers/eink.py` to render a PNG or custom format for your display
-
-No changes needed to collectors, models, or the core briefing logic.
+Re-enable the cron by restoring the `schedule:` trigger in `.github/workflows/weekly_briefing.yml`.

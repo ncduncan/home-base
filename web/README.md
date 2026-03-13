@@ -1,73 +1,89 @@
-# React + TypeScript + Vite
+# Home-Base Web App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Personal dashboard for Nat and Caitie — calendar, Asana tasks, and weather in one place.
 
-Currently, two official plugins are available:
+**Live:** https://ncduncan.github.io/home-base/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## What it does
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Calendar** — shows the current week's Google Calendar events, including AMION shift badges
+- **Tasks** — live Asana task list showing everything past due, due today, or due in the next 7 days; supports create, edit, complete, delete, and reassign between Nat and Caitie
+- **Weather** — 7-day Boston forecast inline with each calendar day
 
-## Expanding the ESLint configuration
+Access is restricted to `ncduncan@gmail.com` and `caitante@gmail.com` via Google OAuth.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Stack
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+| Layer | Technology |
+|---|---|
+| Framework | React 19 + Vite (static SPA) |
+| Auth | Supabase Auth — Google OAuth |
+| Tasks | Asana REST API (direct from browser) |
+| Calendar | Google Calendar REST API (via Supabase `provider_token`) |
+| Weather | Open-Meteo (free, no key required) |
+| Hosting | GitHub Pages (deployed on push to `main`) |
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+---
+
+## Local Development
+
+```bash
+cd web
+cp .env.example .env.local   # fill in values (see below)
+npm install
+npm run dev                  # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Required environment variables
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Variable | Where to get it |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
+| `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
+| `VITE_ASANA_PAT` | https://app.asana.com/0/my-apps → Personal Access Token |
+| `VITE_ASANA_WORKSPACE_GID` | Your Asana workspace GID |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+`.env.local` is gitignored — never commit real credentials.
+
+---
+
+## Deployment
+
+Pushes to `main` that touch `web/**` automatically trigger the GitHub Actions deploy workflow, which builds the Vite app and publishes it to GitHub Pages.
+
+### Required GitHub Actions secrets
+
+| Secret | Value |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
+| `ASANA_PAT` | Asana Personal Access Token |
+| `ASANA_WORKSPACE_GID` | Asana workspace GID |
+
+Set these at: **GitHub → repo Settings → Secrets and variables → Actions**
+
+---
+
+## Project structure
+
+```
+web/src/
+├── App.tsx                   # Auth state, login ↔ dashboard routing
+├── pages/
+│   ├── LoginPage.tsx         # Google OAuth sign-in
+│   └── DashboardPage.tsx     # Main page — orchestrates all data fetching
+├── components/
+│   ├── Header.tsx            # Avatar + sign-out
+│   ├── CalendarView.tsx      # Weekly calendar with AMION badges + weather
+│   └── AsanaTaskList.tsx     # Task panel (Overdue / Due Today / This Week)
+├── lib/
+│   ├── supabase.ts           # Supabase client
+│   ├── asana.ts              # Asana REST API client
+│   ├── calendar.ts           # Google Calendar API + AMION shift parsing
+│   └── weather.ts            # Open-Meteo API + WMO icon mapping
+└── types/index.ts            # AsanaTask, CalendarEvent, WeatherDay interfaces
 ```
