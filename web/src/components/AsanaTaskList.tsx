@@ -27,7 +27,7 @@ const AVATAR_COLORS = [
 ]
 function avatarColor(name: string) {
   const first = name.split(' ')[0].toLowerCase()
-  if (first === 'nat') return 'bg-blue-600 text-white'
+  if (first === 'nat') return 'bg-slate-600 text-white'
   if (first.startsWith('cait')) return 'bg-yellow-100 text-yellow-800'
   let hash = 0
   for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff

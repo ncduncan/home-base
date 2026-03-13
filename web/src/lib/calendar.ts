@@ -226,6 +226,8 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
 
   const now = new Date()
   now.setHours(0, 0, 0, 0)
+  // Snap to the most recent Sunday so the week is always Sun–Sat
+  now.setDate(now.getDate() - now.getDay())
   const timeMin = new Date(now)
   timeMin.setDate(timeMin.getDate() + weekOffset * 7)
   const timeMax = new Date(timeMin)

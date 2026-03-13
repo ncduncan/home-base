@@ -44,12 +44,13 @@ function formatAmionTime(event: CalendarEvent): string {
 
 function weekLabel(weekOffset: number): string {
   if (weekOffset === 0) return 'This Week'
-  const start = addDays(startOfToday(), weekOffset * 7)
-  const end = addDays(start, 6)
-  if (start.getMonth() === end.getMonth()) {
-    return `${format(start, 'MMM d')}–${format(end, 'd')}`
+  const today = startOfToday()
+  const sunday = addDays(today, -today.getDay() + weekOffset * 7)
+  const saturday = addDays(sunday, 6)
+  if (sunday.getMonth() === saturday.getMonth()) {
+    return `${format(sunday, 'MMM d')}–${format(saturday, 'd')}`
   }
-  return `${format(start, 'MMM d')}–${format(end, 'MMM d')}`
+  return `${format(sunday, 'MMM d')}–${format(saturday, 'MMM d')}`
 }
 
 export default function CalendarView({
@@ -129,7 +130,8 @@ export default function CalendarView({
     )
   }
 
-  const incompleteTasksWithDue = tasks.filter((t: AsanaTask) => !t.completed && t.due_on)
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const incompleteTasksWithDue = tasks.filter((t: AsanaTask) => !t.completed && t.due_on && t.due_on >= today)
 
   if (!events.length && !incompleteTasksWithDue.length) {
     return <div>{header}<div className="p-4 text-gray-400 text-sm">Nothing on the calendar this week.</div></div>
