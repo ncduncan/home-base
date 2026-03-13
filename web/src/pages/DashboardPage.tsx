@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { fetchCalendarEvents, CalendarAuthError } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
-import { fetchMyTasks } from '../lib/asana'
+import { fetchTasks } from '../lib/asana'
 import type { Session } from '@supabase/supabase-js'
 import type { AsanaTask, CalendarEvent, WeatherDay } from '../types'
 import Header from '../components/Header'
@@ -18,7 +18,7 @@ export default function DashboardPage({ session }: Props) {
   const [tasksLoading, setTasksLoading] = useState(true)
 
   useEffect(() => {
-    fetchMyTasks()
+    fetchTasks()
       .then(setTasks)
       .catch(() => {/* show empty on error */})
       .finally(() => setTasksLoading(false))
@@ -82,7 +82,7 @@ export default function DashboardPage({ session }: Props) {
               <button
                 onClick={() => {
                   setTasksLoading(true)
-                  fetchMyTasks().then(setTasks).catch(() => {}).finally(() => setTasksLoading(false))
+                  fetchTasks().then(setTasks).catch(() => {}).finally(() => setTasksLoading(false))
                 }}
                 className="text-xs text-gray-400 hover:text-gray-600"
                 title="Refresh tasks"

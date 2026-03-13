@@ -1,4 +1,4 @@
-import { format, addDays } from 'date-fns'
+import { format, addDays, subDays } from 'date-fns'
 import type { AsanaTask, AsanaUser } from '../types'
 
 const BASE = 'https://app.asana.com/api/1.0'
@@ -56,6 +56,7 @@ function parseTask(raw: any): AsanaTask {
     name: raw.name as string,
     due_on: (raw.due_on as string | null) ?? null,
     completed: raw.completed as boolean,
+    completed_at: (raw.completed_at as string | null) ?? null,
     assignee: raw.assignee
       ? { gid: raw.assignee.gid as string, name: raw.assignee.name as string }
       : null,
@@ -64,17 +65,16 @@ function parseTask(raw: any): AsanaTask {
   }
 }
 
-export async function fetchMyTasks(): Promise<AsanaTask[]> {
-  const cutoff = format(addDays(new Date(), 7), 'yyyy-MM-dd')
+async function fetchTasksForUser(userGid: string, completedSince: string): Promise<AsanaTask[]> {
   const all: AsanaTask[] = []
   let offset: string | null = null
 
   do {
     const params = new URLSearchParams({
-      assignee: 'me',
+      assignee: userGid,
       workspace: workspaceGid,
-      completed_since: 'now',
-      opt_fields: 'gid,name,due_on,completed,assignee.gid,assignee.name,memberships.project.name,notes',
+      completed_since: completedSince,
+      opt_fields: 'gid,name,due_on,completed,completed_at,assignee.gid,assignee.name,memberships.project.name,notes',
       limit: '100',
     })
     if (offset) params.set('offset', offset)
@@ -88,8 +88,47 @@ export async function fetchMyTasks(): Promise<AsanaTask[]> {
     offset = json.next_page?.offset ?? null
   } while (offset)
 
-  // Filter: only tasks with a due date on or before today+7
-  return all.filter(t => t.due_on !== null && t.due_on <= cutoff)
+  return all
+}
+
+/**
+ * Fetches tasks for all allowed users.
+ * Returns:
+ *   - Incomplete tasks with due_on ≤ today+7 (past due, today, this week)
+ *   - Tasks completed within the last 7 days (for the "recently completed" section)
+ */
+export async function fetchTasks(): Promise<AsanaTask[]> {
+  const allowedEmails = (import.meta.env.VITE_ALLOWED_EMAILS as string ?? '')
+    .split(',').map(e => e.trim()).filter(Boolean)
+
+  const allUsers = await fetchWorkspaceUsers()
+  const users = allowedEmails.length > 0
+    ? allUsers.filter(u => allowedEmails.includes(u.email))
+    : allUsers
+
+  const userGids = users.map(u => u.gid)
+  if (userGids.length === 0) userGids.push('me')
+
+  const cutoff = format(addDays(new Date(), 7), 'yyyy-MM-dd')
+  const sevenDaysAgo = subDays(new Date(), 7).toISOString()
+
+  const seen = new Set<string>()
+  const all: AsanaTask[] = []
+
+  for (const gid of userGids) {
+    const tasks = await fetchTasksForUser(gid, sevenDaysAgo)
+    for (const t of tasks) {
+      if (!seen.has(t.gid)) {
+        seen.add(t.gid)
+        all.push(t)
+      }
+    }
+  }
+
+  return all.filter(t =>
+    t.completed ||
+    (!t.completed && t.due_on !== null && t.due_on <= cutoff)
+  )
 }
 
 export async function fetchWorkspaceUsers(): Promise<AsanaUser[]> {

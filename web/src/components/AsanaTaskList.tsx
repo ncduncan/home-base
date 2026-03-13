@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { format, parseISO, isBefore, isToday, startOfDay } from 'date-fns'
+import { format, parseISO, isToday, formatDistanceToNow } from 'date-fns'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
   fetchWorkspaceUsers,
@@ -12,13 +10,25 @@ import {
 } from '../lib/asana'
 import type { AsanaTask, AsanaUser } from '../types'
 
+function initials(name: string) {
+  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
 function firstWord(name: string) {
   return name.split(' ')[0]
 }
 
-function assigneeLabel(assignee: AsanaTask['assignee'] | null): string {
-  if (!assignee) return 'Unassigned'
-  return firstWord(assignee.name)
+const AVATAR_COLORS = [
+  'bg-blue-200 text-blue-800',
+  'bg-violet-200 text-violet-800',
+  'bg-emerald-200 text-emerald-800',
+  'bg-amber-200 text-amber-800',
+  'bg-rose-200 text-rose-800',
+]
+function avatarColor(name: string) {
+  let hash = 0
+  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length]
 }
 
 // ── Section header ─────────────────────────────────────────────────────────────
@@ -31,11 +41,7 @@ function SectionHeader({ label, color = 'text-gray-400' }: { label: string; colo
 }
 
 // ── Add form ──────────────────────────────────────────────────────────────────
-function AddForm({
-  users,
-  selfGid,
-  onAdd,
-}: {
+function AddForm({ users, selfGid, onAdd }: {
   users: AsanaUser[]
   selfGid: string
   onAdd: (t: AsanaTask) => void
@@ -43,13 +49,12 @@ function AddForm({
   const [name, setName] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [assigneeGid, setAssigneeGid] = useState(selfGid)
+  const [expanded, setExpanded] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  // keep default assignee in sync when selfGid resolves
   useEffect(() => { if (selfGid && !assigneeGid) setAssigneeGid(selfGid) }, [selfGid, assigneeGid])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submit = async () => {
     if (!name.trim()) return
     setSaving(true)
     try {
@@ -62,58 +67,164 @@ function AddForm({
       setName('')
       setDueDate('')
       setAssigneeGid(selfGid)
+      setExpanded(false)
     } finally {
       setSaving(false)
     }
   }
 
+  const cancel = () => { setName(''); setDueDate(''); setAssigneeGid(selfGid); setExpanded(false) }
+
   return (
-    <form onSubmit={e => void handleSubmit(e)} className="p-4 border-b border-gray-100 space-y-2">
-      <Input
-        placeholder="Add a task..."
-        value={name}
-        onChange={e => setName(e.target.value)}
-        className="text-sm"
-      />
-      <div className="flex gap-2">
-        <div className="flex flex-col gap-1.5 shrink-0 flex-1">
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              value={dueDate}
-              onChange={e => setDueDate(e.target.value)}
-              className="text-xs h-8 flex-1"
-            />
-            {users.length > 1 && (
-              <select
-                value={assigneeGid}
-                onChange={e => setAssigneeGid(e.target.value)}
-                className="text-xs h-8 rounded-md border border-gray-200 px-2 bg-white"
-              >
-                {users.map(u => (
-                  <option key={u.gid} value={u.gid}>{firstWord(u.name)}</option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
-        <Button type="submit" disabled={saving || !name.trim()} size="sm" className="h-8 text-xs shrink-0">
-          Add
-        </Button>
+    <div className="px-4 py-3 border-b border-gray-100">
+      <div className="flex items-center gap-2">
+        <div className="w-4 h-4 rounded border-2 border-gray-300 shrink-0" />
+        <input
+          className="flex-1 text-sm bg-transparent outline-none placeholder-gray-300"
+          placeholder="Add a task..."
+          value={name}
+          onChange={e => { setName(e.target.value); if (e.target.value) setExpanded(true) }}
+          onFocus={() => { if (name) setExpanded(true) }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && name.trim()) void submit()
+            if (e.key === 'Escape') cancel()
+          }}
+        />
       </div>
-    </form>
+      {expanded && (
+        <div className="mt-2.5 pl-6 flex items-center gap-2 flex-wrap">
+          {users.length > 1 && (
+            <select
+              value={assigneeGid}
+              onChange={e => setAssigneeGid(e.target.value)}
+              className="text-xs h-7 border border-gray-200 rounded-md px-2 bg-white"
+            >
+              {users.map(u => (
+                <option key={u.gid} value={u.gid}>{firstWord(u.name)}</option>
+              ))}
+            </select>
+          )}
+          <input
+            type="date"
+            value={dueDate}
+            onChange={e => setDueDate(e.target.value)}
+            className="text-xs h-7 border border-gray-200 rounded-md px-2 bg-white"
+          />
+          <button
+            onClick={() => void submit()}
+            disabled={saving || !name.trim()}
+            className="text-xs h-7 px-3 bg-gray-900 text-white rounded-md disabled:opacity-40 hover:bg-gray-700 transition-colors"
+          >
+            Add task
+          </button>
+          <button onClick={cancel} className="text-xs h-7 px-2 text-gray-400 hover:text-gray-600">
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Assignee avatar + dropdown ─────────────────────────────────────────────────
+function AssigneeButton({ assignee, users, onSave }: {
+  assignee: AsanaTask['assignee']
+  users: AsanaUser[]
+  onSave: (gid: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const color = assignee ? avatarColor(assignee.name) : 'bg-gray-100 text-gray-400'
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        onClick={() => setOpen(!open)}
+        title={assignee?.name ?? 'Unassigned'}
+        className={`w-6 h-6 rounded-full text-xs font-semibold flex items-center justify-center ${color} hover:ring-2 hover:ring-offset-1 hover:ring-gray-300 transition-all`}
+      >
+        {assignee ? initials(assignee.name) : '?'}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-8 z-20 bg-white rounded-lg shadow-lg border border-gray-100 py-1 min-w-[9rem]">
+          <button
+            onMouseDown={() => { onSave(null); setOpen(false) }}
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+          >
+            Unassigned
+          </button>
+          {users.map(u => (
+            <button
+              key={u.gid}
+              onMouseDown={() => { onSave(u.gid); setOpen(false) }}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
+            >
+              <span className={`w-5 h-5 rounded-full text-xs font-semibold flex items-center justify-center shrink-0 ${avatarColor(u.name)}`}>
+                {initials(u.name)}
+              </span>
+              {firstWord(u.name)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Due date chip ──────────────────────────────────────────────────────────────
+function DueDateChip({ due_on, completed, onSave }: {
+  due_on: string | null
+  completed: boolean
+  onSave: (val: string | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const isOverdue = !completed && due_on && due_on < today
+  const isDueToday = !completed && due_on && isToday(parseISO(due_on))
+
+  const chipClass = isOverdue
+    ? 'text-red-500 bg-red-50 hover:bg-red-100'
+    : isDueToday
+      ? 'text-amber-600 bg-amber-50 hover:bg-amber-100'
+      : due_on
+        ? 'text-gray-500 bg-gray-100 hover:bg-gray-200'
+        : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="date"
+        defaultValue={due_on ?? ''}
+        onChange={e => { onSave(e.target.value || null); setEditing(false) }}
+        onBlur={() => setEditing(false)}
+        className="text-xs border border-gray-200 rounded px-1 py-0.5 w-28 outline-none shrink-0"
+      />
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className={`text-xs px-1.5 py-0.5 rounded transition-colors shrink-0 ${chipClass}`}
+    >
+      {due_on ? format(parseISO(due_on), 'MMM d') : '—'}
+    </button>
   )
 }
 
 // ── Single task row ────────────────────────────────────────────────────────────
-function TaskRow({
-  task,
-  users,
-  selfGid,
-  onToggle,
-  onDelete,
-  onUpdate,
-}: {
+function TaskRow({ task, users, selfGid, onToggle, onDelete, onUpdate }: {
   task: AsanaTask
   users: AsanaUser[]
   selfGid: string
@@ -121,138 +232,111 @@ function TaskRow({
   onDelete: (gid: string) => void
   onUpdate: (gid: string, patch: Partial<Pick<AsanaTask, 'name' | 'notes' | 'due_on'> & { assignee_gid: string | null }>) => Promise<void>
 }) {
-  const today = startOfDay(new Date())
-  const isOverdue = !task.completed && task.due_on
-    ? isBefore(parseISO(task.due_on), today)
-    : false
+  const [nameEditing, setNameEditing] = useState(false)
+  const [nameVal, setNameVal] = useState(task.name)
+  const [expanded, setExpanded] = useState(false)
+  const [notesVal, setNotesVal] = useState(task.notes ?? '')
 
-  const [editing, setEditing] = useState(false)
-  const [editName, setEditName] = useState(task.name)
-  const [editNotes, setEditNotes] = useState(task.notes ?? '')
-  const [editDue, setEditDue] = useState(task.due_on ?? '')
-  const [editAssignee, setEditAssignee] = useState(task.assignee?.gid ?? '')
-  const savingRef = useRef(false)
+  // Sync when task prop updates
+  useEffect(() => { setNameVal(task.name) }, [task.name])
+  useEffect(() => { setNotesVal(task.notes ?? '') }, [task.notes])
 
-  const save = useCallback(async () => {
-    if (savingRef.current || !editName.trim()) return
-    savingRef.current = true
-    await onUpdate(task.gid, {
-      name: editName.trim(),
-      notes: editNotes.trim() || null,
-      due_on: editDue || null,
-      assignee_gid: editAssignee || null,
-    })
-    savingRef.current = false
-    setEditing(false)
-  }, [editName, editNotes, editDue, editAssignee, onUpdate, task.gid])
-
-  const cancel = useCallback(() => {
-    setEditName(task.name)
-    setEditNotes(task.notes ?? '')
-    setEditDue(task.due_on ?? '')
-    setEditAssignee(task.assignee?.gid ?? '')
-    setEditing(false)
-  }, [task.name, task.notes, task.due_on, task.assignee])
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void save() }
-    if (e.key === 'Escape') cancel()
+  const saveName = async () => {
+    const trimmed = nameVal.trim()
+    setNameEditing(false)
+    if (!trimmed) { setNameVal(task.name); return }
+    if (trimmed !== task.name) await onUpdate(task.gid, { name: trimmed })
   }
 
-  if (editing) {
-    return (
-      <li className="px-4 py-3 flex items-start gap-3 bg-blue-50/30 border-b border-gray-50">
+  const saveNotes = async () => {
+    const val = notesVal.trim()
+    if (val !== (task.notes ?? '').trim()) await onUpdate(task.gid, { notes: val || null })
+  }
+
+  return (
+    <li className="group border-b border-gray-50 last:border-0">
+      <div className="flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50/50">
         <Checkbox
           checked={task.completed}
           onCheckedChange={checked => onToggle(task.gid, checked as boolean)}
-          className="mt-1 shrink-0"
+          className="shrink-0"
         />
-        <div className="flex-1 min-w-0 space-y-1.5">
-          <Input
+
+        {nameEditing && !task.completed ? (
+          <input
             autoFocus
-            value={editName}
-            onChange={e => setEditName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={() => void save()}
-            className="text-sm h-7"
+            value={nameVal}
+            onChange={e => setNameVal(e.target.value)}
+            onBlur={() => void saveName()}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); void saveName() }
+              if (e.key === 'Escape') { setNameVal(task.name); setNameEditing(false) }
+            }}
+            className="flex-1 min-w-0 text-sm bg-transparent border-b border-blue-400 outline-none py-0.5"
           />
-          <Textarea
-            placeholder="Notes"
-            value={editNotes}
-            onChange={e => setEditNotes(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={() => void save()}
-            className="text-xs h-12 resize-none"
-          />
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              value={editDue}
-              onChange={e => setEditDue(e.target.value)}
-              onBlur={() => void save()}
-              className="text-xs h-7 w-36"
-            />
-            {users.length > 1 && (
-              <select
-                value={editAssignee}
-                onChange={e => setEditAssignee(e.target.value)}
-                onBlur={() => void save()}
-                className="text-xs h-7 rounded-md border border-gray-200 px-2 bg-white"
-              >
-                <option value="">Unassigned</option>
-                {users.map(u => (
-                  <option key={u.gid} value={u.gid}>{firstWord(u.name)}</option>
-                ))}
-              </select>
-            )}
-          </div>
-          <p className="text-xs text-gray-300">Enter to save · Esc to cancel</p>
-        </div>
-      </li>
-    )
-  }
-
-  const label = assigneeLabel(task.assignee)
-  const isAssignedToSelf = task.assignee?.gid === selfGid
-
-  return (
-    <li className={`flex items-start gap-3 px-4 py-3 group hover:bg-gray-50/50 ${task.completed ? 'opacity-50' : ''}`}>
-      <Checkbox
-        checked={task.completed}
-        onCheckedChange={checked => onToggle(task.gid, checked as boolean)}
-        className="mt-0.5 shrink-0"
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
+        ) : (
           <span
-            onClick={() => { if (!task.completed) setEditing(true) }}
-            className={`text-sm ${task.completed ? 'line-through text-gray-400' : 'text-gray-900'} ${!task.completed ? 'cursor-pointer hover:text-blue-600' : ''}`}
+            onClick={() => !task.completed && setNameEditing(true)}
+            className={`flex-1 min-w-0 text-sm truncate ${
+              task.completed
+                ? 'line-through text-gray-400'
+                : 'text-gray-900 cursor-pointer hover:text-blue-600'
+            }`}
           >
             {task.name}
           </span>
-          {!isAssignedToSelf && label !== 'Unassigned' && (
-            <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">{label}</span>
-          )}
-        </div>
-        {task.notes && (
-          <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{task.notes}</p>
         )}
-        {task.due_on && (
-          <span className={`text-xs font-medium mt-0.5 block ${isOverdue ? 'text-red-500' : 'text-gray-400'}`}>
-            {isOverdue ? 'Overdue · ' : ''}{format(parseISO(task.due_on), 'MMM d')}
+
+        {task.projects.length > 0 && (
+          <span className="hidden sm:block text-xs text-gray-300 shrink-0 truncate max-w-[5rem]">
+            {task.projects[0]}
           </span>
         )}
-        {task.projects.length > 0 && (
-          <span className="text-xs text-gray-300 mt-0.5 block">{task.projects.join(', ')}</span>
-        )}
+
+        <AssigneeButton
+          assignee={task.assignee}
+          users={users}
+          onSave={gid => void onUpdate(task.gid, { assignee_gid: gid })}
+        />
+
+        <DueDateChip
+          due_on={task.due_on}
+          completed={task.completed}
+          onSave={val => void onUpdate(task.gid, { due_on: val })}
+        />
+
+        <button
+          onClick={() => setExpanded(!expanded)}
+          title={expanded ? 'Hide notes' : 'Show notes'}
+          className={`text-xs transition-all shrink-0 ${
+            task.notes
+              ? 'text-gray-400 hover:text-gray-600'
+              : 'opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-500'
+          }`}
+        >
+          {expanded ? '▾' : '▸'}
+        </button>
+
+        <button
+          onClick={() => onDelete(task.gid)}
+          className="opacity-0 group-hover:opacity-100 text-gray-200 hover:text-red-400 text-xs transition-all shrink-0"
+          aria-label="Delete"
+        >
+          ✕
+        </button>
       </div>
-      <button
-        onClick={() => onDelete(task.gid)}
-        className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 text-xs transition-opacity shrink-0 mt-0.5"
-        aria-label="Delete task"
-      >
-        ✕
-      </button>
+
+      {expanded && (
+        <div className="px-4 pb-3 pl-11">
+          <Textarea
+            value={notesVal}
+            onChange={e => setNotesVal(e.target.value)}
+            onBlur={() => void saveNotes()}
+            placeholder="Add a note..."
+            className="text-xs h-16 resize-none w-full border-gray-100 focus:border-gray-300"
+          />
+        </div>
+      )}
     </li>
   )
 }
@@ -308,7 +392,11 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
     onSetTasks(prev => prev.map(t => {
       if (t.gid !== gid) return t
       const newAssignee = assignee_gid !== undefined
-        ? (assignee_gid ? (users.find(u => u.gid === assignee_gid) ? { gid: assignee_gid, name: users.find(u => u.gid === assignee_gid)!.name } : t.assignee) : null)
+        ? (assignee_gid
+          ? (users.find(u => u.gid === assignee_gid)
+            ? { gid: assignee_gid, name: users.find(u => u.gid === assignee_gid)!.name }
+            : t.assignee)
+          : null)
         : t.assignee
       return { ...t, ...rest, assignee: newAssignee }
     }))
@@ -318,9 +406,7 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
   }, [onSetTasks, users])
 
   const rowProps = (task: AsanaTask) => ({
-    task,
-    users,
-    selfGid,
+    task, users, selfGid,
     onToggle: (gid: string, c: boolean) => void toggleTask(gid, c),
     onDelete: (gid: string) => void removeTask(gid),
     onUpdate: (gid: string, patch: Parameters<typeof editTask>[1]) => editTask(gid, patch),
@@ -331,11 +417,13 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
   const today = format(new Date(), 'yyyy-MM-dd')
   const incomplete = tasks.filter(t => !t.completed)
 
-  const overdue = incomplete.filter(t => t.due_on && t.due_on < today)
+  const overdue = incomplete.filter(t => t.due_on && t.due_on < today && !isToday(parseISO(t.due_on)))
   const dueToday = incomplete.filter(t => t.due_on && isToday(parseISO(t.due_on)))
   const dueThisWeek = incomplete.filter(t => t.due_on && t.due_on > today)
 
-  const complete = tasks.filter(t => t.completed)
+  const recentlyCompleted = tasks
+    .filter(t => t.completed)
+    .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
 
   return (
     <div>
@@ -344,27 +432,21 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
       {overdue.length > 0 && (
         <>
           <SectionHeader label="Overdue" color="text-red-400" />
-          <ul className="divide-y divide-gray-50">
-            {overdue.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}
-          </ul>
+          <ul>{overdue.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}</ul>
         </>
       )}
 
       {dueToday.length > 0 && (
         <>
           <SectionHeader label="Due Today" color="text-amber-500" />
-          <ul className="divide-y divide-gray-50">
-            {dueToday.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}
-          </ul>
+          <ul>{dueToday.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}</ul>
         </>
       )}
 
       {dueThisWeek.length > 0 && (
         <>
           <SectionHeader label="This Week" />
-          <ul className="divide-y divide-gray-50">
-            {dueThisWeek.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}
-          </ul>
+          <ul>{dueThisWeek.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}</ul>
         </>
       )}
 
@@ -372,13 +454,35 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
         <p className="px-4 py-4 text-sm text-gray-300">No tasks due in the next week.</p>
       )}
 
-      {complete.length > 0 && (
+      {recentlyCompleted.length > 0 && (
         <details className="border-t border-gray-100">
-          <summary className="px-4 py-2 text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none list-none flex items-center gap-1">
-            <span className="text-gray-300">▸</span> {complete.length} completed
+          <summary className="px-4 py-2.5 text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none list-none flex items-center gap-1.5">
+            <span className="text-gray-300">▸</span>
+            Completed recently ({recentlyCompleted.length})
           </summary>
-          <ul className="divide-y divide-gray-50">
-            {complete.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}
+          <ul>
+            {recentlyCompleted.map(task => (
+              <li key={task.gid} className="group flex items-center gap-2 px-4 py-2 hover:bg-gray-50/50 border-b border-gray-50 last:border-0 opacity-60">
+                <Checkbox
+                  checked
+                  onCheckedChange={() => void toggleTask(task.gid, false)}
+                  className="shrink-0"
+                />
+                <span className="flex-1 text-sm line-through text-gray-400 truncate">{task.name}</span>
+                {task.completed_at && (
+                  <span className="text-xs text-gray-300 shrink-0">
+                    {formatDistanceToNow(new Date(task.completed_at), { addSuffix: true })}
+                  </span>
+                )}
+                <button
+                  onClick={() => void removeTask(task.gid)}
+                  className="opacity-0 group-hover:opacity-100 text-gray-200 hover:text-red-400 text-xs transition-all shrink-0"
+                  aria-label="Delete"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
           </ul>
         </details>
       )}

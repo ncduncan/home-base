@@ -3,6 +3,7 @@ export interface AsanaTask {
   name: string
   due_on: string | null      // 'YYYY-MM-DD'
   completed: boolean
+  completed_at: string | null  // ISO timestamp
   assignee: { gid: string; name: string } | null
   notes: string | null
   projects: string[]         // project names for display
