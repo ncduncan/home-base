@@ -1,33 +1,27 @@
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
 import { fetchCalendarEvents, CalendarAuthError } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
+import { fetchMyTasks } from '../lib/asana'
 import type { Session } from '@supabase/supabase-js'
-import type { Todo, CalendarEvent, WeatherDay } from '../types'
+import type { AsanaTask, CalendarEvent, WeatherDay } from '../types'
 import Header from '../components/Header'
 import CalendarView from '../components/CalendarView'
-import TodoList from '../components/TodoList'
+import AsanaTaskList from '../components/AsanaTaskList'
 
 interface Props {
   session: Session
 }
 
 export default function DashboardPage({ session }: Props) {
-  // ── Todos ─────────────────────────────────────────────────────────────────
-  const [todos, setTodos] = useState<Todo[]>([])
-  const [todosLoading, setTodosLoading] = useState(true)
+  // ── Asana tasks ───────────────────────────────────────────────────────────
+  const [tasks, setTasks] = useState<AsanaTask[]>([])
+  const [tasksLoading, setTasksLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .from('todos')
-      .select('*')
-      .order('completed', { ascending: true })
-      .order('due_date', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (data) setTodos(data as Todo[])
-        setTodosLoading(false)
-      })
+    fetchMyTasks()
+      .then(setTasks)
+      .catch(() => {/* show empty on error */})
+      .finally(() => setTasksLoading(false))
   }, [])
 
   // ── Calendar events ────────────────────────────────────────────────────────
@@ -74,23 +68,32 @@ export default function DashboardPage({ session }: Props) {
               error={eventsError}
               authError={eventsAuthError}
               onRefresh={() => fetchEvents(weekOffset)}
-              todos={todos}
+              tasks={tasks}
               weather={weather}
               weekOffset={weekOffset}
               onWeekChange={delta => setWeekOffset(o => o + delta)}
             />
           </div>
 
-          {/* Todos panel */}
+          {/* Tasks panel */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">To Do</h2>
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Tasks</h2>
+              <button
+                onClick={() => {
+                  setTasksLoading(true)
+                  fetchMyTasks().then(setTasks).catch(() => {}).finally(() => setTasksLoading(false))
+                }}
+                className="text-xs text-gray-400 hover:text-gray-600"
+                title="Refresh tasks"
+              >
+                ↺
+              </button>
             </div>
-            <TodoList
-              session={session}
-              todos={todos}
-              loading={todosLoading}
-              onSetTodos={setTodos}
+            <AsanaTaskList
+              tasks={tasks}
+              loading={tasksLoading}
+              onSetTasks={setTasks}
             />
           </div>
 

@@ -1,12 +1,17 @@
-export interface Todo {
-  id: string
-  title: string
-  notes: string | null
-  due_date: string | null      // 'YYYY-MM-DD'
+export interface AsanaTask {
+  gid: string
+  name: string
+  due_on: string | null      // 'YYYY-MM-DD'
   completed: boolean
-  visibility: 'shared' | 'private'
-  created_at: string           // ISO timestamp
-  created_by: string           // email
+  assignee: { gid: string; name: string } | null
+  notes: string | null
+  projects: string[]         // project names for display
+}
+
+export interface AsanaUser {
+  gid: string
+  name: string
+  email: string
 }
 
 export interface CalendarEvent {

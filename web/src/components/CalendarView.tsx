@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { wmoToIcon } from '../lib/weather'
-import type { CalendarEvent, Todo, WeatherDay } from '../types'
+import type { AsanaTask, CalendarEvent, WeatherDay } from '../types'
 
 interface Props {
   events: CalendarEvent[]
@@ -13,7 +13,7 @@ interface Props {
   error: string | null
   authError: boolean
   onRefresh: () => void
-  todos: Todo[]
+  tasks: AsanaTask[]
   weather: WeatherDay[]
   weekOffset: number
   onWeekChange: (delta: number) => void
@@ -53,7 +53,7 @@ function weekLabel(weekOffset: number): string {
 }
 
 export default function CalendarView({
-  events, loading, error, authError, onRefresh, todos,
+  events, loading, error, authError, onRefresh, tasks,
   weather, weekOffset, onWeekChange,
 }: Props) {
   const [refreshing, setRefreshing] = useState(false)
@@ -129,9 +129,9 @@ export default function CalendarView({
     )
   }
 
-  const incompleteTodosWithDue = todos.filter(t => !t.completed && t.due_date)
+  const incompleteTasksWithDue = tasks.filter((t: AsanaTask) => !t.completed && t.due_on)
 
-  if (!events.length && !incompleteTodosWithDue.length) {
+  if (!events.length && !incompleteTasksWithDue.length) {
     return <div>{header}<div className="p-4 text-gray-400 text-sm">Nothing on the calendar this week.</div></div>
   }
 
@@ -144,9 +144,9 @@ export default function CalendarView({
     else days.push({ date: d, events: [event] })
   }
 
-  // Also collect days that only have todos (no events)
-  for (const todo of incompleteTodosWithDue) {
-    const d = parseISO(todo.due_date!)
+  // Also collect days that only have tasks (no events)
+  for (const task of incompleteTasksWithDue) {
+    const d = parseISO(task.due_on!)
     if (!days.find(g => isSameDay(g.date, d))) {
       days.push({ date: d, events: [] })
     }
@@ -159,7 +159,7 @@ export default function CalendarView({
 
       {days.map(({ date, events: dayEvents }) => {
         const dayDateStr = format(date, 'yyyy-MM-dd')
-        const dayTodos = incompleteTodosWithDue.filter(t => t.due_date === dayDateStr)
+        const dayTasks = incompleteTasksWithDue.filter((t: AsanaTask) => t.due_on === dayDateStr)
         const wx = weatherByDate.get(dayDateStr)
 
         return (
@@ -204,15 +204,15 @@ export default function CalendarView({
               </ul>
             )}
 
-            {/* Due todos for this day */}
-            {dayTodos.length > 0 && (
+            {/* Due tasks for this day */}
+            {dayTasks.length > 0 && (
               <ul className={dayEvents.length > 0 ? 'border-t border-dashed border-gray-100' : ''}>
-                {dayTodos.map(todo => (
-                  <li key={todo.id} className="flex gap-3 px-4 py-1.5 items-center hover:bg-gray-50/50">
+                {dayTasks.map((task: AsanaTask) => (
+                  <li key={task.gid} className="flex gap-3 px-4 py-1.5 items-center hover:bg-gray-50/50">
                     <div className="w-16 shrink-0 text-xs text-gray-300">due</div>
-                    <span className="text-xs text-gray-500 truncate flex-1">{todo.title}</span>
-                    {todo.visibility === 'private' && (
-                      <span className="text-gray-300 text-xs" title="Private">🔒</span>
+                    <span className="text-xs text-gray-500 truncate flex-1">{task.name}</span>
+                    {task.assignee && (
+                      <span className="text-xs text-gray-300">{task.assignee.name.split(' ')[0]}</span>
                     )}
                   </li>
                 ))}
