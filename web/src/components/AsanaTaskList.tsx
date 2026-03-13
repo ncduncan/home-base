@@ -19,13 +19,16 @@ function firstWord(name: string) {
 }
 
 const AVATAR_COLORS = [
-  'bg-blue-200 text-blue-800',
   'bg-violet-200 text-violet-800',
   'bg-emerald-200 text-emerald-800',
-  'bg-amber-200 text-amber-800',
   'bg-rose-200 text-rose-800',
+  'bg-orange-200 text-orange-800',
+  'bg-teal-200 text-teal-800',
 ]
 function avatarColor(name: string) {
+  const first = name.split(' ')[0].toLowerCase()
+  if (first === 'nat') return 'bg-blue-600 text-white'
+  if (first.startsWith('cait')) return 'bg-yellow-100 text-yellow-800'
   let hash = 0
   for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
   return AVATAR_COLORS[hash % AVATAR_COLORS.length]
@@ -235,6 +238,7 @@ function TaskRow({ task, users, onToggle, onDelete, onUpdate }: {
   const [nameVal, setNameVal] = useState(task.name)
   const [expanded, setExpanded] = useState(false)
   const [notesVal, setNotesVal] = useState(task.notes ?? '')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Sync when task prop updates
   useEffect(() => { setNameVal(task.name) }, [task.name])
@@ -307,22 +311,30 @@ function TaskRow({ task, users, onToggle, onDelete, onUpdate }: {
         <button
           onClick={() => setExpanded(!expanded)}
           title={expanded ? 'Hide notes' : 'Show notes'}
-          className={`text-xs transition-all shrink-0 ${
-            task.notes
-              ? 'text-gray-400 hover:text-gray-600'
-              : 'opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-500'
-          }`}
+          className="text-sm text-gray-400 hover:text-gray-700 transition-colors shrink-0 opacity-50 group-hover:opacity-100"
         >
           {expanded ? '▾' : '▸'}
         </button>
 
-        <button
-          onClick={() => onDelete(task.gid)}
-          className="opacity-0 group-hover:opacity-100 text-gray-200 hover:text-red-400 text-xs transition-all shrink-0"
-          aria-label="Delete"
-        >
-          ✕
-        </button>
+        {confirmDelete ? (
+          <span className="flex items-center gap-1 shrink-0">
+            <span className="text-xs text-gray-500">Delete?</span>
+            <button
+              onClick={() => { setConfirmDelete(false); onDelete(task.gid) }}
+              className="text-xs text-red-500 hover:text-red-700 font-medium"
+            >Yes</button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >No</button>
+          </span>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="opacity-0 group-hover:opacity-100 text-gray-200 hover:text-red-400 text-xs transition-all shrink-0"
+            aria-label="Delete"
+          >✕</button>
+        )}
       </div>
 
       {expanded && (
@@ -335,6 +347,39 @@ function TaskRow({ task, users, onToggle, onDelete, onUpdate }: {
             className="text-xs h-16 resize-none w-full border-gray-100 focus:border-gray-300"
           />
         </div>
+      )}
+    </li>
+  )
+}
+
+// ── Completed task row (with confirm-delete) ────────────────────────────────────
+function CompletedRow({ task, onUncomplete, onDelete }: {
+  task: AsanaTask
+  onUncomplete: () => void
+  onDelete: () => void
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  return (
+    <li className="group flex items-center gap-2 px-4 py-2 hover:bg-gray-50/50 border-b border-gray-50 last:border-0 opacity-60">
+      <Checkbox checked onCheckedChange={onUncomplete} className="shrink-0" />
+      <span className="flex-1 text-sm line-through text-gray-400 truncate">{task.name}</span>
+      {task.completed_at && (
+        <span className="text-xs text-gray-300 shrink-0">
+          {formatDistanceToNow(new Date(task.completed_at), { addSuffix: true })}
+        </span>
+      )}
+      {confirmDelete ? (
+        <span className="flex items-center gap-1 shrink-0">
+          <span className="text-xs text-gray-500">Delete?</span>
+          <button onClick={() => { setConfirmDelete(false); onDelete() }} className="text-xs text-red-500 hover:text-red-700 font-medium">Yes</button>
+          <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 hover:text-gray-600">No</button>
+        </span>
+      ) : (
+        <button
+          onClick={() => setConfirmDelete(true)}
+          className="opacity-0 group-hover:opacity-100 text-gray-200 hover:text-red-400 text-xs transition-all shrink-0"
+          aria-label="Delete"
+        >✕</button>
       )}
     </li>
   )
@@ -413,12 +458,29 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
 
   if (loading) return <div className="p-4 text-gray-400 text-sm">Loading tasks...</div>
 
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const incomplete = tasks.filter(t => !t.completed)
+  // Sort incomplete tasks by due date (overdue first, then ascending, nulls last)
+  const incomplete = [...tasks.filter(t => !t.completed)].sort((a, b) => {
+    if (!a.due_on && !b.due_on) return 0
+    if (!a.due_on) return 1
+    if (!b.due_on) return -1
+    return a.due_on.localeCompare(b.due_on)
+  })
 
-  const overdue = incomplete.filter(t => t.due_on && t.due_on < today && !isToday(parseISO(t.due_on)))
-  const dueToday = incomplete.filter(t => t.due_on && isToday(parseISO(t.due_on)))
-  const dueThisWeek = incomplete.filter(t => t.due_on && t.due_on > today)
+  // Group by assignee, maintaining workspace user order
+  const groupMap = new Map<string, { label: string; tasks: AsanaTask[] }>()
+  for (const u of users) groupMap.set(u.gid, { label: firstWord(u.name), tasks: [] })
+  groupMap.set('unassigned', { label: 'Unassigned', tasks: [] })
+  for (const task of incomplete) {
+    const key = task.assignee?.gid ?? 'unassigned'
+    if (groupMap.has(key)) {
+      groupMap.get(key)!.tasks.push(task)
+    } else {
+      groupMap.set(key, { label: task.assignee ? firstWord(task.assignee.name) : 'Unassigned', tasks: [task] })
+    }
+  }
+  const groups = [...groupMap.entries()]
+    .filter(([, g]) => g.tasks.length > 0)
+    .map(([key, g]) => ({ key, ...g }))
 
   const recentlyCompleted = tasks
     .filter(t => t.completed)
@@ -428,28 +490,12 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
     <div>
       <AddForm users={users} selfGid={selfGid} onAdd={addTask} />
 
-      {overdue.length > 0 && (
-        <>
-          <SectionHeader label="Overdue" color="text-red-400" />
-          <ul>{overdue.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}</ul>
-        </>
-      )}
-
-      {dueToday.length > 0 && (
-        <>
-          <SectionHeader label="Due Today" color="text-amber-500" />
-          <ul>{dueToday.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}</ul>
-        </>
-      )}
-
-      {dueThisWeek.length > 0 && (
-        <>
-          <SectionHeader label="This Week" />
-          <ul>{dueThisWeek.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}</ul>
-        </>
-      )}
-
-      {overdue.length === 0 && dueToday.length === 0 && dueThisWeek.length === 0 && (
+      {groups.length > 0 ? groups.map(group => (
+        <div key={group.key}>
+          <SectionHeader label={group.label} />
+          <ul>{group.tasks.map(task => <TaskRow key={task.gid} {...rowProps(task)} />)}</ul>
+        </div>
+      )) : (
         <p className="px-4 py-4 text-sm text-gray-300">No tasks due in the next week.</p>
       )}
 
@@ -461,26 +507,7 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
           </summary>
           <ul>
             {recentlyCompleted.map(task => (
-              <li key={task.gid} className="group flex items-center gap-2 px-4 py-2 hover:bg-gray-50/50 border-b border-gray-50 last:border-0 opacity-60">
-                <Checkbox
-                  checked
-                  onCheckedChange={() => void toggleTask(task.gid, false)}
-                  className="shrink-0"
-                />
-                <span className="flex-1 text-sm line-through text-gray-400 truncate">{task.name}</span>
-                {task.completed_at && (
-                  <span className="text-xs text-gray-300 shrink-0">
-                    {formatDistanceToNow(new Date(task.completed_at), { addSuffix: true })}
-                  </span>
-                )}
-                <button
-                  onClick={() => void removeTask(task.gid)}
-                  className="opacity-0 group-hover:opacity-100 text-gray-200 hover:text-red-400 text-xs transition-all shrink-0"
-                  aria-label="Delete"
-                >
-                  ✕
-                </button>
-              </li>
+              <CompletedRow key={task.gid} task={task} onUncomplete={() => void toggleTask(task.gid, false)} onDelete={() => void removeTask(task.gid)} />
             ))}
           </ul>
         </details>
