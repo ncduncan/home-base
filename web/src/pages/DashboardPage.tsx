@@ -68,7 +68,6 @@ export default function DashboardPage({ session }: Props) {
               error={eventsError}
               authError={eventsAuthError}
               onRefresh={() => fetchEvents(weekOffset)}
-              tasks={tasks}
               weather={weather}
               weekOffset={weekOffset}
               onWeekChange={delta => setWeekOffset(o => o + delta)}

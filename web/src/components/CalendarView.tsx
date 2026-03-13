@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react'
-import { format, parseISO, isSameDay, addDays, startOfToday } from 'date-fns'
+import { format, parseISO, isSameDay, addDays, startOfToday, startOfDay } from 'date-fns'
 import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { wmoToIcon } from '../lib/weather'
-import type { AsanaTask, CalendarEvent, WeatherDay } from '../types'
+import type { CalendarEvent, WeatherDay } from '../types'
 
 interface Props {
   events: CalendarEvent[]
@@ -13,7 +13,6 @@ interface Props {
   error: string | null
   authError: boolean
   onRefresh: () => void
-  tasks: AsanaTask[]
   weather: WeatherDay[]
   weekOffset: number
   onWeekChange: (delta: number) => void
@@ -54,7 +53,7 @@ function weekLabel(weekOffset: number): string {
 }
 
 export default function CalendarView({
-  events, loading, error, authError, onRefresh, tasks,
+  events, loading, error, authError, onRefresh,
   weather, weekOffset, onWeekChange,
 }: Props) {
   const [refreshing, setRefreshing] = useState(false)
@@ -130,30 +129,13 @@ export default function CalendarView({
     )
   }
 
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const incompleteTasksWithDue = tasks.filter((t: AsanaTask) => !t.completed && t.due_on && t.due_on >= today)
-
-  if (!events.length && !incompleteTasksWithDue.length) {
-    return <div>{header}<div className="p-4 text-gray-400 text-sm">Nothing on the calendar this week.</div></div>
-  }
-
-  // Group events by day
-  const days: { date: Date; events: CalendarEvent[] }[] = []
-  for (const event of events) {
-    const d = parseISO(event.start)
-    const existing = days.find(g => isSameDay(g.date, d))
-    if (existing) existing.events.push(event)
-    else days.push({ date: d, events: [event] })
-  }
-
-  // Also collect days that only have tasks (no events)
-  for (const task of incompleteTasksWithDue) {
-    const d = parseISO(task.due_on!)
-    if (!days.find(g => isSameDay(g.date, d))) {
-      days.push({ date: d, events: [] })
-    }
-  }
-  days.sort((a, b) => a.date.getTime() - b.date.getTime())
+  // Build fixed 7-day grid Sun–Sat for this week
+  const todayDate = startOfDay(new Date())
+  const sunday = addDays(startOfToday(), -startOfToday().getDay() + weekOffset * 7)
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(sunday, i)
+    return { date, events: events.filter(e => isSameDay(parseISO(e.start), date)) }
+  })
 
   return (
     <div>
@@ -161,11 +143,11 @@ export default function CalendarView({
 
       {days.map(({ date, events: dayEvents }) => {
         const dayDateStr = format(date, 'yyyy-MM-dd')
-        const dayTasks = incompleteTasksWithDue.filter((t: AsanaTask) => t.due_on === dayDateStr)
         const wx = weatherByDate.get(dayDateStr)
+        const isPast = date < todayDate
 
         return (
-          <div key={date.toISOString()} className="border-b border-gray-50 last:border-0">
+          <div key={dayDateStr} className={`border-b border-gray-50 last:border-0 ${isPast ? 'opacity-50' : ''}`}>
             <div className="px-4 py-2 bg-gray-50/60 flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 {format(date, 'EEEE, MMM d')}
@@ -178,7 +160,6 @@ export default function CalendarView({
               )}
             </div>
 
-            {/* Calendar events */}
             {dayEvents.length > 0 && (
               <ul>
                 {dayEvents.map(event => (
@@ -193,29 +174,12 @@ export default function CalendarView({
                         {!event.is_amion && (
                           <span className="text-sm text-gray-900">{event.title}</span>
                         )}
-                        {event.is_amion
-                          ? amionBadge(event.amion_kind)
-                          : null}
+                        {event.is_amion ? amionBadge(event.amion_kind) : null}
                       </div>
                       {event.location && !event.is_amion && (
                         <div className="text-xs text-gray-400 mt-0.5 truncate">{event.location}</div>
                       )}
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {/* Due tasks for this day */}
-            {dayTasks.length > 0 && (
-              <ul className={dayEvents.length > 0 ? 'border-t border-dashed border-gray-100' : ''}>
-                {dayTasks.map((task: AsanaTask) => (
-                  <li key={task.gid} className="flex gap-3 px-4 py-1.5 items-center hover:bg-gray-50/50">
-                    <div className="w-16 shrink-0 text-xs text-gray-300">due</div>
-                    <span className="text-xs text-gray-500 truncate flex-1">{task.name}</span>
-                    {task.assignee && (
-                      <span className="text-xs text-gray-300">{task.assignee.name.split(' ')[0]}</span>
-                    )}
                   </li>
                 ))}
               </ul>
