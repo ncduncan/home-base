@@ -224,10 +224,9 @@ function DueDateChip({ due_on, completed, onSave }: {
 }
 
 // ── Single task row ────────────────────────────────────────────────────────────
-function TaskRow({ task, users, selfGid, onToggle, onDelete, onUpdate }: {
+function TaskRow({ task, users, onToggle, onDelete, onUpdate }: {
   task: AsanaTask
   users: AsanaUser[]
-  selfGid: string
   onToggle: (gid: string, completed: boolean) => void
   onDelete: (gid: string) => void
   onUpdate: (gid: string, patch: Partial<Pick<AsanaTask, 'name' | 'notes' | 'due_on'> & { assignee_gid: string | null }>) => Promise<void>
@@ -406,7 +405,7 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
   }, [onSetTasks, users])
 
   const rowProps = (task: AsanaTask) => ({
-    task, users, selfGid,
+    task, users,
     onToggle: (gid: string, c: boolean) => void toggleTask(gid, c),
     onDelete: (gid: string) => void removeTask(gid),
     onUpdate: (gid: string, patch: Parameters<typeof editTask>[1]) => editTask(gid, patch),
