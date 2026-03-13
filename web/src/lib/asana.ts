@@ -132,8 +132,10 @@ export async function fetchTasks(): Promise<AsanaTask[]> {
 }
 
 export async function fetchWorkspaceUsers(): Promise<AsanaUser[]> {
+  // /workspaces/{gid}/users is deprecated and returns 400 for Organizations.
+  // The correct endpoint is /users?workspace={gid}.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const json = await asanaGet(`/workspaces/${workspaceGid}/users?opt_fields=gid,name,email`) as any
+  const json = await asanaGet(`/users?workspace=${workspaceGid}&opt_fields=gid,name,email`) as any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (json.data as any[]).map(u => ({
     gid: u.gid as string,
