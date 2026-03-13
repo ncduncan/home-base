@@ -9,7 +9,7 @@ import type { Todo } from '../types'
 import type { Session } from '@supabase/supabase-js'
 
 const DISPLAY_NAMES: Record<string, string> = {
-  'ncduncan@gmail.com': 'Nate',
+  'ncduncan@gmail.com': 'Nat',
   'caitante@gmail.com': 'Caitie',
 }
 const displayName = (email: string) => DISPLAY_NAMES[email] ?? email.split('@')[0]

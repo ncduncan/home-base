@@ -1,7 +1,7 @@
 """
 Google Calendar collector.
 
-Reads all events from Nate's personal Google Calendar (ncduncan@gmail.com)
+Reads all events from Nat's personal Google Calendar (ncduncan@gmail.com)
 for the upcoming week. Also detects AMION shift events — see CLAUDE.md for
 the pending AMION interpretation clarification.
 
@@ -103,7 +103,7 @@ def _parse_event(raw: dict, cal_id: str, cal_name: str) -> CalendarEvent | None:
 
 def fetch_week_events(week_start: datetime, week_end: datetime) -> list[CalendarEvent]:
     """
-    Fetch all calendar events across all of Nate's Google calendars for the given window.
+    Fetch all calendar events across all of Nat's Google calendars for the given window.
     Events are returned sorted by start time.
     """
     service = get_service("calendar", "v3")

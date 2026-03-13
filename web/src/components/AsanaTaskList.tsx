@@ -14,7 +14,7 @@ import {
 import type { AsanaTask, AsanaUser } from '../types'
 
 const KNOWN_EMAILS: Record<string, string> = {
-  'ncduncan@gmail.com': 'Nate',
+  'ncduncan@gmail.com': 'Nat',
   'caitante@gmail.com': 'Caitie',
 }
 
@@ -42,20 +42,20 @@ function SectionHeader({ label, color = 'text-gray-400' }: { label: string; colo
 // ── Add form ──────────────────────────────────────────────────────────────────
 function AddForm({
   users,
-  nateGid,
+  NatGid,
   onAdd,
 }: {
   users: AsanaUser[]
-  nateGid: string
+  NatGid: string
   onAdd: (t: AsanaTask) => void
 }) {
   const [name, setName] = useState('')
   const [dueDate, setDueDate] = useState('')
-  const [assigneeGid, setAssigneeGid] = useState(nateGid)
+  const [assigneeGid, setAssigneeGid] = useState(NatGid)
   const [saving, setSaving] = useState(false)
 
-  // keep default assignee in sync when nateGid resolves
-  useEffect(() => { if (nateGid && !assigneeGid) setAssigneeGid(nateGid) }, [nateGid, assigneeGid])
+  // keep default assignee in sync when NatGid resolves
+  useEffect(() => { if (NatGid && !assigneeGid) setAssigneeGid(NatGid) }, [NatGid, assigneeGid])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,7 +70,7 @@ function AddForm({
       onAdd(task)
       setName('')
       setDueDate('')
-      setAssigneeGid(nateGid)
+      setAssigneeGid(NatGid)
     } finally {
       setSaving(false)
     }
@@ -240,7 +240,7 @@ function TaskRow({
           >
             {task.name}
           </span>
-          {label !== 'Nate' && label !== 'Unassigned' && (
+          {label !== 'Nat' && label !== 'Unassigned' && (
             <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">{label}</span>
           )}
         </div>
@@ -276,14 +276,14 @@ interface Props {
 
 export default function AsanaTaskList({ tasks, loading, onSetTasks }: Props) {
   const [users, setUsers] = useState<AsanaUser[]>([])
-  const [nateGid, setNateGid] = useState('')
+  const [NatGid, setNatGid] = useState('')
 
   useEffect(() => {
     fetchWorkspaceUsers().then(all => {
       setUsers(all)
-      const nate = all.find(u => u.email === 'ncduncan@gmail.com')
-      if (nate) setNateGid(nate.gid)
-    }).catch(() => {/* non-critical */})
+      const Nat = all.find(u => u.email === 'ncduncan@gmail.com')
+      if (Nat) setNatGid(Nat.gid)
+    }).catch(() => {/* non-critical */ })
   }, [])
 
   const addTask = useCallback((task: AsanaTask) => {
@@ -348,7 +348,7 @@ export default function AsanaTaskList({ tasks, loading, onSetTasks }: Props) {
 
   return (
     <div>
-      <AddForm users={users} nateGid={nateGid} onAdd={addTask} />
+      <AddForm users={users} NatGid={NatGid} onAdd={addTask} />
 
       {overdue.length > 0 && (
         <>

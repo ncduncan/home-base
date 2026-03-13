@@ -1,7 +1,7 @@
 """
 Asana collector.
 
-Fetches incomplete tasks assigned to Nate that are due by end of weekend
+Fetches incomplete tasks assigned to Nat that are due by end of weekend
 (or have no due date — those are shown as "no deadline" reminders).
 
 Uses the Asana REST API directly via httpx (avoids SDK version churn).

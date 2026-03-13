@@ -48,7 +48,7 @@ class WeatherDay(BaseModel):
 
 class WorkAwarenessEvent(BaseModel):
     """
-    A personal calendar event that Nate's colleagues at GE Aerospace
+    A personal calendar event that Nat's colleagues at GE Aerospace
     should be aware of. These are created as Google Calendar events
     with an invite to Nathaniel.duncan@geaerospace.com, which lands
     directly in his M365/Outlook inbox.

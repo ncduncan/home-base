@@ -21,7 +21,7 @@ export default function LoginPage({ unauthorized }: Props) {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-sm text-center">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Home-Base</h1>
-        <p className="text-gray-500 text-sm mb-8">Nate &amp; Caitie's dashboard</p>
+        <p className="text-gray-500 text-sm mb-8">Nat &amp; Caitie's dashboard</p>
         {unauthorized && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 rounded-lg p-3">
             This Google account is not authorized.

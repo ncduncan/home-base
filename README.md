@@ -1,6 +1,6 @@
 # Home-Base
 
-Personal Sunday morning briefing agent for Nate Duncan.
+Personal Sunday morning briefing agent for Nat Duncan.
 
 Runs every Sunday at ~7–8am ET via GitHub Actions. Reads your Google Calendar,
 Asana tasks, and Boston weather, then uses Claude AI to write a friendly briefing
@@ -131,10 +131,10 @@ scripts/
 
 ## AMION Calendar (Pending Clarification)
 
-Nate's calendar includes AMION shift scheduling events. These are currently
+Nat's calendar includes AMION shift scheduling events. These are currently
 detected by a placeholder heuristic and flagged with `[AMION]` in the briefing.
 
-**TODO:** Nate needs to explain the AMION event format. See `CLAUDE.md` →
+**TODO:** Nat needs to explain the AMION event format. See `CLAUDE.md` →
 "AMION Calendar Nuances" for the full list of questions.
 
 Once clarified, update:

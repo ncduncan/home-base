@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "home-base"
 version = "0.1.0"
-description = "Personal Sunday briefing agent for Nate Duncan"
+description = "Personal Sunday briefing agent for Nat Duncan"
 requires-python = ">=3.11"
 dependencies = [
     "google-api-python-client>=2.100",

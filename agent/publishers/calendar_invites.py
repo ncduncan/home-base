@@ -2,11 +2,11 @@
 Calendar invites publisher.
 
 For each WorkAwarenessEvent identified by Claude, creates a Google Calendar
-event on Nate's personal calendar and adds his work email as an attendee.
+event on Nat's personal calendar and adds his work email as an attendee.
 The invite is delivered to Nathaniel.duncan@geaerospace.com and appears
 directly in his M365/Outlook inbox and calendar — no M365 API needed.
 
-Events are marked as "transparent" (free) on Nate's personal calendar
+Events are marked as "transparent" (free) on Nat's personal calendar
 so they don't block personal availability there.
 """
 
@@ -31,7 +31,7 @@ def _build_event_body(event: WorkAwarenessEvent) -> dict:
         "start": {"dateTime": iso(event.start), "timeZone": "America/New_York"},
         "end": {"dateTime": iso(event.end), "timeZone": "America/New_York"},
         "attendees": [
-            # Nate's work email — Outlook receives the invite
+            # Nat's work email — Outlook receives the invite
             {"email": settings.work_email, "responseStatus": "needsAction"},
         ],
         # Free on personal calendar so it doesn't block personal availability

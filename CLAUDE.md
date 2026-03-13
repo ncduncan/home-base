@@ -7,7 +7,7 @@ Read this before making any changes.
 
 ## Project Overview
 
-**Home-Base** is a personal automation agent for Nathaniel Duncan (Nate).
+**Home-Base** is a personal automation agent for Nathaniel Duncan (Nat).
 It runs every Sunday morning via GitHub Actions and produces a smart weekly briefing.
 
 **Owner:** Nat Duncan
@@ -20,7 +20,7 @@ It runs every Sunday morning via GitHub Actions and produces a smart weekly brie
 3. Fetches Boston, MA 7-day weather from OpenWeatherMap
 4. Sends all data to Gemini (`gemini-2.0-flash`) which writes a concise, friendly briefing narrative and identifies which personal appointments warrant work awareness
 5. Sends an HTML briefing email to ncduncan@gmail.com via Gmail API
-6. Creates Google Calendar events (with invites to Nathaniel.duncan@geaerospace.com) for personal appointments that affect work availability — these land directly in Nate's M365/Outlook inbox and calendar
+6. Creates Google Calendar events (with invites to Nathaniel.duncan@geaerospace.com) for personal appointments that affect work availability — these land directly in Nat's M365/Outlook inbox and calendar
 
 ---
 
@@ -83,9 +83,9 @@ npm run dev                  # http://localhost:5173
 
 ---
 
-## AMION Calendar Nuances — NEEDS CLARIFICATION FROM NATE
+## AMION Calendar Nuances — NEEDS CLARIFICATION FROM Nat
 
-⚠️ **This section is a placeholder. Nate needs to explain AMION event interpretation.**
+⚠️ **This section is a placeholder. Nat needs to explain AMION event interpretation.**
 
 AMION (amion.com) is a physician/shift scheduling system. It syncs to Google Calendar
 via an iCal subscription feed. AMION events in Google Calendar often have:
@@ -93,19 +93,19 @@ via an iCal subscription feed. AMION events in Google Calendar often have:
 - All-day event format for shift days
 - A specific organizer/creator email domain (often something like `@amion.com` or `@shiftadmin.com`)
 
-**Questions for Nate to answer:**
+**Questions for Nat to answer:**
 1. What is the AMION calendar called in your Google Calendar? (What's the subscription name?)
 2. What do the shift codes mean? (e.g., "J" = junior resident call, "DAY" = day shift?)
 3. Should AMION shifts appear in the briefing as regular events, or with special formatting?
 4. Should AMION call/on-call shifts trigger work awareness events to GE Aerospace?
-5. Are there AMION codes that mean "Nate is unavailable all day" vs "partial day"?
+5. Are there AMION codes that mean "Nat is unavailable all day" vs "partial day"?
 
 **Current behavior:** AMION events are detected by checking if `amion` appears in the
 creator/organizer email or event title. They are flagged with `is_amion=True` and shown
 with an "AMION" badge in the email. The Claude prompt is also told about the pending
 clarification.
 
-**Where to update after Nate explains:**
+**Where to update after Nat explains:**
 - `agent/collectors/calendar.py` → `_is_amion_event()` function
 - `agent/briefing.py` → `SYSTEM_PROMPT` constant (add AMION interpretation rules)
 - `agent/templates/briefing.html.j2` → AMION badge styling/text if needed
@@ -114,7 +114,7 @@ clarification.
 
 ## Google OAuth Setup (one-time, done locally)
 
-All three API scopes are on Nate's **personal Google account** (ncduncan@gmail.com):
+All three API scopes are on Nat's **personal Google account** (ncduncan@gmail.com):
 ```
 https://www.googleapis.com/auth/calendar.readonly    # read personal calendar
 https://www.googleapis.com/auth/calendar.events      # create awareness events + invites
@@ -144,7 +144,7 @@ https://www.googleapis.com/auth/gmail.send           # send briefing email
 ### Token refresh
 The `token.json` contains the refresh token which is long-lived. Each GitHub Actions run
 auto-refreshes the short-lived access token. No manual rotation needed unless the refresh
-token is revoked (which happens if the token goes unused for 6 months, or if Nate revokes
+token is revoked (which happens if the token goes unused for 6 months, or if Nat revokes
 it in his Google account security settings).
 
 ---
@@ -201,7 +201,7 @@ python -m agent.main
 ## Adding E-Ink Display Support (Future)
 
 The `BriefingData` model in `agent/models.py` is already serializable to JSON.
-When Nate adds the e-ink display:
+When Nat adds the e-ink display:
 
 1. Set `EINK_ENABLED=true` and `EINK_OUTPUT_PATH=/path/to/briefing.json` in the workflow
 2. `main.py` will write `data.to_json()` to that path after publishing
@@ -235,4 +235,4 @@ No changes needed to collectors, models, or the core briefing logic.
 | Date | Change |
 |---|---|
 | 2026-03-01 | Initial implementation |
-| — | AMION interpretation pending Nate's clarification |
+| — | AMION interpretation pending Nat's clarification |
