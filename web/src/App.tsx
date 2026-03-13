@@ -4,7 +4,8 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import type { Session } from '@supabase/supabase-js'
 
-const ALLOWED_EMAILS = ['ncduncan@gmail.com', 'caitante@gmail.com']
+const ALLOWED_EMAILS = (import.meta.env.VITE_ALLOWED_EMAILS as string ?? '')
+  .split(',').map((e: string) => e.trim()).filter(Boolean)
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)

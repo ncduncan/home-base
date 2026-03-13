@@ -93,6 +93,7 @@ export default function DashboardPage({ session }: Props) {
             <AsanaTaskList
               tasks={tasks}
               loading={tasksLoading}
+              currentUserEmail={session.user.email ?? ''}
               onSetTasks={setTasks}
             />
           </div>

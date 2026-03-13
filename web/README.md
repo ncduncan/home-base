@@ -1,18 +1,16 @@
 # Home-Base Web App
 
-Personal dashboard for Nat and Caitie — calendar, Asana tasks, and weather in one place.
-
-**Live:** https://ncduncan.github.io/home-base/
+Personal dashboard — calendar, Asana tasks, and weather in one place.
 
 ---
 
 ## What it does
 
 - **Calendar** — shows the current week's Google Calendar events, including AMION shift badges
-- **Tasks** — live Asana task list showing everything past due, due today, or due in the next 7 days; supports create, edit, complete, delete, and reassign between Nat and Caitie
-- **Weather** — 7-day Boston forecast inline with each calendar day
+- **Tasks** — live Asana task list showing everything past due, due today, or due in the next 7 days; supports create, edit, complete, delete, and reassign between users
+- **Weather** — 7-day forecast inline with each calendar day
 
-Access is restricted to `ncduncan@gmail.com` and `caitante@gmail.com` via Google OAuth.
+Access is restricted to a configurable allowlist of Google accounts (set via `ALLOWED_EMAILS` secret).
 
 ---
 
@@ -44,6 +42,7 @@ npm run dev                  # http://localhost:5173
 |---|---|
 | `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
 | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
+| `VITE_ALLOWED_EMAILS` | Comma-separated Google emails allowed to log in |
 | `VITE_ASANA_PAT` | https://app.asana.com/0/my-apps → Personal Access Token |
 | `VITE_ASANA_WORKSPACE_GID` | Your Asana workspace GID |
 
@@ -61,6 +60,7 @@ Pushes to `main` that touch `web/**` automatically trigger the GitHub Actions de
 |---|---|
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
+| `ALLOWED_EMAILS` | Comma-separated Google emails allowed to log in |
 | `ASANA_PAT` | Asana Personal Access Token |
 | `ASANA_WORKSPACE_GID` | Asana workspace GID |
 

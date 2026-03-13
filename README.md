@@ -13,13 +13,13 @@ Two things in one repo:
 ### 1. Web Dashboard (active)
 A private React SPA deployed to GitHub Pages. Shows:
 - **Google Calendar** — current week's events with AMION shift badges
-- **Asana Tasks** — everything past due, due today, or due this week; create / edit / complete / delete / reassign between Nat and Caitie
-- **Weather** — 7-day Boston forecast inline with each calendar day
+- **Asana Tasks** — everything past due, due today, or due this week; create / edit / complete / delete / reassign between users
+- **Weather** — 7-day forecast inline with each calendar day
 
-Access restricted to `ncduncan@gmail.com` and `caitante@gmail.com` via Google OAuth.
+Access restricted to a configurable allowlist of Google accounts (set via `ALLOWED_EMAILS` secret).
 
 ### 2. Sunday Briefing Agent (dormant)
-A Python agent that runs via GitHub Actions cron. Reads Google Calendar, Asana tasks, and Boston weather → feeds it to Gemini → sends an HTML email briefing to `ncduncan@gmail.com` and fires Google Calendar invites to `Nathaniel.duncan@geaerospace.com` for personal events affecting work availability.
+A Python agent that runs via GitHub Actions cron. Reads Google Calendar, Asana tasks, and local weather → feeds it to Gemini → sends an HTML email briefing and fires Google Calendar invites to a work email for personal events affecting work availability.
 
 ---
 
@@ -74,6 +74,7 @@ npm run dev                  # http://localhost:5173
 |---|---|
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
+| `ALLOWED_EMAILS` | Comma-separated Google emails allowed to log in |
 | `ASANA_PAT` | Asana Personal Access Token |
 | `ASANA_WORKSPACE_GID` | Asana workspace GID |
 
