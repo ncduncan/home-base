@@ -5,6 +5,9 @@ const BASE = 'https://app.asana.com/api/1.0'
 const pat = import.meta.env.VITE_ASANA_PAT as string
 const workspaceGid = import.meta.env.VITE_ASANA_WORKSPACE_GID as string
 
+// Cached after first successful resolveWorkspace() call — used by createTask
+let _resolvedWorkspaceGid: string | null = null
+
 function headers() {
   return {
     Authorization: `Bearer ${pat}`,
@@ -65,14 +68,66 @@ function parseTask(raw: any): AsanaTask {
   }
 }
 
-async function fetchTasksForUser(userGid: string, completedSince: string): Promise<AsanaTask[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseUsers(json: any): AsanaUser[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (json.data as any[]).map(u => ({
+    gid: u.gid as string,
+    name: u.name as string,
+    email: (u.email as string | undefined) ?? '',
+  }))
+}
+
+/**
+ * Finds the first workspace where user listing succeeds, returns { workspaceGid, users }.
+ * Tries the configured VITE_ASANA_WORKSPACE_GID first, then discovers others via /workspaces.
+ *
+ * Critical: the returned workspaceGid MUST be used for task fetching — user GIDs are
+ * workspace-scoped, so mixing workspaces causes 404 on the tasks endpoint.
+ */
+async function resolveWorkspace(): Promise<{ workspaceGid: string; users: AsanaUser[] }> {
+  const candidates: string[] = [workspaceGid]
+
+  // Discover additional workspace GIDs the PAT has access to
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ws = await asanaGet('/workspaces?opt_fields=gid') as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const w of (ws.data as any[])) {
+      if (!candidates.includes(w.gid as string)) candidates.push(w.gid as string)
+    }
+  } catch { /* ignore */ }
+
+  for (const gid of candidates) {
+    try {
+      const json = await asanaGet(`/users?workspace=${gid}&opt_fields=gid,name,email`)
+      _resolvedWorkspaceGid = gid
+      return { workspaceGid: gid, users: parseUsers(json) }
+    } catch { continue }
+  }
+
+  // Final fallback: just the PAT owner; use configured workspace for task fetching
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const me = await asanaGet('/users/me?opt_fields=gid,name,email') as any
+  _resolvedWorkspaceGid = workspaceGid
+  return {
+    workspaceGid,
+    users: [{
+      gid: me.data.gid as string,
+      name: me.data.name as string,
+      email: (me.data.email as string | undefined) ?? '',
+    }],
+  }
+}
+
+async function fetchTasksForUser(userGid: string, wsGid: string, completedSince: string): Promise<AsanaTask[]> {
   const all: AsanaTask[] = []
   let offset: string | null = null
 
   do {
     const params = new URLSearchParams({
       assignee: userGid,
-      workspace: workspaceGid,
+      workspace: wsGid,
       completed_since: completedSince,
       opt_fields: 'gid,name,due_on,completed,completed_at,assignee.gid,assignee.name,memberships.project.name,notes',
       limit: '100',
@@ -101,7 +156,8 @@ export async function fetchTasks(): Promise<AsanaTask[]> {
   const allowedEmails = (import.meta.env.VITE_ALLOWED_EMAILS as string ?? '')
     .split(',').map(e => e.trim()).filter(Boolean)
 
-  const allUsers = await fetchWorkspaceUsers()
+  // resolvedGid and user GIDs come from the same workspace — no cross-workspace mismatch
+  const { workspaceGid: resolvedGid, users: allUsers } = await resolveWorkspace()
   const users = allowedEmails.length > 0
     ? allUsers.filter(u => allowedEmails.includes(u.email))
     : allUsers
@@ -116,7 +172,7 @@ export async function fetchTasks(): Promise<AsanaTask[]> {
   const all: AsanaTask[] = []
 
   for (const gid of userGids) {
-    const tasks = await fetchTasksForUser(gid, sevenDaysAgo)
+    const tasks = await fetchTasksForUser(gid, resolvedGid, sevenDaysAgo)
     for (const t of tasks) {
       if (!seen.has(t.gid)) {
         seen.add(t.gid)
@@ -132,46 +188,8 @@ export async function fetchTasks(): Promise<AsanaTask[]> {
 }
 
 export async function fetchWorkspaceUsers(): Promise<AsanaUser[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function parseUsers(json: any): AsanaUser[] {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (json.data as any[]).map(u => ({
-      gid: u.gid as string,
-      name: u.name as string,
-      email: (u.email as string | undefined) ?? '',
-    }))
-  }
-
-  // Strategy 1: configured workspace GID (may return 400 for some org types)
-  try {
-    const json = await asanaGet(`/users?workspace=${workspaceGid}&opt_fields=gid,name,email`)
-    return parseUsers(json)
-  } catch { /* fall through */ }
-
-  // Strategy 2: discover workspace GIDs via /workspaces and try each
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const wsJson = await asanaGet('/workspaces?opt_fields=gid') as any
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const ws of (wsJson.data as any[])) {
-      if (ws.gid === workspaceGid) continue
-      try {
-        const json = await asanaGet(`/users?workspace=${ws.gid}&opt_fields=gid,name,email`)
-        return parseUsers(json)
-      } catch { continue }
-    }
-  } catch { /* fall through */ }
-
-  // Strategy 3: list users without workspace filter (returns all accessible users)
-  try {
-    const json = await asanaGet('/users?opt_fields=gid,name,email')
-    return parseUsers(json)
-  } catch { /* fall through */ }
-
-  // Final fallback: just return the PAT owner
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const me = await asanaGet('/users/me?opt_fields=gid,name,email') as any
-  return [{ gid: me.data.gid as string, name: me.data.name as string, email: (me.data.email as string | undefined) ?? '' }]
+  const { users } = await resolveWorkspace()
+  return users
 }
 
 export async function createTask(fields: {
@@ -180,8 +198,9 @@ export async function createTask(fields: {
   assignee?: string
   notes?: string
 }): Promise<AsanaTask> {
+  const wsGid = _resolvedWorkspaceGid ?? workspaceGid
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const json = await asanaPost('/tasks', { ...fields, workspace: workspaceGid }) as any
+  const json = await asanaPost('/tasks', { ...fields, workspace: wsGid }) as any
   return parseTask(json.data)
 }
 
