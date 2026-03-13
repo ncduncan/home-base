@@ -153,16 +153,12 @@ async function fetchTasksForUser(userGid: string, wsGid: string, completedSince:
  *   - Tasks completed within the last 7 days (for the "recently completed" section)
  */
 export async function fetchTasks(): Promise<AsanaTask[]> {
-  const allowedEmails = (import.meta.env.VITE_ALLOWED_EMAILS as string ?? '')
-    .split(',').map(e => e.trim()).filter(Boolean)
-
   // resolvedGid and user GIDs come from the same workspace — no cross-workspace mismatch
   const { workspaceGid: resolvedGid, users: allUsers } = await resolveWorkspace()
-  const users = allowedEmails.length > 0
-    ? allUsers.filter(u => allowedEmails.includes(u.email))
-    : allUsers
 
-  const userGids = users.map(u => u.gid)
+  // Fetch tasks for all users in the personal workspace (already a small, restricted set).
+  // VITE_ALLOWED_EMAILS controls Google login, not which Asana users to include here.
+  const userGids = allUsers.map(u => u.gid)
   if (userGids.length === 0) userGids.push('me')
 
   const cutoff = format(addDays(new Date(), 7), 'yyyy-MM-dd')
