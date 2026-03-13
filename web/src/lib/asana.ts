@@ -132,16 +132,46 @@ export async function fetchTasks(): Promise<AsanaTask[]> {
 }
 
 export async function fetchWorkspaceUsers(): Promise<AsanaUser[]> {
-  // /workspaces/{gid}/users is deprecated and returns 400 for Organizations.
-  // The correct endpoint is /users?workspace={gid}.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const json = await asanaGet(`/users?workspace=${workspaceGid}&opt_fields=gid,name,email`) as any
+  function parseUsers(json: any): AsanaUser[] {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (json.data as any[]).map(u => ({
+      gid: u.gid as string,
+      name: u.name as string,
+      email: (u.email as string | undefined) ?? '',
+    }))
+  }
+
+  // Strategy 1: configured workspace GID (may return 400 for some org types)
+  try {
+    const json = await asanaGet(`/users?workspace=${workspaceGid}&opt_fields=gid,name,email`)
+    return parseUsers(json)
+  } catch { /* fall through */ }
+
+  // Strategy 2: discover workspace GIDs via /workspaces and try each
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const wsJson = await asanaGet('/workspaces?opt_fields=gid') as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const ws of (wsJson.data as any[])) {
+      if (ws.gid === workspaceGid) continue
+      try {
+        const json = await asanaGet(`/users?workspace=${ws.gid}&opt_fields=gid,name,email`)
+        return parseUsers(json)
+      } catch { continue }
+    }
+  } catch { /* fall through */ }
+
+  // Strategy 3: list users without workspace filter (returns all accessible users)
+  try {
+    const json = await asanaGet('/users?opt_fields=gid,name,email')
+    return parseUsers(json)
+  } catch { /* fall through */ }
+
+  // Final fallback: just return the PAT owner
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (json.data as any[]).map(u => ({
-    gid: u.gid as string,
-    name: u.name as string,
-    email: (u.email as string | undefined) ?? '',
-  }))
+  const me = await asanaGet('/users/me?opt_fields=gid,name,email') as any
+  return [{ gid: me.data.gid as string, name: me.data.name as string, email: (me.data.email as string | undefined) ?? '' }]
 }
 
 export async function createTask(fields: {
