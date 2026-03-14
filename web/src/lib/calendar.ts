@@ -302,34 +302,34 @@ export async function createGusPickupEvents(): Promise<void> {
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const twoWeeksOut = new Date(today)
-  twoWeeksOut.setDate(twoWeeksOut.getDate() + 14)
+  const threeMonthsOut = new Date(today)
+  threeMonthsOut.setDate(threeMonthsOut.getDate() + 90)
 
-  // Fetch Caitie's work days and existing Gus pickup events in parallel
-  const [week0, week1, listResp] = await Promise.all([
-    fetchCalendarEvents(0),
-    fetchCalendarEvents(1),
+  // Fetch Caitie's work days (~13 weeks) and existing Gus pickup events in parallel
+  const weekFetches = Array.from({ length: 13 }, (_, i) => fetchCalendarEvents(i))
+  const [listResp, ...weekResults] = await Promise.all([
     fetch(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
       new URLSearchParams({
         q: 'Gus pickup',
         timeMin: today.toISOString(),
-        timeMax: twoWeeksOut.toISOString(),
+        timeMax: threeMonthsOut.toISOString(),
         singleEvents: 'true',
-        maxResults: '30',
+        maxResults: '100',
       }),
       { headers: { Authorization: `Bearer ${token}` } }
     ),
+    ...weekFetches,
   ])
 
   // Build set of Caitie work days
   const workDays = new Set<string>()
-  for (const event of [...week0, ...week1]) {
+  for (const event of weekResults.flat()) {
     if (!event.is_amion) continue
     if (event.amion_kind === 'backup') continue
     const dateStr = event.start.slice(0, 10)
     const date = new Date(`${dateStr}T12:00:00`)
-    if (date >= today && date < twoWeeksOut) {
+    if (date >= today && date < threeMonthsOut) {
       workDays.add(dateStr)
     }
   }
