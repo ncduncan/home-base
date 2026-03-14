@@ -208,6 +208,14 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
   return results
 }
 
+// ── Event owner ────────────────────────────────────────────────────────────────
+
+export function eventOwner(event: CalendarEvent): 'nat' | 'caitie' {
+  if (event.is_amion) return 'caitie'
+  if (event.organizer_email === 'caitante@gmail.com') return 'caitie'
+  return 'nat'
+}
+
 // ── Main fetch ─────────────────────────────────────────────────────────────────
 
 export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent[]> {
@@ -285,4 +293,97 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
 
   const amionEvents = processAmionEvents(amionItems)
   return [...regularEvents, ...amionEvents].sort((a, b) => a.start.localeCompare(b.start))
+}
+
+// ── Gus pickup invites ─────────────────────────────────────────────────────────
+
+export async function createGusPickupEvents(): Promise<void> {
+  const token = await getProviderToken()
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const twoWeeksOut = new Date(today)
+  twoWeeksOut.setDate(twoWeeksOut.getDate() + 14)
+
+  // Fetch Caitie's work days and existing Gus pickup events in parallel
+  const [week0, week1, listResp] = await Promise.all([
+    fetchCalendarEvents(0),
+    fetchCalendarEvents(1),
+    fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+      new URLSearchParams({
+        q: 'Gus pickup',
+        timeMin: today.toISOString(),
+        timeMax: twoWeeksOut.toISOString(),
+        singleEvents: 'true',
+        maxResults: '30',
+      }),
+      { headers: { Authorization: `Bearer ${token}` } }
+    ),
+  ])
+
+  // Build set of Caitie work days
+  const workDays = new Set<string>()
+  for (const event of [...week0, ...week1]) {
+    if (!event.is_amion) continue
+    if (event.amion_kind === 'backup') continue
+    const dateStr = event.start.slice(0, 10)
+    const date = new Date(`${dateStr}T12:00:00`)
+    if (date >= today && date < twoWeeksOut) {
+      workDays.add(dateStr)
+    }
+  }
+
+  // Build map of existing Gus pickup events: dateStr → eventId
+  const existingPickups = new Map<string, string>()
+  if (listResp.ok) {
+    const { items = [] } = await listResp.json() as { items: Array<{ id: string; summary?: string; start?: { dateTime?: string; date?: string } }> }
+    for (const item of items) {
+      if (item.summary !== 'Gus pickup') continue
+      const startStr = item.start?.dateTime ?? item.start?.date ?? ''
+      const dateStr = startStr.slice(0, 10)
+      if (dateStr) existingPickups.set(dateStr, item.id)
+    }
+  }
+
+  await Promise.all([
+    // Cancel pickups on days Caitie is no longer working
+    ...[...existingPickups.entries()]
+      .filter(([dateStr]) => !workDays.has(dateStr))
+      .map(async ([dateStr, eventId]) => {
+        const resp = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+          { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (!resp.ok && resp.status !== 410) {
+          console.warn(`Failed to cancel Gus pickup for ${dateStr}:`, resp.status)
+        }
+      }),
+
+    // Create pickups for work days that don't have one yet
+    ...[...workDays]
+      .filter(dateStr => !existingPickups.has(dateStr))
+      .map(async dateStr => {
+        const resp = await fetch(
+          'https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              id: `guspickup${dateStr.replace(/-/g, '')}`,
+              summary: 'Gus pickup',
+              start: { dateTime: `${dateStr}T17:00:00`, timeZone: 'America/New_York' },
+              end:   { dateTime: `${dateStr}T18:00:00`, timeZone: 'America/New_York' },
+              attendees: [{ email: 'nathaniel.duncan@geaerospace.com' }],
+            }),
+          }
+        )
+        if (!resp.ok && resp.status !== 409) {
+          console.warn(`Failed to create Gus pickup for ${dateStr}:`, resp.status)
+        }
+      }),
+  ])
 }

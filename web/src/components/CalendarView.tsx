@@ -2,10 +2,10 @@ import { useCallback, useState } from 'react'
 import { format, parseISO, isSameDay, addDays, startOfToday, startOfDay } from 'date-fns'
 import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { wmoToIcon } from '../lib/weather'
 import { USER_COLORS } from '../lib/userColors'
+import { eventOwner } from '../lib/calendar'
 import type { CalendarEvent, WeatherDay } from '../types'
 
 interface Props {
@@ -19,12 +19,6 @@ interface Props {
   onWeekChange: (delta: number) => void
 }
 
-function eventOwner(event: CalendarEvent): 'nat' | 'caitie' {
-  if (event.is_amion) return 'caitie'
-  if (event.organizer_email === 'caitante@gmail.com') return 'caitie'
-  return 'nat'
-}
-
 function OwnerAvatar({ owner }: { owner: 'nat' | 'caitie' }) {
   return (
     <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold shrink-0 ${USER_COLORS[owner].avatar}`}>
@@ -33,7 +27,7 @@ function OwnerAvatar({ owner }: { owner: 'nat' | 'caitie' }) {
   )
 }
 
-function shiftBadge(kind: CalendarEvent['amion_kind']) {
+function shiftLabel(kind: CalendarEvent['amion_kind']) {
   const labels: Record<string, string> = {
     training: 'Training',
     day:      'Day Shift',
@@ -42,9 +36,9 @@ function shiftBadge(kind: CalendarEvent['amion_kind']) {
     backup:   'Backup',
   }
   return (
-    <Badge className="text-xs border-0 py-0 bg-yellow-100 text-yellow-800">
+    <span className="text-sm text-gray-900">
       {labels[kind ?? ''] ?? 'Shift'}
-    </Badge>
+    </span>
   )
 }
 
@@ -52,7 +46,6 @@ function formatAmionTime(event: CalendarEvent): string {
   if (event.all_day) return 'all day'
   const start = parseISO(event.start)
   const end = parseISO(event.end)
-  // Check if end is next day (on-call)
   const startDate = event.start.slice(0, 10)
   const endDate = event.end.slice(0, 10)
   if (startDate !== endDate) {
@@ -193,7 +186,7 @@ export default function CalendarView({
                       <div className="flex items-center gap-2 flex-wrap">
                         <OwnerAvatar owner={eventOwner(event)} />
                         {event.is_amion
-                          ? shiftBadge(event.amion_kind)
+                          ? shiftLabel(event.amion_kind)
                           : <span className="text-sm text-gray-900">{event.title}</span>
                         }
                       </div>
