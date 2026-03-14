@@ -329,7 +329,7 @@ export async function createGusPickupEvents(): Promise<void> {
     if (event.amion_kind === 'backup') continue
     const dateStr = event.start.slice(0, 10)
     const date = new Date(`${dateStr}T12:00:00`)
-    if (date >= today && date < threeMonthsOut) {
+    if (date >= today && date < threeMonthsOut && !isWeekend(dateStr)) {
       workDays.add(dateStr)
     }
   }
