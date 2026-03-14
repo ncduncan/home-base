@@ -23,7 +23,7 @@ function ConflictBar({ events, weekOffset }: { events: CalendarEvent[]; weekOffs
     const dateStr = format(date, 'yyyy-MM-dd')
     const dayEvents = events.filter(e => e.start.startsWith(dateStr))
     const hasCaitie = dayEvents.some(e => eventOwner(e) === 'caitie')
-    const hasNat = dayEvents.some(e => eventOwner(e) === 'nat')
+    const hasNat = dayEvents.some(e => eventOwner(e) === 'nat' && e.title !== 'Gus pickup')
     return (hasCaitie && hasNat) ? dateStr : null
   }).filter(Boolean) as string[]
 
