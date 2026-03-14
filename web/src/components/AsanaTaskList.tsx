@@ -8,10 +8,11 @@ import {
   updateTask,
   deleteTask,
 } from '../lib/asana'
+import { USER_COLORS } from '../lib/userColors'
 import type { AsanaTask, AsanaUser } from '../types'
 
 function initials(name: string) {
-  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  return name[0]?.toUpperCase() ?? '?'
 }
 
 function firstWord(name: string) {
@@ -27,8 +28,8 @@ const AVATAR_COLORS = [
 ]
 function avatarColor(name: string) {
   const first = name.split(' ')[0].toLowerCase()
-  if (first === 'nat') return 'bg-slate-600 text-white'
-  if (first.startsWith('cait')) return 'bg-yellow-100 text-yellow-800'
+  if (first === 'nat') return USER_COLORS.nat.avatar
+  if (first.startsWith('cait')) return USER_COLORS.caitie.avatar
   let hash = 0
   for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff
   return AVATAR_COLORS[hash % AVATAR_COLORS.length]

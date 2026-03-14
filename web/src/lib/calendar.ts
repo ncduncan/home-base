@@ -84,23 +84,12 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
 
     let emittedWorking = false
 
-    // 1. Vacation / Leave
+    // 1. Vacation / Leave — not shown
     if (vacations.length > 0) {
-      results.push({
-        id: `amion-vac-${dateStr}`,
-        title: 'Vacation',
-        start: localDT(dateStr, 0),
-        end: localDT(dateStr, 0),
-        location: null,
-        all_day: true,
-        calendar_name: 'Caitie Work',
-        is_amion: true,
-        amion_kind: 'vacation',
-      })
       emittedWorking = true
     }
 
-    // 2. Night call (Call: NC-X) → On Call 6pm–8am next day
+    // 2. Night call (Call: NC-X) → Night Shift 6pm–8am next day
     if (ncCalls.length > 0) {
       results.push({
         id: `amion-nccall-${dateStr}`,
@@ -111,12 +100,12 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
         all_day: false,
         calendar_name: 'Caitie Work',
         is_amion: true,
-        amion_kind: 'oncall',
+        amion_kind: 'night',
       })
       emittedWorking = true
     }
 
-    // 3. AM: half-day morning
+    // 3. AM: half-day morning → Training
     for (const e of ams) {
       results.push({
         id: (e.raw.id as string) ?? `amion-am-${dateStr}`,
@@ -127,12 +116,12 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
         all_day: false,
         calendar_name: 'Caitie Work',
         is_amion: true,
-        amion_kind: 'working',
+        amion_kind: 'training',
       })
       emittedWorking = true
     }
 
-    // 4. PM: half-day afternoon
+    // 4. PM: half-day afternoon → Training
     for (const e of pms) {
       results.push({
         id: (e.raw.id as string) ?? `amion-pm-${dateStr}`,
@@ -143,7 +132,7 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
         all_day: false,
         calendar_name: 'Caitie Work',
         is_amion: true,
-        amion_kind: 'working',
+        amion_kind: 'training',
       })
       emittedWorking = true
     }
@@ -152,7 +141,7 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
     if (rotations.length > 0) {
       if (isWeekend(dateStr)) {
         if (calls.length > 0) {
-          // Weekend rotation + call → 24h on-call shift
+          // Weekend rotation + call → 24Hr shift
           results.push({
             id: `amion-oncall-${dateStr}`,
             title: '',
@@ -162,13 +151,13 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
             all_day: false,
             calendar_name: 'Caitie Work',
             is_amion: true,
-            amion_kind: 'oncall',
+            amion_kind: '24hr',
           })
           emittedWorking = true
         }
         // else: weekend rotation, no call → off, emit nothing
       } else {
-        // Weekday rotation → standard 8–6 shift
+        // Weekday rotation → Day Shift
         results.push({
           id: `amion-rot-${dateStr}`,
           title: '',
@@ -178,13 +167,13 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
           all_day: false,
           calendar_name: 'Caitie Work',
           is_amion: true,
-          amion_kind: 'working',
+          amion_kind: 'day',
         })
         emittedWorking = true
       }
     }
 
-    // 6. Standalone regular call (no rotation on this day)
+    // 6. Standalone regular call (no rotation on this day) → Day Shift
     if (calls.length > 0 && rotations.length === 0 && !emittedWorking) {
       results.push({
         id: `amion-call-${dateStr}`,
@@ -195,7 +184,7 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
         all_day: false,
         calendar_name: 'Caitie Work',
         is_amion: true,
-        amion_kind: 'working',
+        amion_kind: 'day',
       })
       emittedWorking = true
     }
@@ -289,6 +278,7 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
         all_day: allDay,
         calendar_name: cal.summary,
         is_amion: false,
+        organizer_email: (item.organizer as { email?: string } | undefined)?.email,
       })
     }
   }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { fetchCalendarEvents, CalendarAuthError } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks } from '../lib/asana'
@@ -16,6 +17,7 @@ export default function DashboardPage({ session }: Props) {
   // ── Asana tasks ───────────────────────────────────────────────────────────
   const [tasks, setTasks] = useState<AsanaTask[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
+  const [tasksRefreshing, setTasksRefreshing] = useState(false)
 
   useEffect(() => {
     fetchTasks()
@@ -80,13 +82,18 @@ export default function DashboardPage({ session }: Props) {
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Tasks</h2>
               <button
                 onClick={() => {
+                  setTasksRefreshing(true)
                   setTasksLoading(true)
-                  fetchTasks().then(setTasks).catch(() => {}).finally(() => setTasksLoading(false))
+                  fetchTasks().then(setTasks).catch(() => {}).finally(() => {
+                    setTasksLoading(false)
+                    setTimeout(() => setTasksRefreshing(false), 1200)
+                  })
                 }}
-                className="text-xs text-gray-400 hover:text-gray-600"
-                title="Refresh tasks"
+                disabled={tasksRefreshing}
+                className="text-gray-300 hover:text-gray-500 transition-colors disabled:opacity-40"
+                aria-label="Refresh tasks"
               >
-                ↺
+                <RefreshCw size={13} className={tasksRefreshing ? 'animate-spin' : ''} />
               </button>
             </div>
             <AsanaTaskList

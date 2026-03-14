@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { wmoToIcon } from '../lib/weather'
+import { USER_COLORS } from '../lib/userColors'
 import type { CalendarEvent, WeatherDay } from '../types'
 
 interface Props {
@@ -18,14 +19,33 @@ interface Props {
   onWeekChange: (delta: number) => void
 }
 
-function amionBadge(kind: CalendarEvent['amion_kind']) {
-  switch (kind) {
-    case 'working':  return <Badge className="text-xs border-0 py-0 bg-teal-100 text-teal-700">Working</Badge>
-    case 'oncall':   return <Badge className="text-xs border-0 py-0 bg-orange-100 text-orange-700">On Call</Badge>
-    case 'backup':   return <Badge className="text-xs border-0 py-0 bg-gray-100 text-gray-500">Backup</Badge>
-    case 'vacation': return <Badge className="text-xs border-0 py-0 bg-purple-100 text-purple-700">Vacation</Badge>
-    default:         return <Badge variant="secondary" className="text-xs border-0 py-0">AMION</Badge>
+function eventOwner(event: CalendarEvent): 'nat' | 'caitie' {
+  if (event.is_amion) return 'caitie'
+  if (event.organizer_email === 'caitante@gmail.com') return 'caitie'
+  return 'nat'
+}
+
+function OwnerAvatar({ owner }: { owner: 'nat' | 'caitie' }) {
+  return (
+    <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold shrink-0 ${USER_COLORS[owner].avatar}`}>
+      {owner === 'nat' ? 'N' : 'C'}
+    </span>
+  )
+}
+
+function shiftBadge(kind: CalendarEvent['amion_kind']) {
+  const labels: Record<string, string> = {
+    training: 'Training',
+    day:      'Day Shift',
+    night:    'Night Shift',
+    '24hr':   '24Hr',
+    backup:   'Backup',
   }
+  return (
+    <Badge className="text-xs border-0 py-0 bg-yellow-100 text-yellow-800">
+      {labels[kind ?? ''] ?? 'Shift'}
+    </Badge>
+  )
 }
 
 function formatAmionTime(event: CalendarEvent): string {
@@ -171,12 +191,13 @@ export default function CalendarView({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {!event.is_amion && (
-                          <span className="text-sm text-gray-900">{event.title}</span>
-                        )}
-                        {event.is_amion ? amionBadge(event.amion_kind) : null}
+                        <OwnerAvatar owner={eventOwner(event)} />
+                        {event.is_amion
+                          ? shiftBadge(event.amion_kind)
+                          : <span className="text-sm text-gray-900">{event.title}</span>
+                        }
                       </div>
-                      {event.location && !event.is_amion && (
+                      {!event.is_amion && event.location && (
                         <div className="text-xs text-gray-400 mt-0.5 truncate">{event.location}</div>
                       )}
                     </div>

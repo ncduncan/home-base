@@ -24,7 +24,8 @@ export interface CalendarEvent {
   all_day: boolean
   calendar_name: string
   is_amion: boolean
-  amion_kind?: 'working' | 'oncall' | 'backup' | 'vacation'
+  amion_kind?: 'training' | 'day' | 'night' | '24hr' | 'backup'
+  organizer_email?: string
 }
 
 export interface WeatherDay {
