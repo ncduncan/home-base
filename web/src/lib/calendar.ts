@@ -28,9 +28,9 @@ function classifyAmionTitle(title: string): AmionType {
   if (/^(vacation|leave)$/i.test(title)) return 'vacation'
   if (title.startsWith('AM:')) return 'am'
   if (title.startsWith('PM:')) return 'pm'
+  if (/^Call:\s*NC-/i.test(title)) return 'nc-call'  // before SC check — NC-call titles may contain 'SC'
+  if (/^NC-/i.test(title)) return 'nc-pool'           // before SC check — same reason
   if (title.includes('SC')) return 'backup'
-  if (/^Call:\s*NC-/i.test(title)) return 'nc-call'  // check before general NC-
-  if (/^NC-/i.test(title)) return 'nc-pool'           // NC- pool blocks: only shown with nc-call
   if (title.startsWith('Call:')) return 'call'
   return 'rotation'
 }
@@ -228,7 +228,7 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
   const timeMin = new Date(now)
   timeMin.setDate(timeMin.getDate() + weekOffset * 7)
   const timeMax = new Date(timeMin)
-  timeMax.setDate(timeMax.getDate() + 7)
+  timeMax.setDate(timeMax.getDate() + 6)
 
   const listResp = await fetch(
     'https://www.googleapis.com/calendar/v3/users/me/calendarList',
