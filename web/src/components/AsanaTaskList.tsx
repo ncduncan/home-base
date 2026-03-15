@@ -459,8 +459,13 @@ export default function AsanaTaskList({ tasks, loading, currentUserEmail, onSetT
 
   if (loading) return <div className="p-4 text-gray-400 text-sm">Loading tasks...</div>
 
+  // Only show tasks due within the next 6 days (so next Sunday never bleeds into the current Sunday)
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() + 6)
+  const cutoffStr = cutoff.toISOString().slice(0, 10)
+
   // Sort incomplete tasks by due date (overdue first, then ascending, nulls last)
-  const incomplete = [...tasks.filter(t => !t.completed)].sort((a, b) => {
+  const incomplete = [...tasks.filter(t => !t.completed && (!t.due_on || t.due_on <= cutoffStr))].sort((a, b) => {
     if (!a.due_on && !b.due_on) return 0
     if (!a.due_on) return 1
     if (!b.due_on) return -1

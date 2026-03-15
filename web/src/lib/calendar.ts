@@ -81,13 +81,13 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
 
   for (const [dateStr, entries] of byDate) {
     const vacations = entries.filter(e => e.type === 'vacation')
-    const rotations = entries.filter(e => e.type === 'rotation')
+    // nc-pool (NC-prefixed rotation, e.g. NC-11H) is treated the same as rotation
+    const rotations = entries.filter(e => e.type === 'rotation' || e.type === 'nc-pool')
     const calls     = entries.filter(e => e.type === 'call')
     const backups   = entries.filter(e => e.type === 'backup')
     const ams       = entries.filter(e => e.type === 'am')
     const pms       = entries.filter(e => e.type === 'pm')
     const ncCalls   = entries.filter(e => e.type === 'nc-call')
-    // nc-pool entries are intentionally ignored unless ncCalls is non-empty
 
     let emittedWorking = false
 
@@ -96,19 +96,35 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
       emittedWorking = true
     }
 
-    // 2. Night call (Call: NC-X) → Night Shift 6pm–8am next day
+    // 2. NC call (Call: NC-X):
+    //    • with rotation on same day → 24hr shift (8am–8am next day)
+    //    • alone (no rotation) → Night Shift (6pm–8am next day)
     if (ncCalls.length > 0) {
-      results.push({
-        id: `amion-nccall-${dateStr}`,
-        title: '',
-        start: localDT(dateStr, 18),
-        end: localDT(nextDay(dateStr), 8),
-        location: null,
-        all_day: false,
-        calendar_name: 'Caitie Work',
-        is_amion: true,
-        amion_kind: 'night',
-      })
+      if (rotations.length > 0) {
+        results.push({
+          id: `amion-nccall-${dateStr}`,
+          title: '',
+          start: localDT(dateStr, 8),
+          end: localDT(nextDay(dateStr), 8),
+          location: null,
+          all_day: false,
+          calendar_name: 'Caitie Work',
+          is_amion: true,
+          amion_kind: '24hr',
+        })
+      } else {
+        results.push({
+          id: `amion-nccall-${dateStr}`,
+          title: '',
+          start: localDT(dateStr, 18),
+          end: localDT(nextDay(dateStr), 8),
+          location: null,
+          all_day: false,
+          calendar_name: 'Caitie Work',
+          is_amion: true,
+          amion_kind: 'night',
+        })
+      }
       emittedWorking = true
     }
 
@@ -144,8 +160,8 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
       emittedWorking = true
     }
 
-    // 5. Regular rotation blocks (non-NC-prefixed)
-    if (rotations.length > 0) {
+    // 5. Rotation blocks — only when nc-call didn't already handle this day
+    if (rotations.length > 0 && ncCalls.length === 0) {
       if (isWeekend(dateStr)) {
         if (calls.length > 0) {
           // Weekend rotation + call → 24Hr shift
