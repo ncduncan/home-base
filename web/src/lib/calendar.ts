@@ -10,11 +10,18 @@ export class CalendarAuthError extends Error {
 
 async function getProviderToken(): Promise<string> {
   const { data } = await supabase.auth.getSession()
-  let token = data.session?.provider_token
-  if (!token) {
-    const { data: refreshed } = await supabase.auth.refreshSession()
-    token = refreshed.session?.provider_token
-  }
+  const token = data.session?.provider_token
+  if (token) return token
+  // Session exists but provider_token is absent — refresh to get a new one
+  const { data: refreshed } = await supabase.auth.refreshSession()
+  const refreshedToken = refreshed.session?.provider_token
+  if (!refreshedToken) throw new CalendarAuthError()
+  return refreshedToken
+}
+
+async function refreshedToken(): Promise<string> {
+  const { data } = await supabase.auth.refreshSession()
+  const token = data.session?.provider_token
   if (!token) throw new CalendarAuthError()
   return token
 }
@@ -219,7 +226,7 @@ export function eventOwner(event: CalendarEvent): 'nat' | 'caitie' {
 // ── Main fetch ─────────────────────────────────────────────────────────────────
 
 export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent[]> {
-  const token = await getProviderToken()
+  let token = await getProviderToken()
 
   const now = new Date()
   now.setHours(0, 0, 0, 0)
@@ -230,10 +237,18 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
   const timeMax = new Date(timeMin)
   timeMax.setDate(timeMax.getDate() + 6)
 
-  const listResp = await fetch(
+  let listResp = await fetch(
     'https://www.googleapis.com/calendar/v3/users/me/calendarList',
     { headers: { Authorization: `Bearer ${token}` } }
   )
+  // If the stored access token expired, refresh once and retry
+  if (listResp.status === 401) {
+    token = await refreshedToken()
+    listResp = await fetch(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList',
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+  }
   if (!listResp.ok) throw new Error('Failed to fetch calendar list')
   const { items: calendars = [] } = await listResp.json() as {
     items: Array<{ id: string; summary: string; selected?: boolean }>

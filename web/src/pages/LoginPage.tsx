@@ -12,7 +12,7 @@ export default function LoginPage({ unauthorized }: Props) {
       options: {
         redirectTo: window.location.origin + import.meta.env.BASE_URL,
         scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-        queryParams: { access_type: 'offline', prompt: 'consent' },
+        queryParams: { access_type: 'offline', prompt: 'select_account' },
       },
     })
   }
