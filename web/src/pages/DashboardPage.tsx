@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { format, addDays, startOfToday, startOfDay, parseISO } from 'date-fns'
 import { RefreshCw } from 'lucide-react'
-import { fetchCalendarEvents, CalendarAuthError, createGusPickupEvents, eventOwner } from '../lib/calendar'
+import { fetchCalendarEvents, CalendarAuthError, createGusPickupEvents, createGusDropoffEvents, eventOwner } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks } from '../lib/asana'
 import type { Session } from '@supabase/supabase-js'
@@ -23,7 +23,7 @@ function ConflictBar({ events, weekOffset }: { events: CalendarEvent[]; weekOffs
     const dateStr = format(date, 'yyyy-MM-dd')
     const dayEvents = events.filter(e => e.start.startsWith(dateStr))
     const hasCaitie = dayEvents.some(e => eventOwner(e) === 'caitie')
-    const hasNat = dayEvents.some(e => eventOwner(e) === 'nat' && e.title !== 'Gus pickup')
+    const hasNat = dayEvents.some(e => eventOwner(e) === 'nat' && e.title !== 'Gus pickup' && e.title !== 'Gus dropoff')
     return (hasCaitie && hasNat) ? dateStr : null
   }).filter(Boolean) as string[]
 
@@ -79,10 +79,11 @@ export default function DashboardPage({ session }: Props) {
 
   useEffect(() => { fetchEvents(weekOffset) }, [fetchEvents, weekOffset])
 
-  // ── Gus pickup invites (Nat only) ──────────────────────────────────────────
+  // ── Gus care invites (Nat only) ───────────────────────────────────────────
   useEffect(() => {
     if (session.user.email === 'ncduncan@gmail.com') {
       createGusPickupEvents().catch(() => {/* non-blocking */})
+      createGusDropoffEvents().catch(() => {/* non-blocking */})
     }
   }, [])
 

@@ -326,6 +326,58 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
   return [...regularEvents, ...amionEvents].sort((a, b) => a.start.localeCompare(b.start))
 }
 
+// ── Gus care invites (shared helpers) ─────────────────────────────────────────
+
+type GusEventSpec = {
+  id: string
+  summary: string
+  startHour: number
+  endHour: number
+}
+
+async function syncGusEvents(
+  token: string,
+  days: Set<string>,
+  existing: Map<string, string>,
+  spec: GusEventSpec,
+): Promise<void> {
+  await Promise.all([
+    ...[...existing.entries()]
+      .filter(([dateStr]) => !days.has(dateStr))
+      .map(async ([dateStr, eventId]) => {
+        const resp = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+          { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (!resp.ok && resp.status !== 410) {
+          console.warn(`Failed to cancel ${spec.summary} for ${dateStr}:`, resp.status)
+        }
+      }),
+
+    ...[...days]
+      .filter(dateStr => !existing.has(dateStr))
+      .map(async dateStr => {
+        const resp = await fetch(
+          'https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all',
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: spec.id + dateStr.replace(/-/g, ''),
+              summary: spec.summary,
+              start: { dateTime: `${dateStr}T${String(spec.startHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
+              end:   { dateTime: `${dateStr}T${String(spec.endHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
+              attendees: [{ email: 'nathaniel.duncan@geaerospace.com' }],
+            }),
+          }
+        )
+        if (!resp.ok && resp.status !== 409) {
+          console.warn(`Failed to create ${spec.summary} for ${dateStr}:`, resp.status)
+        }
+      }),
+  ])
+}
+
 // ── Gus pickup invites ─────────────────────────────────────────────────────────
 
 export async function createGusPickupEvents(): Promise<void> {
@@ -353,7 +405,7 @@ export async function createGusPickupEvents(): Promise<void> {
     ...weekFetches,
   ])
 
-  // Build set of Caitie work days
+  // Build set of Caitie work days (for pickup: any AMION non-backup weekday)
   const workDays = new Set<string>()
   for (const event of weekResults.flat()) {
     if (!event.is_amion) continue
@@ -377,44 +429,83 @@ export async function createGusPickupEvents(): Promise<void> {
     }
   }
 
-  await Promise.all([
-    // Cancel pickups on days Caitie is no longer working
-    ...[...existingPickups.entries()]
-      .filter(([dateStr]) => !workDays.has(dateStr))
-      .map(async ([dateStr, eventId]) => {
-        const resp = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
-          { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
-        )
-        if (!resp.ok && resp.status !== 410) {
-          console.warn(`Failed to cancel Gus pickup for ${dateStr}:`, resp.status)
-        }
-      }),
+  await syncGusEvents(token, workDays, existingPickups, {
+    id: 'guspickup',
+    summary: 'Gus pickup',
+    startHour: 17,
+    endHour: 18,
+  })
+}
 
-    // Create pickups for work days that don't have one yet
-    ...[...workDays]
-      .filter(dateStr => !existingPickups.has(dateStr))
-      .map(async dateStr => {
-        const resp = await fetch(
-          'https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              id: `guspickup${dateStr.replace(/-/g, '')}`,
-              summary: 'Gus pickup',
-              start: { dateTime: `${dateStr}T17:00:00`, timeZone: 'America/New_York' },
-              end:   { dateTime: `${dateStr}T18:00:00`, timeZone: 'America/New_York' },
-              attendees: [{ email: 'nathaniel.duncan@geaerospace.com' }],
-            }),
-          }
-        )
-        if (!resp.ok && resp.status !== 409) {
-          console.warn(`Failed to create Gus pickup for ${dateStr}:`, resp.status)
-        }
+// ── Gus dropoff invites ────────────────────────────────────────────────────────
+
+export async function createGusDropoffEvents(): Promise<void> {
+  const token = await getProviderToken()
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const threeMonthsOut = new Date(today)
+  threeMonthsOut.setDate(threeMonthsOut.getDate() + 90)
+
+  // Fetch Caitie's schedule (~13 weeks) and existing Gus dropoff events in parallel
+  const weekFetches = Array.from({ length: 13 }, (_, i) => fetchCalendarEvents(i))
+  const [listResp, ...weekResults] = await Promise.all([
+    fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+      new URLSearchParams({
+        q: 'Gus dropoff',
+        timeMin: today.toISOString(),
+        timeMax: threeMonthsOut.toISOString(),
+        singleEvents: 'true',
+        maxResults: '100',
       }),
+      { headers: { Authorization: `Bearer ${token}` } }
+    ),
+    ...weekFetches,
   ])
+
+  // Build set of days Nat is primary morning caregiver:
+  //   • Caitie has day/training/24hr shift → she leaves at 8am, Nat does 7am dropoff that day
+  //   • Caitie had night/24hr shift → she's still at hospital at 7am next morning
+  const dropoffDays = new Set<string>()
+  for (const event of weekResults.flat()) {
+    if (!event.is_amion) continue
+    const kind = event.amion_kind
+    const dateStr = event.start.slice(0, 10)
+    const date = new Date(`${dateStr}T12:00:00`)
+
+    if (kind === 'day' || kind === 'training' || kind === '24hr') {
+      if (date >= today && date < threeMonthsOut && !isWeekend(dateStr)) {
+        dropoffDays.add(dateStr)
+      }
+    }
+
+    // Night shift or 24hr: Caitie is still at hospital at 7am the next morning
+    if (kind === 'night' || kind === '24hr') {
+      const nxt = nextDay(dateStr)
+      const nxtDate = new Date(`${nxt}T12:00:00`)
+      if (nxtDate >= today && nxtDate < threeMonthsOut && !isWeekend(nxt)) {
+        dropoffDays.add(nxt)
+      }
+    }
+  }
+
+  // Build map of existing Gus dropoff events: dateStr → eventId
+  const existingDropoffs = new Map<string, string>()
+  if (listResp.ok) {
+    const { items = [] } = await listResp.json() as { items: Array<{ id: string; summary?: string; start?: { dateTime?: string; date?: string } }> }
+    for (const item of items) {
+      if (item.summary !== 'Gus dropoff') continue
+      const startStr = item.start?.dateTime ?? item.start?.date ?? ''
+      const dateStr = startStr.slice(0, 10)
+      if (dateStr) existingDropoffs.set(dateStr, item.id)
+    }
+  }
+
+  await syncGusEvents(token, dropoffDays, existingDropoffs, {
+    id: 'gusdropoff',
+    summary: 'Gus dropoff',
+    startHour: 7,
+    endHour: 8,
+  })
 }
