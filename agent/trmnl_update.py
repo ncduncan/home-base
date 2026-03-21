@@ -1,0 +1,38 @@
+"""
+TRMNL display updater.
+
+Collects calendar events (today + next 2 days), tasks due soon, and Boston
+weather, then pushes the data to the TRMNL Private Plugin webhook.
+
+Usage:
+    python -m agent.trmnl_update
+"""
+
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from agent.collectors.calendar import fetch_week_events
+from agent.collectors.asana import fetch_week_tasks
+from agent.collectors.weather import fetch_boston_forecast
+from agent.config import settings
+from agent.publishers.trmnl import push_to_trmnl
+
+EASTERN = ZoneInfo("America/New_York")
+
+
+def main() -> None:
+    now = datetime.now(tz=EASTERN)
+    window_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    window_end = window_start + timedelta(days=3)
+
+    print(f"[trmnl_update] Window: {window_start.date()} → {window_end.date()}")
+
+    events = fetch_week_events(window_start, window_end)
+    tasks = fetch_week_tasks(window_end.date())
+    weather = fetch_boston_forecast()
+
+    push_to_trmnl(settings.trmnl_webhook_url, now, events, tasks, weather)
+
+
+if __name__ == "__main__":
+    main()

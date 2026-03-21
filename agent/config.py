@@ -22,12 +22,15 @@ class Settings(BaseSettings):
     weather_city: str = "Boston,MA,US"
 
     # ── Gemini ────────────────────────────────────────────────────────────────
-    gemini_api_key: str
+    gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
 
     # ── Email + Calendar ──────────────────────────────────────────────────────
     briefing_email_to: str = "ncduncan@gmail.com"
     work_email: str = "Nathaniel.duncan@geaerospace.com"
+
+    # ── TRMNL display ─────────────────────────────────────────────────────────
+    trmnl_webhook_url: str = ""
 
     # ── Feature flags ─────────────────────────────────────────────────────────
     # If true: print briefing to stdout; skip email + calendar writes
