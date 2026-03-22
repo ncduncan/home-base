@@ -72,7 +72,17 @@ def main() -> None:
         str(CLIENT_SECRETS_FILE),
         scopes=SCOPES,
     )
-    creds = flow.run_local_server(port=0)
+
+    # Generate the auth URL manually — paste it into your browser
+    flow.redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+    print("Open this URL in your browser:")
+    print()
+    print(auth_url)
+    print()
+    code = input("Paste the authorization code here: ").strip()
+    flow.fetch_token(code=code)
+    creds = flow.credentials
 
     with open(TOKEN_OUTPUT, "w") as f:
         f.write(creds.to_json())

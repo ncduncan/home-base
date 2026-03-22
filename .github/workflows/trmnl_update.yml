@@ -30,7 +30,7 @@ jobs:
 
       - name: Decode Google OAuth token
         run: |
-          echo "$GOOGLE_OAUTH_TOKEN" | base64 -d > /tmp/google_token.json
+          echo "$GOOGLE_OAUTH_TOKEN" | tr -d '[:space:]' | base64 -d > /tmp/google_token.json
         env:
           GOOGLE_OAUTH_TOKEN: ${{ secrets.GOOGLE_OAUTH_TOKEN }}
 
