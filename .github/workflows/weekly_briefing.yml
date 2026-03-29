@@ -27,12 +27,11 @@ jobs:
       - name: Install dependencies
         run: pip install -e .
 
-      - name: Decode Google OAuth token
-        # The token.json is stored base64-encoded as a GitHub secret.
-        # It contains the refresh token and client credentials needed
-        # for automatic access-token renewal during the run.
+      - name: Write Google OAuth token
+        # The token.json contents are stored directly as a GitHub secret (no base64).
+        # Contains the refresh token and client credentials needed for automatic renewal.
         run: |
-          echo "$GOOGLE_OAUTH_TOKEN" | tr -d '[:space:]' | base64 -d > /tmp/google_token.json
+          python3 -c "import os; open('/tmp/google_token.json','w').write(os.environ['GOOGLE_OAUTH_TOKEN'])"
         env:
           GOOGLE_OAUTH_TOKEN: ${{ secrets.GOOGLE_OAUTH_TOKEN }}
 

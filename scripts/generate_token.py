@@ -10,13 +10,11 @@ the requested permissions. The resulting token.json is written to the
 project root and is self-contained (includes the refresh token and client
 credentials needed for automatic renewal in GitHub Actions).
 
-After running this script, encode the token for GitHub:
-    # Linux:
-    base64 -w 0 token.json
-    # macOS:
-    base64 -i token.json
+After running this script, store the token for GitHub:
+    Open token.json in a text editor, copy the entire contents (the raw JSON),
+    and paste it as the GOOGLE_OAUTH_TOKEN GitHub Actions secret.
+    No base64 encoding needed.
 
-Store that base64 string as the GOOGLE_OAUTH_TOKEN GitHub Actions secret.
 Then delete your local token.json (it's in .gitignore, but belt-and-suspenders).
 """
 
@@ -89,15 +87,14 @@ def main() -> None:
 
     print(f"\n✅  Token saved to {TOKEN_OUTPUT}")
     print()
-    print("Next: encode and store as a GitHub Actions secret.")
+    print("Next: store the raw token contents as a GitHub Actions secret.")
     print()
-    print("  Linux:")
-    print(f"    base64 -w 0 {TOKEN_OUTPUT}  # copy the output")
+    print("  1. Open token.json in a text editor (or run: type token.json on Windows)")
+    print("  2. Copy the entire JSON content")
+    print("  3. Go to GitHub repo → Settings → Secrets and variables → Actions")
+    print("  4. Update GOOGLE_OAUTH_TOKEN — paste the raw JSON as the secret value")
     print()
-    print("  macOS:")
-    print(f"    base64 -i {TOKEN_OUTPUT}    # copy the output")
-    print()
-    print("Store that value as: GOOGLE_OAUTH_TOKEN  (GitHub repo → Settings → Secrets)")
+    print("Store as: GOOGLE_OAUTH_TOKEN  (GitHub repo → Settings → Secrets)")
     print()
     print("⚠️   token.json is in .gitignore — never commit it.")
     print("    You can delete it locally once it's saved as a GitHub secret.")
