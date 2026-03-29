@@ -62,25 +62,17 @@ def main() -> None:
     print("=" * 40)
     print(f"Scopes: {', '.join(SCOPES)}")
     print()
-    print("A browser window will open. Log in as ncduncan@gmail.com")
-    print("and grant the requested permissions.")
-    print()
 
     flow = InstalledAppFlow.from_client_secrets_file(
         str(CLIENT_SECRETS_FILE),
         scopes=SCOPES,
     )
 
-    # Generate the auth URL manually — paste it into your browser
-    flow.redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
-    print("Open this URL in your browser:")
+    # Starts a local HTTP server, opens your browser, and captures the auth code
+    # automatically via the http://localhost redirect URI in client_secret.json.
+    print("Your browser will open. Log in as ncduncan@gmail.com and grant the requested permissions.")
     print()
-    print(auth_url)
-    print()
-    code = input("Paste the authorization code here: ").strip()
-    flow.fetch_token(code=code)
-    creds = flow.credentials
+    creds = flow.run_local_server(port=0)
 
     with open(TOKEN_OUTPUT, "w") as f:
         f.write(creds.to_json())
