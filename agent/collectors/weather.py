@@ -170,9 +170,10 @@ def fetch_weather_slots(days_ahead: int = 3) -> list[dict]:
                     "label": f"{day_label} {period}",
                     "temp": round(best["main"]["temp"]),
                     "icon": weather_info.get("icon", "01d"),
+                    "description": weather_info.get("description", "").title(),
                 })
             else:
-                slots.append({"label": f"{day_label} {period}", "temp": None, "icon": "01d"})
+                slots.append({"label": f"{day_label} {period}", "temp": None, "icon": "01d", "description": ""})
 
     return slots
 
