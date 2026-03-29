@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react'
 import { fetchCalendarEvents, CalendarAuthError, createGusPickupEvents, createGusDropoffEvents, eventOwner } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks } from '../lib/asana'
+import { supabase } from '../lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import type { AsanaTask, CalendarEvent, WeatherDay } from '../types'
 import Header from '../components/Header'
@@ -63,6 +64,18 @@ export default function DashboardPage({ session }: Props) {
   const [eventsError, setEventsError] = useState<string | null>(null)
   const [eventsAuthError, setEventsAuthError] = useState(false)
   const [weekOffset, setWeekOffset] = useState(0)
+
+  // Auto-reauth when Google provider token expires — transparent to the user
+  useEffect(() => {
+    if (!eventsAuthError) return
+    void supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
+        redirectTo: window.location.href,
+      },
+    })
+  }, [eventsAuthError])
 
   const fetchEvents = useCallback((offset: number) => {
     setEventsLoading(true)
