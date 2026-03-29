@@ -18,7 +18,11 @@ After running this script, store the token for GitHub:
 Then delete your local token.json (it's in .gitignore, but belt-and-suspenders).
 """
 
+import socket
 import sys
+import urllib.parse as _up
+import webbrowser
+import wsgiref.simple_server
 from pathlib import Path
 
 # Run from project root so imports work
@@ -68,11 +72,48 @@ def main() -> None:
         scopes=SCOPES,
     )
 
-    # Starts a local HTTP server, opens your browser, and captures the auth code
-    # automatically via the http://localhost redirect URI in client_secret.json.
-    print("Your browser will open. Log in as ncduncan@gmail.com and grant the requested permissions.")
+    # Find a free port, build the auth URL, print it, and catch the redirect locally.
+    # http://localhost in client_secret.json matches http://localhost:{any port}/ for Desktop apps.
+    with socket.socket() as _s:
+        _s.bind(("", 0))
+        port = _s.getsockname()[1]
+
+    flow.redirect_uri = f"http://localhost:{port}/"
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+
+    print("Open this URL in your browser:")
     print()
-    creds = flow.run_local_server(port=0)
+    print(auth_url)
+    print()
+    try:
+        webbrowser.open(auth_url, new=1, autoraise=True)
+        print("(Browser should open automatically — if not, copy the URL above.)")
+    except Exception:
+        print("(Could not open browser automatically — copy the URL above.)")
+    print()
+    print("Waiting for authorization...")
+
+    code_holder: list = [None]
+
+    def _app(environ, start_response):
+        qs = _up.parse_qs(environ.get("QUERY_STRING", ""))
+        code_holder[0] = qs.get("code", [None])[0]
+        start_response("200 OK", [("Content-Type", "text/html")])
+        return [b"<h1>Authorization complete. You can close this tab.</h1>"]
+
+    class _Silent(wsgiref.simple_server.WSGIRequestHandler):
+        def log_message(self, *_): pass  # noqa: ANN002
+
+    srv = wsgiref.simple_server.make_server("localhost", port, _app, handler_class=_Silent)
+    srv.handle_request()
+    srv.server_close()
+
+    if not code_holder[0]:
+        print("ERROR: Did not receive auth code. Please try again.")
+        sys.exit(1)
+
+    flow.fetch_token(code=code_holder[0])
+    creds = flow.credentials
 
     with open(TOKEN_OUTPUT, "w") as f:
         f.write(creds.to_json())
