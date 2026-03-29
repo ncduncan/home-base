@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from agent.collectors.calendar import fetch_week_events
 from agent.collectors.asana import fetch_week_tasks
-from agent.collectors.weather import fetch_boston_forecast
+from agent.collectors.weather import fetch_weather_slots
 from agent.config import settings
 from agent.publishers.trmnl import push_to_trmnl
 
@@ -29,9 +29,9 @@ def main() -> None:
 
     events = fetch_week_events(window_start, window_end)
     tasks = fetch_week_tasks(window_end.date())
-    weather = fetch_boston_forecast()
+    weather_slots = fetch_weather_slots(days_ahead=3)
 
-    push_to_trmnl(settings.trmnl_webhook_url, now, events, tasks, weather)
+    push_to_trmnl(settings.trmnl_webhook_url, now, events, tasks, weather_slots)
 
 
 if __name__ == "__main__":

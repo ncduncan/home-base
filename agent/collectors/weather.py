@@ -9,7 +9,7 @@ All temperatures are in Fahrenheit (imperial units).
 """
 
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -117,6 +117,64 @@ def _fetch_5day_fallback(client: httpx.Client, lat: float, lon: float) -> list[W
         )
 
     return days[:7]
+
+
+def fetch_weather_slots(days_ahead: int = 3) -> list[dict]:
+    """
+    Return AM (≈9am) and PM (≈3pm) weather slots for the next days_ahead days.
+    Each slot: {label: str, temp: int|None, icon: str}
+    Always uses the free 5-day/3-hour forecast API.
+    """
+    with httpx.Client(timeout=15.0) as client:
+        lat, lon = _geocode(client)
+        resp = client.get(
+            f"{OWM_BASE}/data/2.5/forecast",
+            params={
+                "lat": lat,
+                "lon": lon,
+                "units": "imperial",
+                "appid": settings.openweathermap_api_key,
+            },
+        )
+        resp.raise_for_status()
+        items = resp.json()["list"]
+
+    now = datetime.now(tz=EASTERN)
+    today = now.date()
+
+    # Group 3-hour forecast items by date
+    by_day: dict[date, list[tuple[int, dict]]] = defaultdict(list)
+    for item in items:
+        dt = datetime.fromtimestamp(item["dt"], tz=EASTERN)
+        d = dt.date()
+        if today <= d < today + timedelta(days=days_ahead):
+            by_day[d].append((dt.hour, item))
+
+    slots: list[dict] = []
+    for offset in range(days_ahead):
+        d = today + timedelta(days=offset)
+        day_items = by_day.get(d, [])
+
+        if offset == 0:
+            day_label = "Today"
+        elif offset == 1:
+            day_label = "Tmrw"
+        else:
+            day_label = d.strftime("%a")
+
+        for period, target_hour in (("AM", 9), ("PM", 15)):
+            if day_items:
+                _, best = min(day_items, key=lambda x: abs(x[0] - target_hour))
+                weather_info = (best.get("weather") or [{}])[0]
+                slots.append({
+                    "label": f"{day_label} {period}",
+                    "temp": round(best["main"]["temp"]),
+                    "icon": weather_info.get("icon", "01d"),
+                })
+            else:
+                slots.append({"label": f"{day_label} {period}", "temp": None, "icon": "01d"})
+
+    return slots
 
 
 def fetch_boston_forecast() -> list[WeatherDay]:

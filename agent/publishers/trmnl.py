@@ -2,7 +2,7 @@
 TRMNL e-ink display publisher.
 
 Pushes a compact daily briefing to a TRMNL Private Plugin webhook.
-Data window: today + next 2 days (3 days total).
+Data window: today + next 2 days (3 days total), AM/PM weather slices.
 
 ──────────────────────────────────────────────────────────────────────────────
 TRMNL Liquid Template
@@ -10,44 +10,46 @@ Paste this into your Private Plugin markup on usetrmnl.com:
 ──────────────────────────────────────────────────────────────────────────────
 
 <div class="screen screen--og">
-  <div class="view view--full">
+  <div class="view view--full" style="display:flex;flex-direction:column;">
+
     <div class="title_bar">
       <span class="title">Home Base</span>
       <span class="instance_label">{{ generated_at }}</span>
     </div>
-    <div class="layout layout--col gap--medium p--2">
 
-      <div class="flex flex--row gap--medium">
-        <span class="value value--xlarge">{{ weather.emoji }}</span>
-        <div class="flex flex--col">
-          <span class="label">Boston Today</span>
-          <span class="value">{{ weather.high }}° / {{ weather.low }}°F</span>
-          <span class="description">{{ weather.description }}</span>
-        </div>
+    <!-- Weather: 6 AM/PM columns -->
+    <div style="display:flex;border-bottom:2px solid #000;padding:4px 0;">
+      {% for slot in weather_slots %}
+      <div style="flex:1;text-align:center;padding:2px 0;{% unless forloop.last %}border-right:1px solid #ccc;{% endunless %}">
+        <div style="font-size:11px;font-weight:bold;line-height:1.3;">{{ slot.label }}</div>
+        <div style="font-size:22px;line-height:1.1;">{{ slot.emoji }}</div>
+        <div style="font-size:17px;font-weight:bold;line-height:1.2;">{{ slot.temp }}°</div>
       </div>
+      {% endfor %}
+    </div>
 
-      <div class="flex flex--col gap--small">
-        <span class="label label--underline">Upcoming</span>
+    <!-- Main: events (left 80%) + tasks (right 20%) -->
+    <div style="display:flex;flex:1;padding:6px 4px 4px 4px;gap:6px;">
+
+      <div style="flex:4;">
+        <div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #000;margin-bottom:3px;padding-bottom:1px;">Upcoming</div>
         {% for event in events %}
-          <div class="flex flex--row gap--small">
-            <span class="description" style="width:60px">{{ event.day }}</span>
-            <span class="description" style="width:70px">{{ event.time }}</span>
-            <span class="description">{{ event.title }} — {{ event.owner }}</span>
-          </div>
+        <div style="display:flex;font-size:13px;line-height:1.5;">
+          <span style="width:62px;flex-shrink:0;">{{ event.day }}</span>
+          <span style="width:70px;flex-shrink:0;">{{ event.time }}</span>
+          <span>{{ event.title }} — {{ event.owner }}</span>
+        </div>
         {% else %}
-          <span class="description">No upcoming events</span>
+        <div style="font-size:13px;">No upcoming events</div>
         {% endfor %}
       </div>
 
-      <div class="flex flex--col gap--small">
-        <span class="label label--underline">Tasks</span>
+      <div style="flex:1;border-left:1px solid #ccc;padding-left:6px;">
+        <div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #000;margin-bottom:3px;padding-bottom:1px;">Tasks</div>
         {% for task in tasks %}
-          <div class="flex flex--row gap--small">
-            <span class="description">{% if task.is_overdue %}! {% endif %}{{ task.name }}</span>
-            <span class="description">{{ task.due }}</span>
-          </div>
+        <div style="font-size:12px;line-height:1.4;margin-bottom:3px;">{% if task.is_overdue %}<strong>!</strong> {% endif %}{{ task.name }}<div style="font-size:11px;">{{ task.due }}</div></div>
         {% else %}
-          <span class="description">No tasks due soon</span>
+        <div style="font-size:12px;">No tasks due</div>
         {% endfor %}
       </div>
 
@@ -63,14 +65,14 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from agent.models import AsanaTask, CalendarEvent, WeatherDay
+from agent.models import AsanaTask, CalendarEvent
 
 EASTERN = ZoneInfo("America/New_York")
 
-MAX_EVENTS = 6
-MAX_TASKS = 5
+MAX_EVENTS = 8
+MAX_TASKS = 6
 
-# OWM icon code prefix (first 2 chars, e.g. "01" from "01d") → display emoji
+# OWM icon code prefix (first 2 chars) → display emoji
 _ICON_EMOJI: dict[str, str] = {
     "01": "☀️",
     "02": "🌤️",
@@ -102,7 +104,7 @@ def _format_day(event_date: date, today: date) -> str:
         return "Today"
     if delta == 1:
         return "Tomorrow"
-    return event_date.strftime("%a")  # e.g. "Mon"
+    return event_date.strftime("%a")
 
 
 def _format_time(event: CalendarEvent) -> str:
@@ -151,25 +153,15 @@ def _shape_tasks(tasks: list[AsanaTask], today: date) -> list[dict]:
     return shaped[:MAX_TASKS]
 
 
-def _shape_weather(weather: list[WeatherDay], today: date) -> dict:
-    for day in weather:
-        if day.date == today:
-            return {
-                "emoji": _weather_emoji(day.icon),
-                "high": round(day.high_f),
-                "low": round(day.low_f),
-                "description": day.description,
-            }
-    # Fallback to first available day if today isn't in forecast
-    if weather:
-        day = weather[0]
-        return {
-            "emoji": _weather_emoji(day.icon),
-            "high": round(day.high_f),
-            "low": round(day.low_f),
-            "description": day.description,
+def _shape_weather_slots(slots: list[dict]) -> list[dict]:
+    return [
+        {
+            "label": s["label"],
+            "temp": s["temp"] if s["temp"] is not None else "--",
+            "emoji": _weather_emoji(s["icon"]),
         }
-    return {"emoji": "🌡️", "high": "--", "low": "--", "description": "Unavailable"}
+        for s in slots
+    ]
 
 
 def push_to_trmnl(
@@ -177,7 +169,7 @@ def push_to_trmnl(
     now: datetime,
     events: list[CalendarEvent],
     tasks: list[AsanaTask],
-    weather: list[WeatherDay],
+    weather_slots: list[dict],  # [{label, temp, icon}, ...] from fetch_weather_slots()
 ) -> None:
     """Format data and POST to the TRMNL Private Plugin webhook."""
     if not webhook_url:
@@ -191,11 +183,12 @@ def push_to_trmnl(
 
     shaped_events = _shape_events(events, today)
     shaped_tasks = _shape_tasks(tasks, today)
+    shaped_slots = _shape_weather_slots(weather_slots)
 
     payload = {
         "merge_variables": {
             "generated_at": generated_at,
-            "weather": _shape_weather(weather, today),
+            "weather_slots": shaped_slots,
             "events": shaped_events,
             "tasks": shaped_tasks,
         }
@@ -206,6 +199,6 @@ def push_to_trmnl(
         resp.raise_for_status()
 
     print(
-        f"[trmnl] Pushed: {len(shaped_events)} events, "
-        f"{len(shaped_tasks)} tasks, updated at {generated_at}"
+        f"[trmnl] Pushed: {len(shaped_slots)} weather slots, "
+        f"{len(shaped_events)} events, {len(shaped_tasks)} tasks — {generated_at}"
     )
