@@ -120,10 +120,16 @@ export default function CalendarView({
         {header}
         <div className="p-4 space-y-2">
           <p className="text-sm text-amber-600">
-            Calendar session expired. Sign out and back in to refresh.
+            Calendar session expired. Click to reconnect.
           </p>
-          <Button variant="outline" size="sm" onClick={() => void supabase.auth.signOut()}>
-            Sign out
+          <Button variant="outline" size="sm" onClick={() => void supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
+              redirectTo: window.location.href,
+            },
+          })}>
+            Reconnect Calendar
           </Button>
         </div>
       </div>
