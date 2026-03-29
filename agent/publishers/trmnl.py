@@ -119,6 +119,9 @@ _DESC_SHORT: dict[str, str] = {
 # Filter AMION admin events like "Week 14 of 2026"
 _WEEK_RE = re.compile(r"^week\s+\d+\s+of\s+\d+", re.IGNORECASE)
 
+# Filter scheduling placeholder titles (from any calendar)
+_SKIP_TITLES = {"Leave", "Vacation"}
+
 
 def _weather_emoji(icon: str) -> str:
     return _ICON_EMOJI.get(icon[:2], "🌡️")
@@ -159,7 +162,7 @@ def _shape_event_groups(events: list[CalendarEvent], today: date) -> list[dict]:
     """Group events by day, filtering AMION week-marker events."""
     by_day: dict[date, list[dict]] = defaultdict(list)
     for event in events:
-        if _WEEK_RE.match(event.title):
+        if _WEEK_RE.match(event.title) or event.title in _SKIP_TITLES:
             continue
         event_date = event.start.astimezone(EASTERN).date()
         by_day[event_date].append({
