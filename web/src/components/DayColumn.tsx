@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { wmoToIcon } from '../lib/weather'
-import { USER_COLORS } from '../lib/userColors'
 import { eventOwner } from '../lib/calendar'
 import EventDetail from './EventDetail'
 import DayHeaderPanel from './DayHeaderPanel'
@@ -62,15 +61,6 @@ function formatAmionTime(event: CalendarEvent): string {
   return `${format(start, 'h')}–${format(end, 'h a')}`
 }
 
-function OwnerAvatar({ owner, size = 'sm' }: { owner: 'nat' | 'caitie'; size?: 'sm' | 'xs' }) {
-  const cls = size === 'xs' ? 'w-4 h-4 text-[9px]' : 'w-5 h-5 text-[10px]'
-  return (
-    <span className={`inline-flex items-center justify-center rounded-full font-semibold shrink-0 ${cls} ${USER_COLORS[owner].avatar}`}>
-      {owner === 'nat' ? 'N' : 'C'}
-    </span>
-  )
-}
-
 function GusPill({ kind, label }: { kind: 'pickup' | 'dropoff'; label: string }) {
   return (
     <div className="px-3 py-1 flex items-center gap-1.5 text-[11px] text-gray-600 bg-blue-50/40">
@@ -107,13 +97,14 @@ function OwnerSection({
   onSaveOverride, onDeleteOverride, onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
 }: OwnerSectionProps) {
-  const headerColor = owner === 'nat' ? 'text-[#305CDE]' : 'text-yellow-700'
+  const headerClass = owner === 'nat'
+    ? 'bg-[#305CDE] text-white'
+    : 'bg-yellow-100 text-yellow-800'
   const headerLabel = owner === 'nat' ? 'NAT' : 'CAITIE'
 
   return (
     <div className="border-t border-gray-100 first:border-t-0">
-      <div className={`px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1.5 ${headerColor}`}>
-        <OwnerAvatar owner={owner} size="xs" />
+      <div className={`px-3 py-1 text-[10px] font-semibold uppercase tracking-wider ${headerClass}`}>
         {headerLabel}
       </div>
 
@@ -280,11 +271,11 @@ export default function DayColumn({
 
       {/* Family banners (all-day non-AMION events that span this day) */}
       {bannerEvents.length > 0 && (
-        <div className="px-2 pt-2 pb-1 space-y-1">
+        <div>
           {bannerEvents.map(event => (
             <div
               key={event.id}
-              className="px-2 py-1 rounded-md bg-indigo-100 text-indigo-900 text-[11px] font-medium leading-tight truncate"
+              className="px-3 py-1.5 bg-gray-100 text-gray-700 text-[11px] leading-tight border-b border-gray-200"
               title={event.title}
             >
               {event.title}
