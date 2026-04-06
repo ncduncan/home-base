@@ -108,7 +108,7 @@ export default function DashboardPage({ session }: Props) {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header session={session} />
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="px-6 py-6">
         <WeekDashboard
           events={events}
           rawEvents={rawEvents}

@@ -28,17 +28,40 @@ async function getProviderToken(): Promise<string> {
     return sessionToken
   }
 
-  // 3. Exchange refresh token via edge function
+  // 3. Exchange refresh token via edge function (with one retry for transient failures)
   const jwt = data.session?.access_token
   if (!jwt) throw new CalendarAuthError()
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-  const resp = await fetch(`${supabaseUrl}/functions/v1/google-token-refresh`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${jwt}` },
-  })
+  const url = `${supabaseUrl}/functions/v1/google-token-refresh`
 
-  if (!resp.ok) throw new CalendarAuthError()
+  const callEdgeFn = async () => {
+    return fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${jwt}` },
+    })
+  }
+
+  let resp: Response
+  try {
+    resp = await callEdgeFn()
+    if (!resp.ok && resp.status >= 500) {
+      // Retry once on server errors
+      await new Promise(r => setTimeout(r, 500))
+      resp = await callEdgeFn()
+    }
+  } catch (e) {
+    // Network error — retry once
+    console.warn('Token refresh network error, retrying:', e)
+    await new Promise(r => setTimeout(r, 500))
+    resp = await callEdgeFn()
+  }
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '')
+    console.error('Token refresh failed:', resp.status, body)
+    throw new CalendarAuthError()
+  }
 
   const { access_token, expires_in } = await resp.json() as {
     access_token: string

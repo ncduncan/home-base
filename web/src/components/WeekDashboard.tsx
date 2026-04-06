@@ -143,7 +143,7 @@ export default function WeekDashboard({
     </div>
   )
 
-  if (eventsLoading || tasksLoading) {
+  if (eventsLoading && tasksLoading && events.length === 0) {
     return (
       <div>
         {header}
@@ -152,41 +152,40 @@ export default function WeekDashboard({
     )
   }
 
-  if (eventsAuthError) {
-    return (
-      <div>
-        {header}
-        <div className="p-4 space-y-2 bg-white rounded-xl border border-gray-100">
-          <p className="text-sm text-amber-600">Calendar session expired. Click to reconnect.</p>
-          <Button variant="outline" size="sm" onClick={() => void supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-              scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-              redirectTo: window.location.href,
-            },
-          })}>
-            Reconnect Calendar
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (eventsError) {
-    return (
-      <div>
-        {header}
-        <div className="p-4 space-y-2 bg-white rounded-xl border border-gray-100">
-          <p className="text-red-500 text-sm">{eventsError}</p>
-          <Button variant="outline" size="sm" onClick={handleRefresh}>Retry</Button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div>
       {header}
+
+      {eventsAuthError && (
+        <div className="mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3">
+          <p className="text-xs text-amber-700">
+            Calendar session expired — events may be stale.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-7 shrink-0"
+            onClick={() => void supabase.auth.signInWithOAuth({
+              provider: 'google',
+              options: {
+                scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
+                redirectTo: window.location.href,
+              },
+            })}
+          >
+            Reconnect
+          </Button>
+        </div>
+      )}
+
+      {eventsError && (
+        <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-3">
+          <p className="text-xs text-red-700">{eventsError}</p>
+          <Button variant="outline" size="sm" className="text-xs h-7 shrink-0" onClick={handleRefresh}>
+            Retry
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-7 gap-2.5">
         {days.map(({ date }) => {

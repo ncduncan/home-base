@@ -21,12 +21,12 @@ interface Props {
   date: Date
   isToday: boolean
   isPast: boolean
-  events: CalendarEvent[]            // events for THIS day (already filtered)
-  rawEvents: CalendarEvent[]         // all raw events (for hidden recall)
-  overrides: CalendarOverride[]      // all overrides for the week
+  events: CalendarEvent[]
+  rawEvents: CalendarEvent[]
+  overrides: CalendarOverride[]
   weather: WeatherDay | undefined
   gusCare: GusResponsibility | undefined
-  tasks: AsanaTask[]                 // tasks scoped to this day (already filtered)
+  tasks: AsanaTask[]
   users: AsanaUser[]
   selfGid: string
   userEmail: string
@@ -81,6 +81,107 @@ function GusPill({ kind, who, label }: { kind: 'pickup' | 'dropoff'; who: 'nat' 
   )
 }
 
+interface OwnerSectionProps {
+  owner: 'nat' | 'caitie'
+  events: CalendarEvent[]
+  tasks: AsanaTask[]
+  users: AsanaUser[]
+  overrideMap: Map<string, CalendarOverride>
+  dayDateStr: string
+  expandedEventId: string | null
+  setExpandedEventId: (id: string | null) => void
+  userEmail: string
+  onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
+  onDeleteOverride: (id: string) => Promise<void>
+  onToggleTask: (gid: string, completed: boolean) => void
+  onDeleteTask: (gid: string) => void
+  onUpdateTask: (gid: string, patch: TaskUpdatePatch) => Promise<void>
+}
+
+function OwnerSection({
+  owner, events, tasks, users, overrideMap, dayDateStr,
+  expandedEventId, setExpandedEventId, userEmail,
+  onSaveOverride, onDeleteOverride, onToggleTask, onDeleteTask, onUpdateTask,
+}: OwnerSectionProps) {
+  if (events.length === 0 && tasks.length === 0) return null
+
+  const headerColor = owner === 'nat' ? 'text-[#305CDE]' : 'text-yellow-700'
+  const headerLabel = owner === 'nat' ? 'NAT' : 'CAITIE'
+
+  return (
+    <div className="border-t border-gray-100 first:border-t-0">
+      <div className={`px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1.5 ${headerColor}`}>
+        <OwnerAvatar owner={owner} size="xs" />
+        {headerLabel}
+      </div>
+
+      {events.length > 0 && (
+        <ul>
+          {events.map(event => {
+            const isExpanded = expandedEventId === event.id
+            const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
+            return (
+              <li key={event.id}>
+                <button
+                  onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
+                  className={`w-full text-left px-3 py-1.5 transition-colors ${
+                    isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/50'
+                  }`}
+                >
+                  <div className="text-[11px] text-gray-900 leading-tight">
+                    {event.is_amion ? shiftLabel(event.amion_kind) : event.title}
+                  </div>
+                  <div className="text-[10px] text-gray-400 leading-tight">
+                    {event.is_amion
+                      ? formatAmionTime(event)
+                      : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
+                  </div>
+                  {event.location && !event.is_amion && (
+                    <div className="text-[10px] text-gray-400 truncate">{event.location}</div>
+                  )}
+                  {event.notes && (
+                    <div className="text-[10px] text-gray-500 italic">{event.notes}</div>
+                  )}
+                  {event.overridden && (
+                    <div className="text-[9px] text-amber-500 font-medium">edited</div>
+                  )}
+                </button>
+
+                {isExpanded && (
+                  <EventDetail
+                    event={event}
+                    override={eventOverride}
+                    userEmail={userEmail}
+                    onSave={onSaveOverride}
+                    onDelete={onDeleteOverride}
+                    onClose={() => setExpandedEventId(null)}
+                  />
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {tasks.length > 0 && (
+        <ul>
+          {tasks.map(task => (
+            <TaskRow
+              key={task.gid}
+              task={task}
+              users={users}
+              onToggle={onToggleTask}
+              onDelete={onDeleteTask}
+              onUpdate={onUpdateTask}
+              compact
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function DayColumn({
   date, isToday, isPast,
   events, rawEvents, overrides, weather, gusCare, tasks, users, selfGid, userEmail,
@@ -94,6 +195,12 @@ export default function DayColumn({
   const overrideMap = new Map<string, CalendarOverride>()
   for (const o of overrides) overrideMap.set(`${o.event_key}|${o.event_date}`, o)
 
+  // Split events and tasks by owner
+  const caitieEvents = events.filter(e => eventOwner(e) === 'caitie')
+  const natEvents = events.filter(e => eventOwner(e) === 'nat')
+  const caitieTasks = tasks.filter(t => t.assignee?.name?.toLowerCase().startsWith('cait'))
+  const natTasks = tasks.filter(t => !t.assignee?.name?.toLowerCase().startsWith('cait'))
+
   return (
     <div className={`flex flex-col bg-white rounded-xl border shadow-sm overflow-hidden ${
       isToday ? 'border-[#305CDE] ring-1 ring-[#305CDE]/30' : 'border-gray-100'
@@ -101,7 +208,7 @@ export default function DayColumn({
       {/* Day header (clickable for add-event / restore-hidden) */}
       <button
         onClick={() => setHeaderExpanded(!headerExpanded)}
-        className={`w-full px-3 py-2 flex items-center justify-between transition-colors ${
+        className={`w-full px-3 py-2 flex items-start justify-between gap-2 transition-colors ${
           isToday ? 'bg-[#305CDE]/10 hover:bg-[#305CDE]/20' : 'bg-gray-50/80 hover:bg-gray-100/60'
         }`}
       >
@@ -115,6 +222,14 @@ export default function DayColumn({
             {format(date, 'MMM d')}
           </div>
         </div>
+        {weather && (
+          <div className="text-right shrink-0">
+            <div className="text-base leading-none">{wmoToIcon(weather.weatherCode)}</div>
+            <div className="text-[10px] text-gray-500 leading-tight mt-0.5">
+              {weather.tempMin}–{weather.tempMax}°F
+            </div>
+          </div>
+        )}
       </button>
 
       {headerExpanded && (
@@ -128,104 +243,52 @@ export default function DayColumn({
         />
       )}
 
-      {/* Keynotes: weather + Gus */}
-      {(weather || gusCare) && (
-        <div className="px-3 py-2 border-b border-gray-50 space-y-1.5 bg-gradient-to-b from-blue-50/40 to-transparent">
-          {weather && (
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
-              <span>{wmoToIcon(weather.weatherCode)}</span>
-              <span>{weather.tempMin}–{weather.tempMax}°F</span>
-            </div>
-          )}
-          {gusCare && (
-            <div className="space-y-1">
-              <GusPill kind="dropoff" who={gusCare.dropoff} label="7am" />
-              <GusPill kind="pickup" who={gusCare.pickup} label="5pm" />
-            </div>
-          )}
+      {/* Gus care pills */}
+      {gusCare && (
+        <div className="px-3 py-2 border-b border-gray-50 space-y-1 bg-gradient-to-b from-blue-50/40 to-transparent">
+          <GusPill kind="dropoff" who={gusCare.dropoff} label="7am" />
+          <GusPill kind="pickup" who={gusCare.pickup} label="5pm" />
         </div>
       )}
 
-      {/* Events section */}
+      {/* Per-person sections */}
       <div className="flex-1 min-h-0">
-        <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-          Events
-        </div>
-        {events.length === 0 ? (
-          <div className="px-3 pb-2 text-[11px] text-gray-300 italic">none</div>
-        ) : (
-          <ul>
-            {events.map(event => {
-              const isExpanded = expandedEventId === event.id
-              const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
-              return (
-                <li key={event.id}>
-                  <button
-                    onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
-                    className={`w-full text-left px-3 py-1.5 flex items-start gap-1.5 transition-colors ${
-                      isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/50'
-                    }`}
-                  >
-                    <OwnerAvatar owner={eventOwner(event)} size="xs" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] text-gray-900 leading-tight">
-                        {event.is_amion ? shiftLabel(event.amion_kind) : event.title}
-                      </div>
-                      <div className="text-[10px] text-gray-400 leading-tight">
-                        {event.is_amion
-                          ? formatAmionTime(event)
-                          : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
-                      </div>
-                      {event.location && !event.is_amion && (
-                        <div className="text-[10px] text-gray-400 truncate">{event.location}</div>
-                      )}
-                      {event.notes && (
-                        <div className="text-[10px] text-gray-500 italic">{event.notes}</div>
-                      )}
-                      {event.overridden && (
-                        <div className="text-[9px] text-amber-500 font-medium">edited</div>
-                      )}
-                    </div>
-                  </button>
-
-                  {isExpanded && (
-                    <EventDetail
-                      event={event}
-                      override={eventOverride}
-                      userEmail={userEmail}
-                      onSave={onSaveOverride}
-                      onDelete={onDeleteOverride}
-                      onClose={() => setExpandedEventId(null)}
-                    />
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
+        <OwnerSection
+          owner="caitie"
+          events={caitieEvents}
+          tasks={caitieTasks}
+          users={users}
+          overrideMap={overrideMap}
+          dayDateStr={dayDateStr}
+          expandedEventId={expandedEventId}
+          setExpandedEventId={setExpandedEventId}
+          userEmail={userEmail}
+          onSaveOverride={onSaveOverride}
+          onDeleteOverride={onDeleteOverride}
+          onToggleTask={onToggleTask}
+          onDeleteTask={onDeleteTask}
+          onUpdateTask={onUpdateTask}
+        />
+        <OwnerSection
+          owner="nat"
+          events={natEvents}
+          tasks={natTasks}
+          users={users}
+          overrideMap={overrideMap}
+          dayDateStr={dayDateStr}
+          expandedEventId={expandedEventId}
+          setExpandedEventId={setExpandedEventId}
+          userEmail={userEmail}
+          onSaveOverride={onSaveOverride}
+          onDeleteOverride={onDeleteOverride}
+          onToggleTask={onToggleTask}
+          onDeleteTask={onDeleteTask}
+          onUpdateTask={onUpdateTask}
+        />
       </div>
 
-      {/* Tasks section */}
+      {/* Add task footer */}
       <div className="border-t border-gray-100">
-        <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-          Tasks
-        </div>
-        {tasks.length === 0 ? (
-          <div className="px-3 pb-1 text-[11px] text-gray-300 italic">none</div>
-        ) : (
-          <ul>
-            {tasks.map(task => (
-              <TaskRow
-                key={task.gid}
-                task={task}
-                users={users}
-                onToggle={onToggleTask}
-                onDelete={onDeleteTask}
-                onUpdate={onUpdateTask}
-              />
-            ))}
-          </ul>
-        )}
         <AddTaskForm
           users={users}
           selfGid={selfGid}

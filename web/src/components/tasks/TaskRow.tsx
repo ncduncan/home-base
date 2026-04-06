@@ -13,9 +13,11 @@ interface Props {
   onToggle: (gid: string, completed: boolean) => void
   onDelete: (gid: string) => void
   onUpdate: (gid: string, patch: TaskUpdatePatch) => Promise<void>
+  /** When true, hide assignee + date chip in the row (but keep in expanded panel) */
+  compact?: boolean
 }
 
-export default function TaskRow({ task, users, onToggle, onDelete, onUpdate }: Props) {
+export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, compact = false }: Props) {
   const [nameEditing, setNameEditing] = useState(false)
   const [nameVal, setNameVal] = useState(task.name)
   const [expanded, setExpanded] = useState(false)
@@ -71,21 +73,25 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate }: P
           </span>
         )}
 
-        <AssigneeButton
-          assignee={task.assignee}
-          users={users}
-          onSave={gid => void onUpdate(task.gid, { assignee_gid: gid })}
-        />
+        {!compact && (
+          <>
+            <AssigneeButton
+              assignee={task.assignee}
+              users={users}
+              onSave={gid => void onUpdate(task.gid, { assignee_gid: gid })}
+            />
 
-        <DueDateChip
-          due_on={task.due_on}
-          completed={task.completed}
-          onSave={val => void onUpdate(task.gid, { due_on: val })}
-        />
+            <DueDateChip
+              due_on={task.due_on}
+              completed={task.completed}
+              onSave={val => void onUpdate(task.gid, { due_on: val })}
+            />
+          </>
+        )}
 
         <button
           onClick={() => setExpanded(!expanded)}
-          title={expanded ? 'Hide notes' : 'Show notes'}
+          title={expanded ? 'Hide details' : 'Show details'}
           className="text-[10px] text-gray-400 hover:text-gray-700 transition-colors shrink-0 opacity-50 group-hover:opacity-100"
         >
           {expanded ? '▾' : '▸'}
@@ -112,7 +118,21 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate }: P
       </div>
 
       {expanded && (
-        <div className="px-2 pb-2 pl-7">
+        <div className="px-2 pb-2 pl-7 space-y-1.5">
+          {compact && (
+            <div className="flex items-center gap-2">
+              <AssigneeButton
+                assignee={task.assignee}
+                users={users}
+                onSave={gid => void onUpdate(task.gid, { assignee_gid: gid })}
+              />
+              <DueDateChip
+                due_on={task.due_on}
+                completed={task.completed}
+                onSave={val => void onUpdate(task.gid, { due_on: val })}
+              />
+            </div>
+          )}
           <Textarea
             value={notesVal}
             onChange={e => setNotesVal(e.target.value)}
