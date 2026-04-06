@@ -220,9 +220,13 @@ export default function DayColumn({
   const overrideMap = new Map<string, CalendarOverride>()
   for (const o of overrides) overrideMap.set(`${o.event_key}|${o.event_date}`, o)
 
-  // Split events by owner
-  const caitieEvents = events.filter(e => eventOwner(e) === 'caitie')
-  const natEvents = events.filter(e => eventOwner(e) === 'nat')
+  // Family banners: all-day non-AMION events (e.g. "Susie/Dave in Boston")
+  // These are not owned by either Nat or Caitie.
+  const bannerEvents = events.filter(e => e.all_day && !e.is_amion)
+  // Split remaining events by owner
+  const ownerEvents = events.filter(e => !(e.all_day && !e.is_amion))
+  const caitieEvents = ownerEvents.filter(e => eventOwner(e) === 'caitie')
+  const natEvents = ownerEvents.filter(e => eventOwner(e) === 'nat')
   // Split tasks by assignee name
   const caitieTasks = tasks.filter(t => t.assignee?.name?.toLowerCase().startsWith('cait'))
   const natTasks = tasks.filter(t => !t.assignee?.name?.toLowerCase().startsWith('cait'))
@@ -272,6 +276,21 @@ export default function DayColumn({
           onUnhide={async (id) => { await onDeleteOverride(id) }}
           onClose={() => setHeaderExpanded(false)}
         />
+      )}
+
+      {/* Family banners (all-day non-AMION events that span this day) */}
+      {bannerEvents.length > 0 && (
+        <div className="px-2 pt-2 pb-1 space-y-1">
+          {bannerEvents.map(event => (
+            <div
+              key={event.id}
+              className="px-2 py-1 rounded-md bg-indigo-100 text-indigo-900 text-[11px] font-medium leading-tight truncate"
+              title={event.title}
+            >
+              {event.title}
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Per-person sections (always shown) */}

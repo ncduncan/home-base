@@ -255,7 +255,16 @@ export default function WeekDashboard({
           const dayDateStr = format(date, 'yyyy-MM-dd')
           const isToday = isSameDay(date, todayDate)
           const isPast = date < todayDate && !isToday
-          const dayEvents = events.filter(e => isSameDay(parseISO(e.start), date))
+          // Multi-day all-day events (non-AMION) repeat on every day they span;
+          // single-day and timed events match by their start day only.
+          const dayEvents = events.filter(e => {
+            if (e.all_day && !e.is_amion) {
+              const start = parseISO(e.start)
+              const end = parseISO(e.end)
+              return start <= date && end > date
+            }
+            return isSameDay(parseISO(e.start), date)
+          })
           const dayTasks = tasksForDay(dayDateStr, isToday)
 
           return (
