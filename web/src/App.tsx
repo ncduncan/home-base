@@ -16,7 +16,7 @@ export default function App() {
       setSession(data.session)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (newSession && !ALLOWED_EMAILS.includes(newSession.user.email ?? '')) {
         void supabase.auth.signOut()
         setUnauthorized(true)
@@ -25,6 +25,18 @@ export default function App() {
       }
       setUnauthorized(false)
       setSession(newSession)
+
+      // Store Google refresh token so the edge function can mint new access tokens
+      if (event === 'SIGNED_IN' && newSession?.provider_refresh_token) {
+        void supabase.from('google_tokens').upsert(
+          {
+            user_id: newSession.user.id,
+            refresh_token: newSession.provider_refresh_token,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        )
+      }
     })
 
     return () => subscription.unsubscribe()

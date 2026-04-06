@@ -26,6 +26,28 @@ export interface CalendarEvent {
   is_amion: boolean
   amion_kind?: 'training' | 'day' | 'night' | '24hr' | 'backup'
   organizer_email?: string
+  overridden?: boolean         // true if a calendar_override was applied
+  notes?: string               // from override
+}
+
+export interface CalendarOverride {
+  id: string
+  event_key: string
+  event_date: string           // 'YYYY-MM-DD'
+  hidden: boolean
+  title_override: string | null
+  start_override: string | null
+  end_override: string | null
+  amion_kind_override: string | null
+  notes: string | null
+  created_by: string
+}
+
+export interface GusResponsibility {
+  date: string                 // 'YYYY-MM-DD'
+  pickup: 'nat' | 'caitie'
+  dropoff: 'nat' | 'caitie'
+  reason: string               // e.g. "Caitie: Day Shift"
 }
 
 export interface WeatherDay {

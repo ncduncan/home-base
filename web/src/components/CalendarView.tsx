@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { wmoToIcon } from '../lib/weather'
 import { USER_COLORS } from '../lib/userColors'
 import { eventOwner } from '../lib/calendar'
-import type { CalendarEvent, WeatherDay } from '../types'
+import EventDetail from './EventDetail'
+import type { CalendarEvent, CalendarOverride, GusResponsibility, WeatherDay } from '../types'
 
 interface Props {
   events: CalendarEvent[]
@@ -17,6 +18,11 @@ interface Props {
   weather: WeatherDay[]
   weekOffset: number
   onWeekChange: (delta: number) => void
+  overrides: CalendarOverride[]
+  onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
+  onDeleteOverride: (id: string) => Promise<void>
+  gusCare: GusResponsibility[]
+  userEmail: string
 }
 
 function OwnerAvatar({ owner }: { owner: 'nat' | 'caitie' }) {
@@ -65,11 +71,32 @@ function weekLabel(weekOffset: number): string {
   return `${format(sunday, 'MMM d')}–${format(saturday, 'MMM d')}`
 }
 
+function GusCareBadge({ care }: { care: GusResponsibility }) {
+  const natDropoff = care.dropoff === 'nat'
+  const natPickup = care.pickup === 'nat'
+
+  if (!natDropoff && !natPickup) return null // Caitie handles both — no badge needed
+
+  const parts: string[] = []
+  if (natDropoff) parts.push('dropoff')
+  if (natPickup) parts.push('pickup')
+
+  return (
+    <div className="flex items-center gap-1.5 px-4 py-1 bg-blue-50/60">
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold bg-blue-100 text-blue-700">N</span>
+      <span className="text-[11px] text-blue-600">Gus {parts.join(' + ')}</span>
+    </div>
+  )
+}
+
 export default function CalendarView({
   events, loading, error, authError, onRefresh,
   weather, weekOffset, onWeekChange,
+  overrides, onSaveOverride, onDeleteOverride,
+  gusCare, userEmail,
 }: Props) {
   const [refreshing, setRefreshing] = useState(false)
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -78,6 +105,13 @@ export default function CalendarView({
   }, [onRefresh])
 
   const weatherByDate = new Map(weather.map(w => [w.date, w]))
+  const gusCareByDate = new Map(gusCare.map(g => [g.date, g]))
+
+  // Build override lookup: "eventKey|eventDate" → override
+  const overrideMap = new Map<string, CalendarOverride>()
+  for (const o of overrides) {
+    overrideMap.set(`${o.event_key}|${o.event_date}`, o)
+  }
 
   // ── Header (always shown) ─────────────────────────────────────────────────
   const header = (
@@ -163,6 +197,7 @@ export default function CalendarView({
       {days.map(({ date, events: dayEvents }) => {
         const dayDateStr = format(date, 'yyyy-MM-dd')
         const wx = weatherByDate.get(dayDateStr)
+        const gus = gusCareByDate.get(dayDateStr)
         const isPast = date < todayDate
 
         return (
@@ -179,29 +214,60 @@ export default function CalendarView({
               )}
             </div>
 
+            {gus && <GusCareBadge care={gus} />}
+
             {dayEvents.length > 0 && (
               <ul>
-                {dayEvents.map(event => (
-                  <li key={event.id} className="flex gap-3 px-4 py-2.5 items-start hover:bg-gray-50/50">
-                    <div className="w-16 shrink-0 text-xs text-gray-400 pt-0.5">
-                      {event.is_amion
-                        ? formatAmionTime(event)
-                        : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <OwnerAvatar owner={eventOwner(event)} />
-                        {event.is_amion
-                          ? shiftLabel(event.amion_kind)
-                          : <span className="text-sm text-gray-900">{event.title}</span>
-                        }
-                      </div>
-                      {!event.is_amion && event.location && (
-                        <div className="text-xs text-gray-400 mt-0.5 truncate">{event.location}</div>
+                {dayEvents.map(event => {
+                  const isExpanded = expandedEventId === event.id
+                  const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
+
+                  return (
+                    <li key={event.id}>
+                      <button
+                        onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
+                        className={`flex gap-3 px-4 py-2.5 items-start w-full text-left transition-colors ${
+                          isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/50'
+                        }`}
+                      >
+                        <div className="w-16 shrink-0 text-xs text-gray-400 pt-0.5">
+                          {event.is_amion
+                            ? formatAmionTime(event)
+                            : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <OwnerAvatar owner={eventOwner(event)} />
+                            {event.is_amion
+                              ? shiftLabel(event.amion_kind)
+                              : <span className="text-sm text-gray-900">{event.title}</span>
+                            }
+                            {event.overridden && (
+                              <span className="text-[10px] text-amber-500 font-medium">edited</span>
+                            )}
+                          </div>
+                          {!event.is_amion && event.location && (
+                            <div className="text-xs text-gray-400 mt-0.5 truncate">{event.location}</div>
+                          )}
+                          {event.notes && (
+                            <div className="text-xs text-gray-500 mt-0.5 italic">{event.notes}</div>
+                          )}
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <EventDetail
+                          event={event}
+                          override={eventOverride}
+                          userEmail={userEmail}
+                          onSave={onSaveOverride}
+                          onDelete={onDeleteOverride}
+                          onClose={() => setExpandedEventId(null)}
+                        />
                       )}
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

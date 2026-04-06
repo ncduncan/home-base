@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { format, addDays, startOfToday, startOfDay, parseISO } from 'date-fns'
 import { RefreshCw } from 'lucide-react'
-import { fetchCalendarEvents, CalendarAuthError, createGusPickupEvents, createGusDropoffEvents, eventOwner } from '../lib/calendar'
+import { fetchCalendarEvents, CalendarAuthError, syncGusCareInvites, eventOwner } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks } from '../lib/asana'
-import { supabase } from '../lib/supabase'
+import { fetchOverrides, upsertOverride, deleteOverride, applyOverrides } from '../lib/overrides'
+import { computeGusCare } from '../lib/gus-care'
 import type { Session } from '@supabase/supabase-js'
-import type { AsanaTask, CalendarEvent, WeatherDay } from '../types'
+import type { AsanaTask, CalendarEvent, CalendarOverride, WeatherDay } from '../types'
 import Header from '../components/Header'
 import CalendarView from '../components/CalendarView'
 import AsanaTaskList from '../components/AsanaTaskList'
@@ -40,7 +41,7 @@ function ConflictBar({ events, weekOffset }: { events: CalendarEvent[]; weekOffs
           {i < conflictDays.length - 1 ? ',' : ''}
         </span>
       ))}
-      <span>— coordinate Gus care.</span>
+      <span>-- coordinate Gus care.</span>
     </div>
   )
 }
@@ -59,45 +60,74 @@ export default function DashboardPage({ session }: Props) {
   }, [])
 
   // ── Calendar events ────────────────────────────────────────────────────────
-  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [rawEvents, setRawEvents] = useState<CalendarEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
   const [eventsAuthError, setEventsAuthError] = useState(false)
   const [weekOffset, setWeekOffset] = useState(0)
 
-  // Auto-reauth when Google provider token expires — transparent to the user
-  useEffect(() => {
-    if (!eventsAuthError) return
-    void supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-        redirectTo: window.location.href,
-      },
-    })
-  }, [eventsAuthError])
+  // ── Overrides ──────────────────────────────────────────────────────────────
+  const [overrides, setOverrides] = useState<CalendarOverride[]>([])
+
+  const loadOverrides = useCallback((offset: number) => {
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    now.setDate(now.getDate() - now.getDay() + offset * 7)
+    const start = format(now, 'yyyy-MM-dd')
+    const end = format(addDays(now, 6), 'yyyy-MM-dd')
+    fetchOverrides(start, end).then(setOverrides).catch(() => {})
+  }, [])
 
   const fetchEvents = useCallback((offset: number) => {
     setEventsLoading(true)
     setEventsError(null)
     setEventsAuthError(false)
-    fetchCalendarEvents(offset)
-      .then(setEvents)
+    Promise.all([
+      fetchCalendarEvents(offset),
+      (() => { loadOverrides(offset); return undefined })(),
+    ])
+      .then(([events]) => { if (events) setRawEvents(events) })
       .catch((e: unknown) => {
         if (e instanceof CalendarAuthError) setEventsAuthError(true)
         else setEventsError(e instanceof Error ? e.message : 'Failed to load calendar')
       })
       .finally(() => setEventsLoading(false))
-  }, [])
+  }, [loadOverrides])
 
   useEffect(() => { fetchEvents(weekOffset) }, [fetchEvents, weekOffset])
 
-  // ── Gus care invites (Nat only) ───────────────────────────────────────────
+  // Apply overrides to get the display events
+  const events = useMemo(() => applyOverrides(rawEvents, overrides), [rawEvents, overrides])
+
+  // ── Gus care (computed from overridden events) ────────────────────────────
+  const gusCare = useMemo(() => computeGusCare(events), [events])
+
+  // Sync Gus care invites to Google Calendar (Nat only, debounced)
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => {
-    if (session.user.email === 'ncduncan@gmail.com') {
-      createGusPickupEvents().catch(() => {/* non-blocking */})
-      createGusDropoffEvents().catch(() => {/* non-blocking */})
-    }
+    if (session.user.email !== 'ncduncan@gmail.com') return
+    if (eventsLoading) return
+
+    clearTimeout(syncTimerRef.current)
+    syncTimerRef.current = setTimeout(() => {
+      syncGusCareInvites(gusCare).catch(() => {/* non-blocking */})
+    }, 2000) // 2s debounce
+
+    return () => clearTimeout(syncTimerRef.current)
+  }, [gusCare, session.user.email, eventsLoading])
+
+  // ── Override handlers ─────────────────────────────────────────────────────
+  const handleSaveOverride = useCallback(async (override: Omit<CalendarOverride, 'id'>) => {
+    const saved = await upsertOverride(override)
+    setOverrides(prev => {
+      const filtered = prev.filter(o => !(o.event_key === saved.event_key && o.event_date === saved.event_date))
+      return [...filtered, saved]
+    })
+  }, [])
+
+  const handleDeleteOverride = useCallback(async (id: string) => {
+    await deleteOverride(id)
+    setOverrides(prev => prev.filter(o => o.id !== id))
   }, [])
 
   // ── Weather ────────────────────────────────────────────────────────────────
@@ -128,6 +158,11 @@ export default function DashboardPage({ session }: Props) {
               weather={weather}
               weekOffset={weekOffset}
               onWeekChange={delta => setWeekOffset(o => o + delta)}
+              overrides={overrides}
+              onSaveOverride={handleSaveOverride}
+              onDeleteOverride={handleDeleteOverride}
+              gusCare={gusCare}
+              userEmail={session.user.email ?? ''}
             />
           </div>
 

@@ -8,22 +8,45 @@ export class CalendarAuthError extends Error {
   }
 }
 
-async function getProviderToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession()
-  const token = data.session?.provider_token
-  if (token) return token
-  // Session exists but provider_token is absent — refresh to get a new one
-  const { data: refreshed } = await supabase.auth.refreshSession()
-  const refreshedToken = refreshed.session?.provider_token
-  if (!refreshedToken) throw new CalendarAuthError()
-  return refreshedToken
-}
+// ── Token cache ───────────────────────────────────────────────────────────────
 
-async function refreshedToken(): Promise<string> {
-  const { data } = await supabase.auth.refreshSession()
-  const token = data.session?.provider_token
-  if (!token) throw new CalendarAuthError()
-  return token
+let cachedToken: string | null = null
+let cachedTokenExpiry = 0 // epoch ms
+
+async function getProviderToken(): Promise<string> {
+  // 1. Use cached token if still valid (5-min buffer)
+  if (cachedToken && Date.now() < cachedTokenExpiry - 5 * 60_000) {
+    return cachedToken
+  }
+
+  // 2. Try the session's provider_token (available right after OAuth login)
+  const { data } = await supabase.auth.getSession()
+  const sessionToken = data.session?.provider_token
+  if (sessionToken) {
+    cachedToken = sessionToken
+    cachedTokenExpiry = Date.now() + 55 * 60_000 // assume ~1hr lifetime
+    return sessionToken
+  }
+
+  // 3. Exchange refresh token via edge function
+  const jwt = data.session?.access_token
+  if (!jwt) throw new CalendarAuthError()
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+  const resp = await fetch(`${supabaseUrl}/functions/v1/google-token-refresh`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}` },
+  })
+
+  if (!resp.ok) throw new CalendarAuthError()
+
+  const { access_token, expires_in } = await resp.json() as {
+    access_token: string
+    expires_in: number
+  }
+  cachedToken = access_token
+  cachedTokenExpiry = Date.now() + expires_in * 1000
+  return access_token
 }
 
 // ── AMION helpers ──────────────────────────────────────────────────────────────
@@ -257,9 +280,11 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
     'https://www.googleapis.com/calendar/v3/users/me/calendarList',
     { headers: { Authorization: `Bearer ${token}` } }
   )
-  // If the stored access token expired, refresh once and retry
+  // If the token was stale, invalidate cache and get a fresh one
   if (listResp.status === 401) {
-    token = await refreshedToken()
+    cachedToken = null
+    cachedTokenExpiry = 0
+    token = await getProviderToken()
     listResp = await fetch(
       'https://www.googleapis.com/calendar/v3/users/me/calendarList',
       { headers: { Authorization: `Bearer ${token}` } }
@@ -326,7 +351,9 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
   return [...regularEvents, ...amionEvents].sort((a, b) => a.start.localeCompare(b.start))
 }
 
-// ── Gus care invites (shared helpers) ─────────────────────────────────────────
+// ── Gus care GCal invite sync ─────────────────────────────────────────────────
+
+import type { GusResponsibility } from '../types'
 
 type GusEventSpec = {
   id: string
@@ -335,7 +362,7 @@ type GusEventSpec = {
   endHour: number
 }
 
-async function syncGusEvents(
+async function syncGusEventsBySpec(
   token: string,
   days: Set<string>,
   existing: Map<string, string>,
@@ -378,68 +405,44 @@ async function syncGusEvents(
   ])
 }
 
-// ── Gus pickup invites ─────────────────────────────────────────────────────────
+// ── Gus care invite sync (from computed responsibilities) ─────────────────────
 
-export async function createGusPickupEvents(): Promise<void> {
-  const token = await getProviderToken()
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const threeMonthsOut = new Date(today)
-  threeMonthsOut.setDate(threeMonthsOut.getDate() + 90)
-
-  // Fetch Caitie's work days (~13 weeks) and existing Gus pickup events in parallel
-  const weekFetches = Array.from({ length: 13 }, (_, i) => fetchCalendarEvents(i))
-  const [listResp, ...weekResults] = await Promise.all([
-    fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-      new URLSearchParams({
-        q: 'Gus pickup',
-        timeMin: today.toISOString(),
-        timeMax: threeMonthsOut.toISOString(),
-        singleEvents: 'true',
-        maxResults: '100',
-      }),
-      { headers: { Authorization: `Bearer ${token}` } }
-    ),
-    ...weekFetches,
-  ])
-
-  // Build set of Caitie work days (for pickup: any AMION non-backup weekday)
-  const workDays = new Set<string>()
-  for (const event of weekResults.flat()) {
-    if (!event.is_amion) continue
-    if (event.amion_kind === 'backup') continue
-    const dateStr = event.start.slice(0, 10)
-    const date = new Date(`${dateStr}T12:00:00`)
-    if (date >= today && date < threeMonthsOut && !isWeekend(dateStr)) {
-      workDays.add(dateStr)
-    }
+async function fetchExistingGusEvents(
+  token: string,
+  query: string,
+  timeMin: Date,
+  timeMax: Date,
+): Promise<Map<string, string>> {
+  const resp = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+    new URLSearchParams({
+      q: query,
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      singleEvents: 'true',
+      maxResults: '250',
+    }),
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  const map = new Map<string, string>()
+  if (!resp.ok) return map
+  const { items = [] } = await resp.json() as {
+    items: Array<{ id: string; summary?: string; start?: { dateTime?: string; date?: string } }>
   }
-
-  // Build map of existing Gus pickup events: dateStr → eventId
-  const existingPickups = new Map<string, string>()
-  if (listResp.ok) {
-    const { items = [] } = await listResp.json() as { items: Array<{ id: string; summary?: string; start?: { dateTime?: string; date?: string } }> }
-    for (const item of items) {
-      if (item.summary !== 'Gus pickup') continue
-      const startStr = item.start?.dateTime ?? item.start?.date ?? ''
-      const dateStr = startStr.slice(0, 10)
-      if (dateStr) existingPickups.set(dateStr, item.id)
-    }
+  for (const item of items) {
+    if (item.summary !== query) continue
+    const startStr = item.start?.dateTime ?? item.start?.date ?? ''
+    const dateStr = startStr.slice(0, 10)
+    if (dateStr) map.set(dateStr, item.id)
   }
-
-  await syncGusEvents(token, workDays, existingPickups, {
-    id: 'guspickup',
-    summary: 'Gus pickup',
-    startHour: 17,
-    endHour: 18,
-  })
+  return map
 }
 
-// ── Gus dropoff invites ────────────────────────────────────────────────────────
-
-export async function createGusDropoffEvents(): Promise<void> {
+/**
+ * Sync Gus pickup/dropoff Google Calendar invites based on computed responsibilities.
+ * Creates/deletes events to match the computed schedule.
+ */
+export async function syncGusCareInvites(gusCare: GusResponsibility[]): Promise<void> {
   const token = await getProviderToken()
 
   const today = new Date()
@@ -447,65 +450,62 @@ export async function createGusDropoffEvents(): Promise<void> {
   const threeMonthsOut = new Date(today)
   threeMonthsOut.setDate(threeMonthsOut.getDate() + 90)
 
-  // Fetch Caitie's schedule (~13 weeks) and existing Gus dropoff events in parallel
-  const weekFetches = Array.from({ length: 13 }, (_, i) => fetchCalendarEvents(i))
-  const [listResp, ...weekResults] = await Promise.all([
-    fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-      new URLSearchParams({
-        q: 'Gus dropoff',
-        timeMin: today.toISOString(),
-        timeMax: threeMonthsOut.toISOString(),
-        singleEvents: 'true',
-        maxResults: '100',
-      }),
-      { headers: { Authorization: `Bearer ${token}` } }
-    ),
-    ...weekFetches,
+  // Build sets of days where Nat is responsible
+  const pickupDays = new Set<string>()
+  const dropoffDays = new Set<string>()
+  for (const g of gusCare) {
+    const d = new Date(`${g.date}T12:00:00`)
+    if (d < today || d >= threeMonthsOut) continue
+    if (g.pickup === 'nat') pickupDays.add(g.date)
+    if (g.dropoff === 'nat') dropoffDays.add(g.date)
+  }
+
+  // Fetch existing events and sync in parallel
+  const [existingPickups, existingDropoffs] = await Promise.all([
+    fetchExistingGusEvents(token, 'Gus pickup', today, threeMonthsOut),
+    fetchExistingGusEvents(token, 'Gus dropoff', today, threeMonthsOut),
   ])
 
-  // Build set of days Nat is primary morning caregiver:
-  //   • Caitie has day/training/24hr shift → she leaves at 8am, Nat does 7am dropoff that day
-  //   • Caitie had night/24hr shift → she's still at hospital at 7am next morning
-  const dropoffDays = new Set<string>()
-  for (const event of weekResults.flat()) {
-    if (!event.is_amion) continue
-    const kind = event.amion_kind
-    const dateStr = event.start.slice(0, 10)
-    const date = new Date(`${dateStr}T12:00:00`)
+  await Promise.all([
+    syncGusEventsBySpec(token, pickupDays, existingPickups, {
+      id: 'guspickup',
+      summary: 'Gus pickup',
+      startHour: 17,
+      endHour: 18,
+    }),
+    syncGusEventsBySpec(token, dropoffDays, existingDropoffs, {
+      id: 'gusdropoff',
+      summary: 'Gus dropoff',
+      startHour: 7,
+      endHour: 8,
+    }),
+  ])
+}
 
-    if (kind === 'day' || kind === 'training' || kind === '24hr') {
-      if (date >= today && date < threeMonthsOut && !isWeekend(dateStr)) {
-        dropoffDays.add(dateStr)
-      }
-    }
+// ── Event editing ─────────────────────────────────────────────────────────────
 
-    // Night shift or 24hr: Caitie is still at hospital at 7am the next morning
-    if (kind === 'night' || kind === '24hr') {
-      const nxt = nextDay(dateStr)
-      const nxtDate = new Date(`${nxt}T12:00:00`)
-      if (nxtDate >= today && nxtDate < threeMonthsOut && !isWeekend(nxt)) {
-        dropoffDays.add(nxt)
-      }
+export async function patchOwnedEvent(
+  eventId: string,
+  calendarId: string,
+  fields: { summary?: string; start?: string; end?: string },
+): Promise<void> {
+  const token = await getProviderToken()
+
+  const body: Record<string, unknown> = {}
+  if (fields.summary !== undefined) body.summary = fields.summary
+  if (fields.start !== undefined) body.start = { dateTime: fields.start, timeZone: 'America/New_York' }
+  if (fields.end !== undefined) body.end = { dateTime: fields.end, timeZone: 'America/New_York' }
+
+  const resp = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     }
+  )
+  if (!resp.ok) {
+    const text = await resp.text()
+    throw new Error(`Failed to update event: ${resp.status} ${text}`)
   }
-
-  // Build map of existing Gus dropoff events: dateStr → eventId
-  const existingDropoffs = new Map<string, string>()
-  if (listResp.ok) {
-    const { items = [] } = await listResp.json() as { items: Array<{ id: string; summary?: string; start?: { dateTime?: string; date?: string } }> }
-    for (const item of items) {
-      if (item.summary !== 'Gus dropoff') continue
-      const startStr = item.start?.dateTime ?? item.start?.date ?? ''
-      const dateStr = startStr.slice(0, 10)
-      if (dateStr) existingDropoffs.set(dateStr, item.id)
-    }
-  }
-
-  await syncGusEvents(token, dropoffDays, existingDropoffs, {
-    id: 'gusdropoff',
-    summary: 'Gus dropoff',
-    startHour: 7,
-    endHour: 8,
-  })
 }
