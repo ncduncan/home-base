@@ -190,9 +190,6 @@ function OwnerSection({
         </ul>
       )}
 
-      {events.length === 0 && tasks.length === 0 && !hasDropoff && !hasPickup && (
-        <div className="px-3 py-1 text-[10px] text-gray-300 italic">nothing</div>
-      )}
     </div>
   )
 }
@@ -229,102 +226,103 @@ export default function DayColumn({
   const natPickup = gusCare?.pickup === 'nat'
 
   return (
-    <div className={`flex flex-col bg-white rounded-xl border shadow-sm overflow-hidden ${
+    <div className={`flex flex-col lg:grid lg:grid-rows-subgrid lg:row-span-4 lg:flex-none bg-white rounded-xl border shadow-sm overflow-hidden ${
       isToday ? 'border-[#305CDE] ring-1 ring-[#305CDE]/30' : 'border-gray-100'
-    } ${isPast ? 'opacity-60' : ''}`}>
-      {/* Day header (clickable to show hidden events for restore) */}
-      <button
-        onClick={() => setHeaderExpanded(!headerExpanded)}
-        className={`w-full px-3 py-2 flex items-start justify-between gap-2 transition-colors ${
-          isToday ? 'bg-[#305CDE]/10 hover:bg-[#305CDE]/20' : 'bg-gray-50/80 hover:bg-gray-100/60'
-        }`}
-      >
-        <div className="text-left">
-          <div className={`text-[10px] font-semibold uppercase tracking-wider ${
-            isToday ? 'text-[#305CDE]' : 'text-gray-500'
-          }`}>
-            {format(date, 'EEE')}
-          </div>
-          <div className={`text-sm font-semibold ${isToday ? 'text-[#305CDE]' : 'text-gray-800'}`}>
-            {format(date, 'MMM d')}
-          </div>
-        </div>
-        {weather && (
-          <div className="text-right shrink-0">
-            <div className="text-base leading-none">{wmoToIcon(weather.weatherCode)}</div>
-            <div className="text-[10px] text-gray-500 leading-tight mt-0.5">
-              {weather.tempMin}–{weather.tempMax}°F
+    } ${isPast ? 'opacity-75' : ''}`}>
+
+      {/* Row 1 — Day header */}
+      <div>
+        <button
+          onClick={() => setHeaderExpanded(!headerExpanded)}
+          className={`w-full px-3 py-2 flex items-start justify-between gap-2 transition-colors ${
+            isToday ? 'bg-[#305CDE]/10 hover:bg-[#305CDE]/20' : 'bg-gray-50/80 hover:bg-gray-100/60'
+          }`}
+        >
+          <div className="text-left">
+            <div className={`text-[10px] font-semibold uppercase tracking-wider ${
+              isToday ? 'text-[#305CDE]' : 'text-gray-500'
+            }`}>
+              {format(date, 'EEE')}
+            </div>
+            <div className={`text-sm font-semibold ${isToday ? 'text-[#305CDE]' : 'text-gray-800'}`}>
+              {format(date, 'MMM d')}
             </div>
           </div>
+          {weather && (
+            <div className="text-right shrink-0">
+              <div className="text-base leading-none">{wmoToIcon(weather.weatherCode)}</div>
+              <div className="text-[10px] text-gray-500 leading-tight mt-0.5">
+                {weather.tempMin}–{weather.tempMax}°F
+              </div>
+            </div>
+          )}
+        </button>
+
+        {headerExpanded && (
+          <DayHeaderPanel
+            date={dayDateStr}
+            rawEvents={rawEvents}
+            overrides={overrides}
+            onUnhide={async (id) => { await onDeleteOverride(id) }}
+            onClose={() => setHeaderExpanded(false)}
+          />
         )}
-      </button>
-
-      {headerExpanded && (
-        <DayHeaderPanel
-          date={dayDateStr}
-          rawEvents={rawEvents}
-          overrides={overrides}
-          onUnhide={async (id) => { await onDeleteOverride(id) }}
-          onClose={() => setHeaderExpanded(false)}
-        />
-      )}
-
-      {/* Family banners (all-day non-AMION events that span this day) */}
-      {bannerEvents.length > 0 && (
-        <div>
-          {bannerEvents.map(event => (
-            <div
-              key={event.id}
-              className="px-3 py-1.5 bg-gray-100 text-gray-700 text-[11px] leading-tight border-b border-gray-200"
-              title={event.title}
-            >
-              {event.title}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Per-person sections (always shown) */}
-      <div className="flex-1 min-h-0">
-        <OwnerSection
-          owner="caitie"
-          events={caitieEvents}
-          tasks={caitieTasks}
-          users={users}
-          overrideMap={overrideMap}
-          dayDateStr={dayDateStr}
-          expandedEventId={expandedEventId}
-          setExpandedEventId={setExpandedEventId}
-          userEmail={userEmail}
-          hasDropoff={caitieDropoff}
-          hasPickup={caitiePickup}
-          onSaveOverride={onSaveOverride}
-          onDeleteOverride={onDeleteOverride}
-          onDeleteHomebaseEvent={onDeleteHomebaseEvent}
-          onToggleTask={onToggleTask}
-          onDeleteTask={onDeleteTask}
-          onUpdateTask={onUpdateTask}
-        />
-        <OwnerSection
-          owner="nat"
-          events={natEvents}
-          tasks={natTasks}
-          users={users}
-          overrideMap={overrideMap}
-          dayDateStr={dayDateStr}
-          expandedEventId={expandedEventId}
-          setExpandedEventId={setExpandedEventId}
-          userEmail={userEmail}
-          hasDropoff={natDropoff}
-          hasPickup={natPickup}
-          onSaveOverride={onSaveOverride}
-          onDeleteOverride={onDeleteOverride}
-          onDeleteHomebaseEvent={onDeleteHomebaseEvent}
-          onToggleTask={onToggleTask}
-          onDeleteTask={onDeleteTask}
-          onUpdateTask={onUpdateTask}
-        />
       </div>
+
+      {/* Row 2 — Family banners (empty when none, but row still reserved if any column has banners) */}
+      <div>
+        {bannerEvents.map(event => (
+          <div
+            key={event.id}
+            className="px-3 py-1.5 bg-gray-100 text-gray-700 text-[11px] leading-tight border-b border-gray-200"
+            title={event.title}
+          >
+            {event.title}
+          </div>
+        ))}
+      </div>
+
+      {/* Row 3 — CAITIE section */}
+      <OwnerSection
+        owner="caitie"
+        events={caitieEvents}
+        tasks={caitieTasks}
+        users={users}
+        overrideMap={overrideMap}
+        dayDateStr={dayDateStr}
+        expandedEventId={expandedEventId}
+        setExpandedEventId={setExpandedEventId}
+        userEmail={userEmail}
+        hasDropoff={caitieDropoff}
+        hasPickup={caitiePickup}
+        onSaveOverride={onSaveOverride}
+        onDeleteOverride={onDeleteOverride}
+        onDeleteHomebaseEvent={onDeleteHomebaseEvent}
+        onToggleTask={onToggleTask}
+        onDeleteTask={onDeleteTask}
+        onUpdateTask={onUpdateTask}
+      />
+
+      {/* Row 4 — NAT section */}
+      <OwnerSection
+        owner="nat"
+        events={natEvents}
+        tasks={natTasks}
+        users={users}
+        overrideMap={overrideMap}
+        dayDateStr={dayDateStr}
+        expandedEventId={expandedEventId}
+        setExpandedEventId={setExpandedEventId}
+        userEmail={userEmail}
+        hasDropoff={natDropoff}
+        hasPickup={natPickup}
+        onSaveOverride={onSaveOverride}
+        onDeleteOverride={onDeleteOverride}
+        onDeleteHomebaseEvent={onDeleteHomebaseEvent}
+        onToggleTask={onToggleTask}
+        onDeleteTask={onDeleteTask}
+        onUpdateTask={onUpdateTask}
+      />
 
     </div>
   )

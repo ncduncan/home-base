@@ -250,7 +250,7 @@ export default function WeekDashboard({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-7 gap-2.5">
+      <div className="grid grid-cols-1 lg:grid-cols-7 lg:grid-rows-[auto_auto_auto_auto] gap-2 lg:gap-y-0 lg:gap-x-2">
         {days.map(({ date }) => {
           const dayDateStr = format(date, 'yyyy-MM-dd')
           const isToday = isSameDay(date, todayDate)
