@@ -521,8 +521,16 @@ export async function createOwnedEvent(
 
   const body: Record<string, unknown> = { summary: fields.summary }
   if (fields.allDay) {
-    body.start = { date: fields.start.slice(0, 10) }
-    body.end = { date: fields.end.slice(0, 10) }
+    // Google requires exclusive end-date for all-day events: end must be the day AFTER start
+    const startDate = fields.start.slice(0, 10)
+    let endDate = fields.end.slice(0, 10)
+    if (endDate <= startDate) {
+      const d = new Date(`${startDate}T12:00:00`)
+      d.setDate(d.getDate() + 1)
+      endDate = d.toISOString().slice(0, 10)
+    }
+    body.start = { date: startDate }
+    body.end = { date: endDate }
   } else {
     body.start = { dateTime: fields.start, timeZone: 'America/New_York' }
     body.end = { dateTime: fields.end, timeZone: 'America/New_York' }
@@ -539,7 +547,8 @@ export async function createOwnedEvent(
   )
   if (!resp.ok) {
     const text = await resp.text()
-    throw new Error(`Failed to create event: ${resp.status} ${text}`)
+    console.error('createOwnedEvent failed:', resp.status, text)
+    throw new Error(`Failed to create event: ${resp.status}`)
   }
 }
 

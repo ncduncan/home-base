@@ -67,7 +67,15 @@ export default function DashboardPage({ session }: Props) {
   const events = useMemo(() => applyOverrides(rawEvents, overrides), [rawEvents, overrides])
 
   // ── Gus care (computed from overridden events) ────────────────────────────
-  const gusCare = useMemo(() => computeGusCare(events), [events])
+  // Always compute for every weekday in the visible week, so days with no events
+  // still get a Gus care entry (defaulting to Caitie when she's free).
+  const weekDates = useMemo(() => {
+    const sun = new Date()
+    sun.setHours(0, 0, 0, 0)
+    sun.setDate(sun.getDate() - sun.getDay() + weekOffset * 7)
+    return Array.from({ length: 7 }, (_, i) => format(addDays(sun, i), 'yyyy-MM-dd'))
+  }, [weekOffset])
+  const gusCare = useMemo(() => computeGusCare(events, weekDates), [events, weekDates])
 
   // Sync Gus care invites to Google Calendar (Nat only, debounced)
   const syncTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)

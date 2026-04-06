@@ -35,7 +35,10 @@ const PICKUP_HOUR = 17 // 5pm
  * - Dropoff at 7am: Caitie unless she has an event starting by 9am today (leaving
  *   early), OR an event from yesterday running past 7am today
  */
-export function computeGusCare(events: CalendarEvent[]): GusResponsibility[] {
+export function computeGusCare(
+  events: CalendarEvent[],
+  weekDates?: string[],
+): GusResponsibility[] {
   // Group Caitie's events by start date (AMION shifts + her regular events).
   // Skip "backup" AMION shifts — they don't make her unavailable.
   const caitieByDate = new Map<string, CalendarEvent[]>()
@@ -48,10 +51,11 @@ export function computeGusCare(events: CalendarEvent[]): GusResponsibility[] {
     caitieByDate.set(dateStr, existing)
   }
 
-  // All weekdays in the event list range
-  const allDates = new Set<string>()
-  for (const event of events) {
-    allDates.add(event.start.slice(0, 10))
+  // Use the provided week dates if given, otherwise fall back to dates with events.
+  // The provided list ensures every weekday gets a Gus care entry even if no events exist.
+  const allDates = new Set<string>(weekDates ?? [])
+  if (allDates.size === 0) {
+    for (const event of events) allDates.add(event.start.slice(0, 10))
   }
 
   const results: GusResponsibility[] = []

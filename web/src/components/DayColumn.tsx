@@ -5,6 +5,7 @@ import { USER_COLORS } from '../lib/userColors'
 import { eventOwner } from '../lib/calendar'
 import EventDetail from './EventDetail'
 import DayHeaderPanel from './DayHeaderPanel'
+import AddEventForm from './AddEventForm'
 import TaskRow from './tasks/TaskRow'
 import AddTaskForm from './tasks/AddTaskForm'
 import type { TaskUpdatePatch } from './tasks/TaskRow'
@@ -70,13 +71,11 @@ function OwnerAvatar({ owner, size = 'sm' }: { owner: 'nat' | 'caitie'; size?: '
   )
 }
 
-function GusPill({ kind, who, label }: { kind: 'pickup' | 'dropoff'; who: 'nat' | 'caitie'; label: string }) {
+function GusPill({ kind, label }: { kind: 'pickup' | 'dropoff'; label: string }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <OwnerAvatar owner={who} size="xs" />
-      <span className="text-[11px] text-gray-600">
-        Gus {kind === 'dropoff' ? '↓' : '↑'} <span className="text-gray-400">{label}</span>
-      </span>
+    <div className="px-3 py-1 flex items-center gap-1.5 text-[11px] text-gray-600 bg-blue-50/40">
+      <span className="text-gray-500">{kind === 'dropoff' ? '↓' : '↑'}</span>
+      Gus {kind} <span className="text-gray-400">{label}</span>
     </div>
   )
 }
@@ -91,6 +90,8 @@ interface OwnerSectionProps {
   expandedEventId: string | null
   setExpandedEventId: (id: string | null) => void
   userEmail: string
+  hasDropoff: boolean
+  hasPickup: boolean
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
   onToggleTask: (gid: string, completed: boolean) => void
@@ -101,10 +102,9 @@ interface OwnerSectionProps {
 function OwnerSection({
   owner, events, tasks, users, overrideMap, dayDateStr,
   expandedEventId, setExpandedEventId, userEmail,
+  hasDropoff, hasPickup,
   onSaveOverride, onDeleteOverride, onToggleTask, onDeleteTask, onUpdateTask,
 }: OwnerSectionProps) {
-  if (events.length === 0 && tasks.length === 0) return null
-
   const headerColor = owner === 'nat' ? 'text-[#305CDE]' : 'text-yellow-700'
   const headerLabel = owner === 'nat' ? 'NAT' : 'CAITIE'
 
@@ -114,6 +114,10 @@ function OwnerSection({
         <OwnerAvatar owner={owner} size="xs" />
         {headerLabel}
       </div>
+
+      {/* Gus pills owned by this person */}
+      {hasDropoff && <GusPill kind="dropoff" label="7am" />}
+      {hasPickup && <GusPill kind="pickup" label="5pm" />}
 
       {events.length > 0 && (
         <ul>
@@ -178,6 +182,10 @@ function OwnerSection({
           ))}
         </ul>
       )}
+
+      {events.length === 0 && tasks.length === 0 && !hasDropoff && !hasPickup && (
+        <div className="px-3 py-1 text-[10px] text-gray-300 italic">nothing</div>
+      )}
     </div>
   )
 }
@@ -195,17 +203,24 @@ export default function DayColumn({
   const overrideMap = new Map<string, CalendarOverride>()
   for (const o of overrides) overrideMap.set(`${o.event_key}|${o.event_date}`, o)
 
-  // Split events and tasks by owner
+  // Split events by owner
   const caitieEvents = events.filter(e => eventOwner(e) === 'caitie')
   const natEvents = events.filter(e => eventOwner(e) === 'nat')
+  // Split tasks by assignee name
   const caitieTasks = tasks.filter(t => t.assignee?.name?.toLowerCase().startsWith('cait'))
   const natTasks = tasks.filter(t => !t.assignee?.name?.toLowerCase().startsWith('cait'))
+
+  // Gus pills go to whoever's responsible
+  const caitieDropoff = gusCare?.dropoff === 'caitie'
+  const caitiePickup = gusCare?.pickup === 'caitie'
+  const natDropoff = gusCare?.dropoff === 'nat'
+  const natPickup = gusCare?.pickup === 'nat'
 
   return (
     <div className={`flex flex-col bg-white rounded-xl border shadow-sm overflow-hidden ${
       isToday ? 'border-[#305CDE] ring-1 ring-[#305CDE]/30' : 'border-gray-100'
     } ${isPast ? 'opacity-60' : ''}`}>
-      {/* Day header (clickable for add-event / restore-hidden) */}
+      {/* Day header (clickable to show hidden events for restore) */}
       <button
         onClick={() => setHeaderExpanded(!headerExpanded)}
         className={`w-full px-3 py-2 flex items-start justify-between gap-2 transition-colors ${
@@ -238,20 +253,11 @@ export default function DayColumn({
           rawEvents={rawEvents}
           overrides={overrides}
           onUnhide={async (id) => { await onDeleteOverride(id) }}
-          onEventCreated={onRefreshEvents}
           onClose={() => setHeaderExpanded(false)}
         />
       )}
 
-      {/* Gus care pills */}
-      {gusCare && (
-        <div className="px-3 py-2 border-b border-gray-50 space-y-1 bg-gradient-to-b from-blue-50/40 to-transparent">
-          <GusPill kind="dropoff" who={gusCare.dropoff} label="7am" />
-          <GusPill kind="pickup" who={gusCare.pickup} label="5pm" />
-        </div>
-      )}
-
-      {/* Per-person sections */}
+      {/* Per-person sections (always shown) */}
       <div className="flex-1 min-h-0">
         <OwnerSection
           owner="caitie"
@@ -263,6 +269,8 @@ export default function DayColumn({
           expandedEventId={expandedEventId}
           setExpandedEventId={setExpandedEventId}
           userEmail={userEmail}
+          hasDropoff={caitieDropoff}
+          hasPickup={caitiePickup}
           onSaveOverride={onSaveOverride}
           onDeleteOverride={onDeleteOverride}
           onToggleTask={onToggleTask}
@@ -279,6 +287,8 @@ export default function DayColumn({
           expandedEventId={expandedEventId}
           setExpandedEventId={setExpandedEventId}
           userEmail={userEmail}
+          hasDropoff={natDropoff}
+          hasPickup={natPickup}
           onSaveOverride={onSaveOverride}
           onDeleteOverride={onDeleteOverride}
           onToggleTask={onToggleTask}
@@ -287,8 +297,9 @@ export default function DayColumn({
         />
       </div>
 
-      {/* Add task footer */}
+      {/* Add event + add task at bottom */}
       <div className="border-t border-gray-100">
+        <AddEventForm date={dayDateStr} onEventCreated={onRefreshEvents} />
         <AddTaskForm
           users={users}
           selfGid={selfGid}
