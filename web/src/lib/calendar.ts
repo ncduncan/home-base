@@ -297,8 +297,11 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
   now.setDate(now.getDate() - now.getDay())
   const timeMin = new Date(now)
   timeMin.setDate(timeMin.getDate() + weekOffset * 7)
+  // timeMax is EXCLUSIVE in Google's API, so use start of NEXT Sunday (+7 days)
+  // to include all of Saturday
   const timeMax = new Date(timeMin)
-  timeMax.setDate(timeMax.getDate() + 6)
+  timeMax.setDate(timeMax.getDate() + 7)
+  console.log('[fetchCalendarEvents] window:', timeMin.toISOString(), '→', timeMax.toISOString())
 
   let listResp = await fetch(
     'https://www.googleapis.com/calendar/v3/users/me/calendarList',
@@ -529,7 +532,9 @@ export async function createOwnedEvent(
     currentUserEmail?: string
   },
 ): Promise<void> {
+  console.log('[createOwnedEvent] entered with:', fields)
   const token = await getProviderToken()
+  console.log('[createOwnedEvent] got provider token, length:', token.length)
 
   const body: Record<string, unknown> = { summary: fields.summary }
   if (fields.allDay) {

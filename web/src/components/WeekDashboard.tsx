@@ -7,6 +7,7 @@ import { fetchWorkspaceUsers } from '../lib/asana'
 import DayColumn from './DayColumn'
 import CompletedRow from './tasks/CompletedRow'
 import { useTaskMutations } from './tasks/useTaskMutations'
+import type { HomebaseEvent } from '../lib/homebase-events'
 import type {
   AsanaTask,
   AsanaUser,
@@ -28,6 +29,8 @@ interface Props {
   overrides: CalendarOverride[]
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
+  onCreateHomebaseEvent: (fields: Omit<HomebaseEvent, 'id'>) => Promise<void>
+  onDeleteHomebaseEvent: (id: string) => Promise<void>
   weekOffset: number
   onWeekChange: (delta: number) => void
   tasks: AsanaTask[]
@@ -50,6 +53,7 @@ function weekLabel(weekOffset: number): string {
 export default function WeekDashboard({
   events, rawEvents, eventsLoading, eventsError, eventsAuthError, onRefreshEvents,
   weather, gusCare, overrides, onSaveOverride, onDeleteOverride,
+  onCreateHomebaseEvent, onDeleteHomebaseEvent,
   weekOffset, onWeekChange,
   tasks, setTasks, tasksLoading, userEmail,
 }: Props) {
@@ -58,6 +62,7 @@ export default function WeekDashboard({
   const [selfGid, setSelfGid] = useState('')
 
   useEffect(() => {
+    console.log('[home-base] WeekDashboard mounted — build with event-creation logging v2')
     fetchWorkspaceUsers().then(all => {
       setUsers(all)
       const self = all.find(u => u.email === userEmail)
@@ -212,6 +217,8 @@ export default function WeekDashboard({
               userEmail={userEmail}
               onSaveOverride={onSaveOverride}
               onDeleteOverride={onDeleteOverride}
+              onCreateHomebaseEvent={onCreateHomebaseEvent}
+              onDeleteHomebaseEvent={onDeleteHomebaseEvent}
               onRefreshEvents={onRefreshEvents}
               onAddTask={mutations.addTask}
               onToggleTask={(gid, c) => void mutations.toggleTask(gid, c)}

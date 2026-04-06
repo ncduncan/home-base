@@ -9,6 +9,11 @@ import AddEventForm from './AddEventForm'
 import TaskRow from './tasks/TaskRow'
 import AddTaskForm from './tasks/AddTaskForm'
 import type { TaskUpdatePatch } from './tasks/TaskRow'
+import {
+  isHomebaseEventId,
+  homebaseIdFromCalendarEventId,
+  type HomebaseEvent,
+} from '../lib/homebase-events'
 import type {
   AsanaTask,
   AsanaUser,
@@ -33,6 +38,8 @@ interface Props {
   userEmail: string
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
+  onCreateHomebaseEvent: (fields: Omit<HomebaseEvent, 'id'>) => Promise<void>
+  onDeleteHomebaseEvent: (id: string) => Promise<void>
   onRefreshEvents: () => void
   onAddTask: (task: AsanaTask) => void
   onToggleTask: (gid: string, completed: boolean) => void
@@ -94,6 +101,7 @@ interface OwnerSectionProps {
   hasPickup: boolean
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
+  onDeleteHomebaseEvent: (id: string) => Promise<void>
   onToggleTask: (gid: string, completed: boolean) => void
   onDeleteTask: (gid: string) => void
   onUpdateTask: (gid: string, patch: TaskUpdatePatch) => Promise<void>
@@ -103,7 +111,8 @@ function OwnerSection({
   owner, events, tasks, users, overrideMap, dayDateStr,
   expandedEventId, setExpandedEventId, userEmail,
   hasDropoff, hasPickup,
-  onSaveOverride, onDeleteOverride, onToggleTask, onDeleteTask, onUpdateTask,
+  onSaveOverride, onDeleteOverride, onDeleteHomebaseEvent,
+  onToggleTask, onDeleteTask, onUpdateTask,
 }: OwnerSectionProps) {
   const headerColor = owner === 'nat' ? 'text-[#305CDE]' : 'text-yellow-700'
   const headerLabel = owner === 'nat' ? 'NAT' : 'CAITIE'
@@ -124,15 +133,16 @@ function OwnerSection({
           {events.map(event => {
             const isExpanded = expandedEventId === event.id
             const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
+            const isHomebase = isHomebaseEventId(event.id)
             return (
-              <li key={event.id}>
+              <li key={event.id} className="group/event relative">
                 <button
                   onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
                   className={`w-full text-left px-3 py-1.5 transition-colors ${
                     isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/50'
                   }`}
                 >
-                  <div className="text-[11px] text-gray-900 leading-tight">
+                  <div className="text-[11px] text-gray-900 leading-tight pr-5">
                     {event.is_amion ? shiftLabel(event.amion_kind) : event.title}
                   </div>
                   <div className="text-[10px] text-gray-400 leading-tight">
@@ -151,7 +161,20 @@ function OwnerSection({
                   )}
                 </button>
 
-                {isExpanded && (
+                {isHomebase && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void onDeleteHomebaseEvent(homebaseIdFromCalendarEventId(event.id))
+                    }}
+                    className="absolute top-1.5 right-2 opacity-0 group-hover/event:opacity-100 text-gray-300 hover:text-red-500 transition-all text-[10px]"
+                    aria-label="Delete event"
+                  >
+                    ✕
+                  </button>
+                )}
+
+                {isExpanded && !isHomebase && (
                   <EventDetail
                     event={event}
                     override={eventOverride}
@@ -193,7 +216,9 @@ function OwnerSection({
 export default function DayColumn({
   date, isToday, isPast,
   events, rawEvents, overrides, weather, gusCare, tasks, users, selfGid, userEmail,
-  onSaveOverride, onDeleteOverride, onRefreshEvents,
+  onSaveOverride, onDeleteOverride,
+  onCreateHomebaseEvent, onDeleteHomebaseEvent,
+  onRefreshEvents: _onRefreshEvents,
   onAddTask, onToggleTask, onDeleteTask, onUpdateTask,
 }: Props) {
   const dayDateStr = format(date, 'yyyy-MM-dd')
@@ -273,6 +298,7 @@ export default function DayColumn({
           hasPickup={caitiePickup}
           onSaveOverride={onSaveOverride}
           onDeleteOverride={onDeleteOverride}
+          onDeleteHomebaseEvent={onDeleteHomebaseEvent}
           onToggleTask={onToggleTask}
           onDeleteTask={onDeleteTask}
           onUpdateTask={onUpdateTask}
@@ -291,6 +317,7 @@ export default function DayColumn({
           hasPickup={natPickup}
           onSaveOverride={onSaveOverride}
           onDeleteOverride={onDeleteOverride}
+          onDeleteHomebaseEvent={onDeleteHomebaseEvent}
           onToggleTask={onToggleTask}
           onDeleteTask={onDeleteTask}
           onUpdateTask={onUpdateTask}
@@ -302,7 +329,7 @@ export default function DayColumn({
         <AddEventForm
           date={dayDateStr}
           currentUserEmail={userEmail}
-          onEventCreated={onRefreshEvents}
+          onCreate={onCreateHomebaseEvent}
         />
         <AddTaskForm
           users={users}

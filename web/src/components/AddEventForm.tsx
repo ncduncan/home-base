@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { CalendarPlus } from 'lucide-react'
-import { createOwnedEvent } from '../lib/calendar'
 import { USER_COLORS } from '../lib/userColors'
+import type { HomebaseEvent } from '../lib/homebase-events'
 
 interface Props {
   date: string                  // YYYY-MM-DD
   currentUserEmail: string
-  onEventCreated: () => void
+  onCreate: (fields: Omit<HomebaseEvent, 'id'>) => Promise<void>
 }
 
-export default function AddEventForm({ date, currentUserEmail, onEventCreated }: Props) {
+export default function AddEventForm({ date, currentUserEmail, onCreate }: Props) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [startTime, setStartTime] = useState('09:00')
@@ -26,21 +26,20 @@ export default function AddEventForm({ date, currentUserEmail, onEventCreated }:
     setSaving(true)
     setError(null)
     try {
-      await createOwnedEvent({
-        summary: title.trim(),
-        start: allDay ? date : `${date}T${startTime}:00`,
-        end: allDay ? date : `${date}T${endTime}:00`,
-        allDay,
+      await onCreate({
+        title: title.trim(),
+        start_time: allDay ? date : `${date}T${startTime}:00`,
+        end_time: allDay ? date : `${date}T${endTime}:00`,
+        all_day: allDay,
+        location: null,
+        notes: null,
         owner,
-        currentUserEmail,
+        created_by: currentUserEmail,
       })
-      // Refresh aggressively to catch eventual consistency on Google's side
-      onEventCreated()
-      setTimeout(onEventCreated, 1500)
-      setTimeout(onEventCreated, 4000)
       setTitle('')
       setOpen(false)
     } catch (e) {
+      console.error('AddEventForm create failed:', e)
       setError(e instanceof Error ? e.message : 'Failed to create event')
     } finally {
       setSaving(false)

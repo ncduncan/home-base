@@ -4,6 +4,13 @@ import { fetchCalendarEvents, CalendarAuthError, syncGusCareInvites } from '../l
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks } from '../lib/asana'
 import { fetchOverrides, upsertOverride, deleteOverride, applyOverrides } from '../lib/overrides'
+import {
+  fetchHomebaseEvents,
+  createHomebaseEvent,
+  deleteHomebaseEvent,
+  homebaseToCalendarEvent,
+} from '../lib/homebase-events'
+import type { HomebaseEvent } from '../lib/homebase-events'
 import { computeGusCare } from '../lib/gus-care'
 import type { Session } from '@supabase/supabase-js'
 import type { AsanaTask, CalendarEvent, CalendarOverride, WeatherDay } from '../types'
@@ -36,35 +43,50 @@ export default function DashboardPage({ session }: Props) {
   // ── Overrides ──────────────────────────────────────────────────────────────
   const [overrides, setOverrides] = useState<CalendarOverride[]>([])
 
-  const loadOverrides = useCallback((offset: number) => {
+  // ── Home-base events (Supabase-stored, not in Google Calendar) ────────────
+  const [homebaseEvents, setHomebaseEvents] = useState<HomebaseEvent[]>([])
+
+  const weekRange = useCallback((offset: number) => {
     const now = new Date()
     now.setHours(0, 0, 0, 0)
     now.setDate(now.getDate() - now.getDay() + offset * 7)
     const start = format(now, 'yyyy-MM-dd')
     const end = format(addDays(now, 6), 'yyyy-MM-dd')
-    fetchOverrides(start, end).then(setOverrides).catch(() => {})
+    return { start, end }
   }, [])
+
+  const loadOverrides = useCallback((offset: number) => {
+    const { start, end } = weekRange(offset)
+    fetchOverrides(start, end).then(setOverrides).catch(() => {})
+  }, [weekRange])
+
+  const loadHomebaseEvents = useCallback((offset: number) => {
+    const { start, end } = weekRange(offset)
+    fetchHomebaseEvents(start, end).then(setHomebaseEvents).catch(() => {})
+  }, [weekRange])
 
   const fetchEvents = useCallback((offset: number) => {
     setEventsLoading(true)
     setEventsError(null)
     setEventsAuthError(false)
-    Promise.all([
-      fetchCalendarEvents(offset),
-      (() => { loadOverrides(offset); return undefined })(),
-    ])
-      .then(([events]) => { if (events) setRawEvents(events) })
+    loadOverrides(offset)
+    loadHomebaseEvents(offset)
+    fetchCalendarEvents(offset)
+      .then(setRawEvents)
       .catch((e: unknown) => {
         if (e instanceof CalendarAuthError) setEventsAuthError(true)
         else setEventsError(e instanceof Error ? e.message : 'Failed to load calendar')
       })
       .finally(() => setEventsLoading(false))
-  }, [loadOverrides])
+  }, [loadOverrides, loadHomebaseEvents])
 
   useEffect(() => { fetchEvents(weekOffset) }, [fetchEvents, weekOffset])
 
-  // Apply overrides to get the display events
-  const events = useMemo(() => applyOverrides(rawEvents, overrides), [rawEvents, overrides])
+  // Merge homebase events into the raw event list, then apply overrides
+  const events = useMemo(() => {
+    const merged = [...rawEvents, ...homebaseEvents.map(homebaseToCalendarEvent)]
+    return applyOverrides(merged, overrides)
+  }, [rawEvents, homebaseEvents, overrides])
 
   // ── Gus care (computed from overridden events) ────────────────────────────
   // Always compute for every weekday in the visible week, so days with no events
@@ -105,6 +127,17 @@ export default function DashboardPage({ session }: Props) {
     setOverrides(prev => prev.filter(o => o.id !== id))
   }, [])
 
+  // ── Home-base event handlers ──────────────────────────────────────────────
+  const handleCreateHomebaseEvent = useCallback(async (fields: Omit<HomebaseEvent, 'id'>) => {
+    const created = await createHomebaseEvent(fields)
+    setHomebaseEvents(prev => [...prev, created])
+  }, [])
+
+  const handleDeleteHomebaseEvent = useCallback(async (id: string) => {
+    await deleteHomebaseEvent(id)
+    setHomebaseEvents(prev => prev.filter(e => e.id !== id))
+  }, [])
+
   // ── Weather ────────────────────────────────────────────────────────────────
   const [weather, setWeather] = useState<WeatherDay[]>([])
 
@@ -129,6 +162,8 @@ export default function DashboardPage({ session }: Props) {
           overrides={overrides}
           onSaveOverride={handleSaveOverride}
           onDeleteOverride={handleDeleteOverride}
+          onCreateHomebaseEvent={handleCreateHomebaseEvent}
+          onDeleteHomebaseEvent={handleDeleteHomebaseEvent}
           weekOffset={weekOffset}
           onWeekChange={delta => setWeekOffset(o => o + delta)}
           tasks={tasks}
