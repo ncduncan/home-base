@@ -440,30 +440,40 @@ async function fetchExistingGusEvents(
 
 /**
  * Sync Gus pickup/dropoff Google Calendar invites based on computed responsibilities.
- * Creates/deletes events to match the computed schedule.
+ * Only operates within the date range of the provided gusCare entries — events
+ * outside that window are left untouched.
  */
 export async function syncGusCareInvites(gusCare: GusResponsibility[]): Promise<void> {
+  if (gusCare.length === 0) return
+
   const token = await getProviderToken()
+
+  // Scope the sync to the input's date range
+  const dates = gusCare.map(g => g.date).sort()
+  const rangeStart = new Date(`${dates[0]}T00:00:00`)
+  const rangeEnd = new Date(`${dates[dates.length - 1]}T23:59:59`)
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const threeMonthsOut = new Date(today)
-  threeMonthsOut.setDate(threeMonthsOut.getDate() + 90)
 
-  // Build sets of days where Nat is responsible
+  // Don't modify past events
+  if (rangeEnd < today) return
+  const effectiveStart = rangeStart < today ? today : rangeStart
+
+  // Build sets of days where Nat is responsible (only within range, only future)
   const pickupDays = new Set<string>()
   const dropoffDays = new Set<string>()
   for (const g of gusCare) {
     const d = new Date(`${g.date}T12:00:00`)
-    if (d < today || d >= threeMonthsOut) continue
+    if (d < today) continue
     if (g.pickup === 'nat') pickupDays.add(g.date)
     if (g.dropoff === 'nat') dropoffDays.add(g.date)
   }
 
-  // Fetch existing events and sync in parallel
+  // Fetch existing events WITHIN the scoped range only
   const [existingPickups, existingDropoffs] = await Promise.all([
-    fetchExistingGusEvents(token, 'Gus pickup', today, threeMonthsOut),
-    fetchExistingGusEvents(token, 'Gus dropoff', today, threeMonthsOut),
+    fetchExistingGusEvents(token, 'Gus pickup', effectiveStart, rangeEnd),
+    fetchExistingGusEvents(token, 'Gus dropoff', effectiveStart, rangeEnd),
   ])
 
   await Promise.all([
