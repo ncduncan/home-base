@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { format, addDays, startOfToday, startOfDay, parseISO, isSameDay } from 'date-fns'
-import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { fetchWorkspaceUsers } from '../lib/asana'
 import DayColumn from './DayColumn'
 import CompletedRow from './tasks/CompletedRow'
+import AddTaskForm from './tasks/AddTaskForm'
+import AddEventForm from './AddEventForm'
 import { useTaskMutations } from './tasks/useTaskMutations'
 import type { HomebaseEvent } from '../lib/homebase-events'
 import type {
@@ -60,6 +62,7 @@ export default function WeekDashboard({
   const [refreshing, setRefreshing] = useState(false)
   const [users, setUsers] = useState<AsanaUser[]>([])
   const [selfGid, setSelfGid] = useState('')
+  const [addMode, setAddMode] = useState<'event' | 'task' | null>(null)
 
   useEffect(() => {
     console.log('[home-base] WeekDashboard mounted — build with event-creation logging v2')
@@ -115,20 +118,23 @@ export default function WeekDashboard({
     .filter(t => t.completed)
     .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
 
+  // Default date for new event/task: today if viewing this week, otherwise the
+  // Sunday of the visible week
+  const defaultAddDate = weekOffset === 0
+    ? format(todayDate, 'yyyy-MM-dd')
+    : format(sunday, 'yyyy-MM-dd')
+
   // ── Header ────────────────────────────────────────────────────────────────
   const header = (
-    <div className="flex items-center justify-between mb-4">
-      <button
-        onClick={() => onWeekChange(-1)}
-        className="text-gray-400 hover:text-gray-700 transition-colors p-1"
-        aria-label="Previous week"
-      >
-        <ChevronLeft size={18} />
-      </button>
-      <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-widest">
-        {weekLabel(weekOffset)}
-      </h2>
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between mb-4 gap-4">
+      <div className="flex items-center gap-1 w-32">
+        <button
+          onClick={() => onWeekChange(-1)}
+          className="text-gray-400 hover:text-gray-700 transition-colors p-1"
+          aria-label="Previous week"
+        >
+          <ChevronLeft size={18} />
+        </button>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
@@ -143,6 +149,35 @@ export default function WeekDashboard({
           aria-label="Next week"
         >
           <ChevronRight size={18} />
+        </button>
+      </div>
+
+      <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-widest">
+        {weekLabel(weekOffset)}
+      </h2>
+
+      <div className="flex items-center gap-2 w-32 justify-end">
+        <button
+          onClick={() => setAddMode(addMode === 'event' ? null : 'event')}
+          className={`flex items-center gap-1 text-xs h-7 px-2.5 rounded-md border transition-colors ${
+            addMode === 'event'
+              ? 'bg-gray-900 text-white border-gray-900'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          <CalendarPlus size={12} />
+          Event
+        </button>
+        <button
+          onClick={() => setAddMode(addMode === 'task' ? null : 'task')}
+          className={`flex items-center gap-1 text-xs h-7 px-2.5 rounded-md border transition-colors ${
+            addMode === 'task'
+              ? 'bg-gray-900 text-white border-gray-900'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          <Plus size={12} />
+          Task
         </button>
       </div>
     </div>
@@ -192,6 +227,29 @@ export default function WeekDashboard({
         </div>
       )}
 
+      {addMode === 'event' && (
+        <div className="mb-4 max-w-2xl mx-auto">
+          <AddEventForm
+            defaultDate={defaultAddDate}
+            currentUserEmail={userEmail}
+            onCreate={onCreateHomebaseEvent}
+            onClose={() => setAddMode(null)}
+          />
+        </div>
+      )}
+
+      {addMode === 'task' && (
+        <div className="mb-4 max-w-2xl mx-auto">
+          <AddTaskForm
+            users={users}
+            selfGid={selfGid}
+            defaultDueDate={defaultAddDate}
+            onAdd={mutations.addTask}
+            onClose={() => setAddMode(null)}
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-7 gap-2.5">
         {days.map(({ date }) => {
           const dayDateStr = format(date, 'yyyy-MM-dd')
@@ -213,14 +271,10 @@ export default function WeekDashboard({
               gusCare={gusCareByDate.get(dayDateStr)}
               tasks={dayTasks}
               users={users}
-              selfGid={selfGid}
               userEmail={userEmail}
               onSaveOverride={onSaveOverride}
               onDeleteOverride={onDeleteOverride}
-              onCreateHomebaseEvent={onCreateHomebaseEvent}
               onDeleteHomebaseEvent={onDeleteHomebaseEvent}
-              onRefreshEvents={onRefreshEvents}
-              onAddTask={mutations.addTask}
               onToggleTask={(gid, c) => void mutations.toggleTask(gid, c)}
               onDeleteTask={(gid) => void mutations.removeTask(gid)}
               onUpdateTask={mutations.editTask}

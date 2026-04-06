@@ -5,14 +5,11 @@ import { USER_COLORS } from '../lib/userColors'
 import { eventOwner } from '../lib/calendar'
 import EventDetail from './EventDetail'
 import DayHeaderPanel from './DayHeaderPanel'
-import AddEventForm from './AddEventForm'
 import TaskRow from './tasks/TaskRow'
-import AddTaskForm from './tasks/AddTaskForm'
 import type { TaskUpdatePatch } from './tasks/TaskRow'
 import {
   isHomebaseEventId,
   homebaseIdFromCalendarEventId,
-  type HomebaseEvent,
 } from '../lib/homebase-events'
 import type {
   AsanaTask,
@@ -34,14 +31,10 @@ interface Props {
   gusCare: GusResponsibility | undefined
   tasks: AsanaTask[]
   users: AsanaUser[]
-  selfGid: string
   userEmail: string
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
-  onCreateHomebaseEvent: (fields: Omit<HomebaseEvent, 'id'>) => Promise<void>
   onDeleteHomebaseEvent: (id: string) => Promise<void>
-  onRefreshEvents: () => void
-  onAddTask: (task: AsanaTask) => void
   onToggleTask: (gid: string, completed: boolean) => void
   onDeleteTask: (gid: string) => void
   onUpdateTask: (gid: string, patch: TaskUpdatePatch) => Promise<void>
@@ -215,11 +208,10 @@ function OwnerSection({
 
 export default function DayColumn({
   date, isToday, isPast,
-  events, rawEvents, overrides, weather, gusCare, tasks, users, selfGid, userEmail,
+  events, rawEvents, overrides, weather, gusCare, tasks, users, userEmail,
   onSaveOverride, onDeleteOverride,
-  onCreateHomebaseEvent, onDeleteHomebaseEvent,
-  onRefreshEvents: _onRefreshEvents,
-  onAddTask, onToggleTask, onDeleteTask, onUpdateTask,
+  onDeleteHomebaseEvent,
+  onToggleTask, onDeleteTask, onUpdateTask,
 }: Props) {
   const dayDateStr = format(date, 'yyyy-MM-dd')
   const [headerExpanded, setHeaderExpanded] = useState(false)
@@ -324,20 +316,6 @@ export default function DayColumn({
         />
       </div>
 
-      {/* Add event + add task at bottom */}
-      <div className="border-t border-gray-100">
-        <AddEventForm
-          date={dayDateStr}
-          currentUserEmail={userEmail}
-          onCreate={onCreateHomebaseEvent}
-        />
-        <AddTaskForm
-          users={users}
-          selfGid={selfGid}
-          defaultDueDate={dayDateStr}
-          onAdd={onAddTask}
-        />
-      </div>
     </div>
   )
 }

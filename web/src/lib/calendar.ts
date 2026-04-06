@@ -127,8 +127,10 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
 
   for (const [dateStr, entries] of byDate) {
     const vacations = entries.filter(e => e.type === 'vacation')
-    // nc-pool (NC-prefixed rotation, e.g. NC-11H) is treated the same as rotation
-    const rotations = entries.filter(e => e.type === 'rotation' || e.type === 'nc-pool')
+    // NC-pool (e.g. "NC-11H" alone) is just a *block marker* — Caitie isn't actually
+    // working that day. Only "Call: NC-X" represents an actual working shift.
+    // Real rotations (CICU, BWH ICU, etc.) still emit day shifts.
+    const rotations = entries.filter(e => e.type === 'rotation')
     const calls     = entries.filter(e => e.type === 'call')
     const backups   = entries.filter(e => e.type === 'backup')
     const ams       = entries.filter(e => e.type === 'am')
@@ -142,11 +144,11 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
       emittedWorking = true
     }
 
-    // 2. NC call (Call: NC-X):
-    //    • with rotation on same day → 24hr shift (8am–8am next day)
-    //    • alone (no rotation) → Night Shift (6pm–8am next day)
+    // 2. Night call (Call: NC-X) — the only "real" shift in an NC block
+    //    • Weekday  → 4pm to 8am next day (16-hour night shift)
+    //    • Weekend  → 8am to 8am next day (24-hour shift)
     if (ncCalls.length > 0) {
-      if (rotations.length > 0) {
+      if (isWeekend(dateStr)) {
         results.push({
           id: `amion-nccall-${dateStr}`,
           title: '',
@@ -162,7 +164,7 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
         results.push({
           id: `amion-nccall-${dateStr}`,
           title: '',
-          start: localDT(dateStr, 18),
+          start: localDT(dateStr, 16),  // 4pm
           end: localDT(nextDay(dateStr), 8),
           location: null,
           all_day: false,

@@ -83,32 +83,45 @@ npm run dev                  # http://localhost:5173
 
 ---
 
-## AMION Calendar Nuances — NEEDS CLARIFICATION FROM Nat
+## AMION Calendar Interpretation
 
-⚠️ **This section is a placeholder. Nat needs to explain AMION event interpretation.**
+AMION (amion.com) is the physician scheduling system Caitie's residency uses. It syncs
+to Google Calendar via iCal. Detection: any event whose `iCalUID` contains `@amion.com`.
 
-AMION (amion.com) is a physician/shift scheduling system. It syncs to Google Calendar
-via an iCal subscription feed. AMION events in Google Calendar often have:
-- Cryptic shift codes as event titles (e.g., "J", "DAY", "CALL", "NIGHT", "ONC")
-- All-day event format for shift days
-- A specific organizer/creator email domain (often something like `@amion.com` or `@shiftadmin.com`)
+The processing logic lives in `web/src/lib/calendar.ts` → `processAmionEvents()`.
 
-**Questions for Nat to answer:**
-1. What is the AMION calendar called in your Google Calendar? (What's the subscription name?)
-2. What do the shift codes mean? (e.g., "J" = junior resident call, "DAY" = day shift?)
-3. Should AMION shifts appear in the briefing as regular events, or with special formatting?
-4. Should AMION call/on-call shifts trigger work awareness events to GE Aerospace?
-5. Are there AMION codes that mean "Nat is unavailable all day" vs "partial day"?
+### Title patterns
 
-**Current behavior:** AMION events are detected by checking if `amion` appears in the
-creator/organizer email or event title. They are flagged with `is_amion=True` and shown
-with an "AMION" badge in the email. The Claude prompt is also told about the pending
-clarification.
+| Title pattern        | Meaning                                                  |
+|----------------------|----------------------------------------------------------|
+| `Week N of YYYY`     | Skip — calendar header noise                             |
+| `Vacation` / `Leave` | Caitie is off — no shift emitted                         |
+| `AM: <text>`         | Morning training, 8am–12pm → `training` shift            |
+| `PM: <text>`         | Afternoon training, 1pm–5pm → `training` shift           |
+| `NC-XXX` (alone)     | **Block marker only — Caitie is NOT working that day**   |
+| `Call: NC-XXX`       | Actual night-call working shift (see Night Call rules)   |
+| `Call: <other>`      | Standalone call → day shift (8am–6pm)                    |
+| `<text>` (e.g. `CICU`, `BWH ICU`) | Regular rotation — weekday day shift, weekend off |
+| Contains `SC`        | Backup on-call (passive) — `backup` shift, all-day       |
 
-**Where to update after Nat explains:**
-- `agent/collectors/calendar.py` → `_is_amion_event()` function
-- `agent/briefing.py` → `SYSTEM_PROMPT` constant (add AMION interpretation rules)
-- `agent/templates/briefing.html.j2` → AMION badge styling/text if needed
+### Night Call (NC) rules — IMPORTANT
+
+When Caitie is in a night-call block, you'll see `NC-11H` or `NC-BWH` etc. on every
+day of the block. **These are markers, not shifts.** She is only actually working when
+a `Call: NC-XXX` event also appears that day.
+
+| Day type   | `Call: NC-X` shift hours    | `amion_kind` |
+|------------|------------------------------|--------------|
+| Weekday    | 4pm → 8am next day (16 hrs)  | `night`      |
+| Weekend    | 8am → 8am next day (24 hrs)  | `24hr`       |
+
+So a typical NC-11H block of 7+ days might only have 2–3 actual working shifts, on
+the weekend(s) and any specifically-marked weekday `Call:` evenings.
+
+### When updating
+- The full processor is in `web/src/lib/calendar.ts` → `processAmionEvents()`
+- Gus pickup/dropoff logic in `web/src/lib/gus-care.ts` reads the resulting shifts
+- If the AMION feed adds new title patterns, add a case to `classifyAmionTitle()`
 
 ---
 
