@@ -127,7 +127,7 @@ export default function WeekDashboard({
   // ── Header ────────────────────────────────────────────────────────────────
   const header = (
     <div className="flex items-center justify-between mb-4 gap-4">
-      <div className="flex items-center gap-1 w-32">
+      <div className="flex items-center gap-1 w-44">
         <button
           onClick={() => onWeekChange(-1)}
           className="text-gray-400 hover:text-gray-700 transition-colors p-1"
@@ -149,6 +149,13 @@ export default function WeekDashboard({
           aria-label="Next week"
         >
           <ChevronRight size={18} />
+        </button>
+        <button
+          onClick={() => onWeekChange(-weekOffset)}
+          disabled={weekOffset === 0}
+          className="ml-1 text-xs h-7 px-2.5 rounded-md border bg-white text-gray-600 border-gray-200 hover:border-gray-300 transition-colors disabled:opacity-40 disabled:cursor-default"
+        >
+          This week
         </button>
       </div>
 
