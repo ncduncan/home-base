@@ -1,18 +1,23 @@
 import { useState } from 'react'
 import { CalendarPlus } from 'lucide-react'
 import { createOwnedEvent } from '../lib/calendar'
+import { USER_COLORS } from '../lib/userColors'
 
 interface Props {
   date: string                  // YYYY-MM-DD
+  currentUserEmail: string
   onEventCreated: () => void
 }
 
-export default function AddEventForm({ date, onEventCreated }: Props) {
+export default function AddEventForm({ date, currentUserEmail, onEventCreated }: Props) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('10:00')
   const [allDay, setAllDay] = useState(false)
+  const [owner, setOwner] = useState<'nat' | 'caitie'>(
+    currentUserEmail.toLowerCase().startsWith('caitante') ? 'caitie' : 'nat'
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,9 +31,13 @@ export default function AddEventForm({ date, onEventCreated }: Props) {
         start: allDay ? date : `${date}T${startTime}:00`,
         end: allDay ? date : `${date}T${endTime}:00`,
         allDay,
+        owner,
+        currentUserEmail,
       })
-      // Refresh after a short delay so Google has time to index the new event
-      setTimeout(onEventCreated, 800)
+      // Refresh aggressively to catch eventual consistency on Google's side
+      onEventCreated()
+      setTimeout(onEventCreated, 1500)
+      setTimeout(onEventCreated, 4000)
       setTitle('')
       setOpen(false)
     } catch (e) {
@@ -64,6 +73,15 @@ export default function AddEventForm({ date, onEventCreated }: Props) {
         }}
       />
       <div className="flex items-center gap-1 flex-wrap">
+        {/* Owner toggle (N / C) */}
+        <button
+          onClick={() => setOwner(owner === 'nat' ? 'caitie' : 'nat')}
+          title={`Owner: ${owner === 'nat' ? 'Nat' : 'Caitie'} (click to switch)`}
+          className={`w-5 h-5 rounded-full text-[10px] font-semibold flex items-center justify-center ${USER_COLORS[owner].avatar}`}
+        >
+          {owner === 'nat' ? 'N' : 'C'}
+        </button>
+
         <label className="flex items-center gap-1 text-[10px] text-gray-600">
           <input
             type="checkbox"
@@ -106,7 +124,11 @@ export default function AddEventForm({ date, onEventCreated }: Props) {
           ✕
         </button>
       </div>
-      {error && <p className="text-[10px] text-red-500">{error}</p>}
+      {error && (
+        <div className="mt-1 px-2 py-1 bg-red-50 border border-red-200 rounded">
+          <p className="text-[10px] text-red-600 leading-tight">{error}</p>
+        </div>
+      )}
     </div>
   )
 }

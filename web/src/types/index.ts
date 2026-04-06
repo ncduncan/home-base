@@ -28,6 +28,7 @@ export interface CalendarEvent {
   organizer_email?: string
   overridden?: boolean         // true if a calendar_override was applied
   notes?: string               // from override
+  homebase_owner?: 'nat' | 'caitie'  // explicit owner set when created via home-base
 }
 
 export interface CalendarOverride {

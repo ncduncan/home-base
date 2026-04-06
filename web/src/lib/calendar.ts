@@ -280,6 +280,7 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
 // ── Event owner ────────────────────────────────────────────────────────────────
 
 export function eventOwner(event: CalendarEvent): 'nat' | 'caitie' {
+  if (event.homebase_owner) return event.homebase_owner
   if (event.is_amion) return 'caitie'
   if (event.organizer_email === 'caitante@gmail.com') return 'caitie'
   return 'nat'
@@ -357,6 +358,8 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
       const start = item.start as Record<string, string> ?? {}
       const end = item.end as Record<string, string> ?? {}
       const allDay = 'date' in start && !('dateTime' in start)
+      const extProps = item.extendedProperties as { private?: Record<string, string> } | undefined
+      const homebaseOwner = extProps?.private?.homebase_owner as 'nat' | 'caitie' | undefined
       regularEvents.push({
         id: item.id as string,
         title: title || '(No title)',
@@ -367,6 +370,7 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
         calendar_name: cal.summary,
         is_amion: false,
         organizer_email: (item.organizer as { email?: string } | undefined)?.email,
+        homebase_owner: homebaseOwner,
       })
     }
   }
@@ -515,7 +519,15 @@ export async function syncGusCareInvites(gusCare: GusResponsibility[]): Promise<
 // ── Event editing ─────────────────────────────────────────────────────────────
 
 export async function createOwnedEvent(
-  fields: { summary: string; start: string; end: string; allDay?: boolean; location?: string },
+  fields: {
+    summary: string
+    start: string
+    end: string
+    allDay?: boolean
+    location?: string
+    owner?: 'nat' | 'caitie'
+    currentUserEmail?: string
+  },
 ): Promise<void> {
   const token = await getProviderToken()
 
@@ -537,8 +549,24 @@ export async function createOwnedEvent(
   }
   if (fields.location) body.location = fields.location
 
+  // Tag the event with the intended owner so it shows in the right section after fetch
+  if (fields.owner) {
+    body.extendedProperties = { private: { homebase_owner: fields.owner } }
+
+    // If the event is meant for the OTHER user, invite them so it lands in their calendar too
+    const isCaitieEvent = fields.owner === 'caitie'
+    const currentIsCaitie = fields.currentUserEmail?.toLowerCase().startsWith('caitante')
+    if (isCaitieEvent && !currentIsCaitie) {
+      body.attendees = [{ email: 'caitante@gmail.com' }]
+    } else if (!isCaitieEvent && currentIsCaitie) {
+      body.attendees = [{ email: 'ncduncan@gmail.com' }]
+    }
+  }
+
+  console.log('createOwnedEvent →', JSON.stringify(body))
+
   const resp = await fetch(
-    'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+    'https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all',
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -548,8 +576,13 @@ export async function createOwnedEvent(
   if (!resp.ok) {
     const text = await resp.text()
     console.error('createOwnedEvent failed:', resp.status, text)
-    throw new Error(`Failed to create event: ${resp.status}`)
+    if (resp.status === 401 || resp.status === 403) {
+      throw new Error(`Permission denied (${resp.status}). You may need to sign out and back in to grant calendar write access.`)
+    }
+    throw new Error(`Failed to create event: ${resp.status} — ${text.slice(0, 100)}`)
   }
+  const created = await resp.json()
+  console.log('createOwnedEvent ✓', created.id, created.htmlLink)
 }
 
 export async function patchOwnedEvent(

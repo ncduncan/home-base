@@ -299,7 +299,11 @@ export default function DayColumn({
 
       {/* Add event + add task at bottom */}
       <div className="border-t border-gray-100">
-        <AddEventForm date={dayDateStr} onEventCreated={onRefreshEvents} />
+        <AddEventForm
+          date={dayDateStr}
+          currentUserEmail={userEmail}
+          onEventCreated={onRefreshEvents}
+        />
         <AddTaskForm
           users={users}
           selfGid={selfGid}

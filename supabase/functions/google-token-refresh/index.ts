@@ -4,6 +4,8 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
+const ALLOWED_EMAILS = (Deno.env.get('ALLOWED_EMAILS') ?? '')
+  .split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -28,6 +30,13 @@ Deno.serve(async (req) => {
   )
   if (authError || !user) {
     return Response.json({ error: 'Invalid token' }, { status: 401 })
+  }
+
+  // Server-side email allowlist — defence in depth in case the client check
+  // is bypassed or the auth.users insert trigger isn't installed.
+  const callerEmail = (user.email ?? '').toLowerCase()
+  if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(callerEmail)) {
+    return Response.json({ error: 'Not authorized' }, { status: 403 })
   }
 
   // Look up the stored Google refresh token

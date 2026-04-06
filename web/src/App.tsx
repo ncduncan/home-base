@@ -5,7 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import type { Session } from '@supabase/supabase-js'
 
 const ALLOWED_EMAILS = (import.meta.env.VITE_ALLOWED_EMAILS as string ?? '')
-  .split(',').map((e: string) => e.trim()).filter(Boolean)
+  .split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean)
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -17,7 +17,7 @@ export default function App() {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      if (newSession && !ALLOWED_EMAILS.includes(newSession.user.email ?? '')) {
+      if (newSession && !ALLOWED_EMAILS.includes((newSession.user.email ?? '').toLowerCase())) {
         void supabase.auth.signOut()
         setUnauthorized(true)
         setSession(null)

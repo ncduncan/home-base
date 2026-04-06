@@ -102,7 +102,7 @@ function renderHtml({ todos, events, weather, now }: {
     const hi = Math.round(slot.main.temp_max)
     const lo = Math.round(slot.main.temp_min)
     const desc = slot.weather[0]?.description ?? ''
-    weatherHtml = `<div class="weather">${hi}°/${lo}° &nbsp;·&nbsp; ${desc}</div>`
+    weatherHtml = `<div class="weather">${hi}°/${lo}° &nbsp;·&nbsp; ${esc(desc)}</div>`
   }
 
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
