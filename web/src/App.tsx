@@ -27,15 +27,23 @@ export default function App() {
       setSession(newSession)
 
       // Store Google refresh token so the edge function can mint new access tokens
+      console.log('[auth]', event, {
+        hasSession: !!newSession,
+        hasProviderToken: !!newSession?.provider_token,
+        hasProviderRefreshToken: !!newSession?.provider_refresh_token,
+      })
       if (event === 'SIGNED_IN' && newSession?.provider_refresh_token) {
-        void supabase.from('google_tokens').upsert(
+        supabase.from('google_tokens').upsert(
           {
             user_id: newSession.user.id,
             refresh_token: newSession.provider_refresh_token,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id' }
-        )
+        ).then(({ error }) => {
+          if (error) console.error('[auth] failed to store refresh token:', error)
+          else console.log('[auth] refresh token stored')
+        })
       }
     })
 
