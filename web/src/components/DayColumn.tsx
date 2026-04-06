@@ -274,7 +274,7 @@ export default function DayColumn({
         {bannerEvents.map(event => (
           <div
             key={event.id}
-            className="px-3 py-1.5 bg-gray-100 text-gray-700 text-[11px] leading-tight border-b border-gray-200"
+            className="px-3 py-1.5 bg-violet-50 text-violet-900 text-[11px] font-medium leading-tight border-b border-violet-100 last:border-b-0"
             title={event.title}
           >
             {event.title}
