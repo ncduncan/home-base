@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { format, addDays } from 'date-fns'
-import { RefreshCw } from 'lucide-react'
 import { fetchCalendarEvents, CalendarAuthError, syncGusCareInvites } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks } from '../lib/asana'
@@ -9,8 +8,7 @@ import { computeGusCare } from '../lib/gus-care'
 import type { Session } from '@supabase/supabase-js'
 import type { AsanaTask, CalendarEvent, CalendarOverride, WeatherDay } from '../types'
 import Header from '../components/Header'
-import CalendarView from '../components/CalendarView'
-import AsanaTaskList from '../components/AsanaTaskList'
+import WeekDashboard from '../components/WeekDashboard'
 
 interface Props {
   session: Session
@@ -20,7 +18,6 @@ export default function DashboardPage({ session }: Props) {
   // ── Asana tasks ───────────────────────────────────────────────────────────
   const [tasks, setTasks] = useState<AsanaTask[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
-  const [tasksRefreshing, setTasksRefreshing] = useState(false)
 
   useEffect(() => {
     fetchTasks()
@@ -111,59 +108,26 @@ export default function DashboardPage({ session }: Props) {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header session={session} />
-      <main className="max-w-5xl mx-auto px-4 py-6">
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* Calendar panel */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <CalendarView
-              events={events}
-              rawEvents={rawEvents}
-              loading={eventsLoading}
-              error={eventsError}
-              authError={eventsAuthError}
-              onRefresh={() => fetchEvents(weekOffset)}
-              weather={weather}
-              weekOffset={weekOffset}
-              onWeekChange={delta => setWeekOffset(o => o + delta)}
-              overrides={overrides}
-              onSaveOverride={handleSaveOverride}
-              onDeleteOverride={handleDeleteOverride}
-              gusCare={gusCare}
-              userEmail={session.user.email ?? ''}
-            />
-          </div>
-
-          {/* Tasks panel */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Tasks</h2>
-              <button
-                onClick={() => {
-                  setTasksRefreshing(true)
-                  setTasksLoading(true)
-                  fetchTasks().then(setTasks).catch(() => {}).finally(() => {
-                    setTasksLoading(false)
-                    setTimeout(() => setTasksRefreshing(false), 1200)
-                  })
-                }}
-                disabled={tasksRefreshing}
-                className="text-gray-300 hover:text-gray-500 transition-colors disabled:opacity-40"
-                aria-label="Refresh tasks"
-              >
-                <RefreshCw size={13} className={tasksRefreshing ? 'animate-spin' : ''} />
-              </button>
-            </div>
-            <AsanaTaskList
-              tasks={tasks}
-              loading={tasksLoading}
-              currentUserEmail={session.user.email ?? ''}
-              onSetTasks={setTasks}
-            />
-          </div>
-
-        </div>
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        <WeekDashboard
+          events={events}
+          rawEvents={rawEvents}
+          eventsLoading={eventsLoading}
+          eventsError={eventsError}
+          eventsAuthError={eventsAuthError}
+          onRefreshEvents={() => fetchEvents(weekOffset)}
+          weather={weather}
+          gusCare={gusCare}
+          overrides={overrides}
+          onSaveOverride={handleSaveOverride}
+          onDeleteOverride={handleDeleteOverride}
+          weekOffset={weekOffset}
+          onWeekChange={delta => setWeekOffset(o => o + delta)}
+          tasks={tasks}
+          setTasks={setTasks}
+          tasksLoading={tasksLoading}
+          userEmail={session.user.email ?? ''}
+        />
       </main>
     </div>
   )
