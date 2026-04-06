@@ -7,10 +7,12 @@ import { wmoToIcon } from '../lib/weather'
 import { USER_COLORS } from '../lib/userColors'
 import { eventOwner } from '../lib/calendar'
 import EventDetail from './EventDetail'
+import DayHeaderPanel from './DayHeaderPanel'
 import type { CalendarEvent, CalendarOverride, GusResponsibility, WeatherDay } from '../types'
 
 interface Props {
   events: CalendarEvent[]
+  rawEvents: CalendarEvent[]
   loading: boolean
   error: string | null
   authError: boolean
@@ -71,32 +73,35 @@ function weekLabel(weekOffset: number): string {
   return `${format(sunday, 'MMM d')}–${format(saturday, 'MMM d')}`
 }
 
-function GusCareBadge({ care }: { care: GusResponsibility }) {
-  const natDropoff = care.dropoff === 'nat'
-  const natPickup = care.pickup === 'nat'
-
-  if (!natDropoff && !natPickup) return null // Caitie handles both — no badge needed
-
-  const parts: string[] = []
-  if (natDropoff) parts.push('dropoff')
-  if (natPickup) parts.push('pickup')
+function GusCareRow({ care }: { care: GusResponsibility }) {
+  const Pill = ({ kind, who, label }: { kind: 'pickup' | 'dropoff'; who: 'nat' | 'caitie'; label: string }) => (
+    <div className="flex items-center gap-1.5">
+      <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold ${USER_COLORS[who].avatar}`}>
+        {who === 'nat' ? 'N' : 'C'}
+      </span>
+      <span className="text-xs text-gray-600">
+        Gus {kind === 'dropoff' ? '↓' : '↑'} <span className="text-gray-400">{label}</span>
+      </span>
+    </div>
+  )
 
   return (
-    <div className="flex items-center gap-1.5 px-4 py-1 bg-blue-50/60">
-      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold bg-blue-100 text-blue-700">N</span>
-      <span className="text-[11px] text-blue-600">Gus {parts.join(' + ')}</span>
+    <div className="flex items-center gap-4 px-4 py-1.5 bg-gradient-to-r from-blue-50/50 to-transparent border-b border-blue-50">
+      <Pill kind="dropoff" who={care.dropoff} label="7am" />
+      <Pill kind="pickup" who={care.pickup} label="5pm" />
     </div>
   )
 }
 
 export default function CalendarView({
-  events, loading, error, authError, onRefresh,
+  events, rawEvents, loading, error, authError, onRefresh,
   weather, weekOffset, onWeekChange,
   overrides, onSaveOverride, onDeleteOverride,
   gusCare, userEmail,
 }: Props) {
   const [refreshing, setRefreshing] = useState(false)
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
+  const [expandedDay, setExpandedDay] = useState<string | null>(null)
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -202,7 +207,10 @@ export default function CalendarView({
 
         return (
           <div key={dayDateStr} className={`border-b border-gray-50 last:border-0 ${isPast ? 'opacity-50' : ''}`}>
-            <div className="px-4 py-2 bg-gray-50/60 flex items-center justify-between">
+            <button
+              onClick={() => setExpandedDay(expandedDay === dayDateStr ? null : dayDateStr)}
+              className="w-full px-4 py-2 bg-gray-50/60 hover:bg-gray-100/60 flex items-center justify-between transition-colors"
+            >
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 {format(date, 'EEEE, MMM d')}
               </span>
@@ -212,9 +220,20 @@ export default function CalendarView({
                   <span>{wx.tempMin}–{wx.tempMax}°F</span>
                 </span>
               )}
-            </div>
+            </button>
 
-            {gus && <GusCareBadge care={gus} />}
+            {expandedDay === dayDateStr && (
+              <DayHeaderPanel
+                date={dayDateStr}
+                rawEvents={rawEvents}
+                overrides={overrides}
+                onUnhide={async (id) => { await onDeleteOverride(id) }}
+                onEventCreated={onRefresh}
+                onClose={() => setExpandedDay(null)}
+              />
+            )}
+
+            {gus && <GusCareRow care={gus} />}
 
             {dayEvents.length > 0 && (
               <ul>

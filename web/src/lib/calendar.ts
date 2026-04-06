@@ -330,6 +330,7 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
       if (item.status === 'cancelled') continue
       const title = (item.summary as string) ?? ''
       if (/^Week\s+\d+\s+of/i.test(title)) continue  // skip "Week N of YYYY" globally
+      if (title === 'Gus pickup' || title === 'Gus dropoff') continue  // hide auto-synced gus events
       const start = item.start as Record<string, string> ?? {}
       const end = item.end as Record<string, string> ?? {}
       const allDay = 'date' in start && !('dateTime' in start)
@@ -356,7 +357,6 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
 import type { GusResponsibility } from '../types'
 
 type GusEventSpec = {
-  id: string
   summary: string
   startHour: number
   endHour: number
@@ -390,7 +390,6 @@ async function syncGusEventsBySpec(
             method: 'POST',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              id: spec.id + dateStr.replace(/-/g, ''),
               summary: spec.summary,
               start: { dateTime: `${dateStr}T${String(spec.startHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
               end:   { dateTime: `${dateStr}T${String(spec.endHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
@@ -478,13 +477,11 @@ export async function syncGusCareInvites(gusCare: GusResponsibility[]): Promise<
 
   await Promise.all([
     syncGusEventsBySpec(token, pickupDays, existingPickups, {
-      id: 'guspickup',
       summary: 'Gus pickup',
       startHour: 17,
       endHour: 18,
     }),
     syncGusEventsBySpec(token, dropoffDays, existingDropoffs, {
-      id: 'gusdropoff',
       summary: 'Gus dropoff',
       startHour: 7,
       endHour: 8,
@@ -493,6 +490,35 @@ export async function syncGusCareInvites(gusCare: GusResponsibility[]): Promise<
 }
 
 // ── Event editing ─────────────────────────────────────────────────────────────
+
+export async function createOwnedEvent(
+  fields: { summary: string; start: string; end: string; allDay?: boolean; location?: string },
+): Promise<void> {
+  const token = await getProviderToken()
+
+  const body: Record<string, unknown> = { summary: fields.summary }
+  if (fields.allDay) {
+    body.start = { date: fields.start.slice(0, 10) }
+    body.end = { date: fields.end.slice(0, 10) }
+  } else {
+    body.start = { dateTime: fields.start, timeZone: 'America/New_York' }
+    body.end = { dateTime: fields.end, timeZone: 'America/New_York' }
+  }
+  if (fields.location) body.location = fields.location
+
+  const resp = await fetch(
+    'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  )
+  if (!resp.ok) {
+    const text = await resp.text()
+    throw new Error(`Failed to create event: ${resp.status} ${text}`)
+  }
+}
 
 export async function patchOwnedEvent(
   eventId: string,
