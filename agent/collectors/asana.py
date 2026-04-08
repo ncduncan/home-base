@@ -36,7 +36,7 @@ def _fetch_tasks_for_assignee(
         "assignee": assignee,
         "workspace": workspace_gid,
         "completed_since": "now",
-        "opt_fields": "gid,name,due_on,notes,memberships.project.name,permalink_url",
+        "opt_fields": "gid,name,due_on,notes,memberships.project.name,permalink_url,assignee.gid,assignee.name",
         "limit": "100",
     }
     url = f"{ASANA_BASE}/tasks"
@@ -60,6 +60,7 @@ def _fetch_tasks_for_assignee(
                 project = memberships[0].get("project") or {}
                 project_name = project.get("name")
             raw_notes = item.get("notes") or ""
+            assignee = item.get("assignee") or {}
             tasks.append(
                 AsanaTask(
                     gid=item["gid"],
@@ -71,6 +72,7 @@ def _fetch_tasks_for_assignee(
                         f"https://app.asana.com/0/0/{item['gid']}",
                     ),
                     notes=raw_notes[:200] if raw_notes else None,
+                    assignee_name=assignee.get("name"),
                 )
             )
 
@@ -94,7 +96,7 @@ def fetch_week_tasks(week_end: date) -> list[AsanaTask]:
         # Project-scoped path (no assignee filter)
         params: dict[str, str] = {
             "completed_since": "now",
-            "opt_fields": "gid,name,due_on,notes,memberships.project.name,permalink_url",
+            "opt_fields": "gid,name,due_on,notes,memberships.project.name,permalink_url,assignee.gid,assignee.name",
             "limit": "100",
         }
         url = f"{ASANA_BASE}/projects/{settings.asana_project_gid}/tasks"

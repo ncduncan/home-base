@@ -50,29 +50,16 @@ def get_service(service_name: str, version: str):
 
 AMION_CALENDAR_NAME = "Caitie Work"
 
-# AMION event titles to always skip
-_AMION_SKIP_TITLES = {"Vacation", "Leave"}
 
-
-def _is_amion_event(cal_name: str) -> bool:
-    """AMION shift events come from the 'Caitie Work' calendar subscription."""
+def _is_amion_event(cal_name: str, raw: dict) -> bool:
+    """
+    AMION shift events come from the 'Caitie Work' calendar subscription.
+    Mirrors the web app: prefer iCalUID '@amion.com' detection over calendar name.
+    """
+    uid = raw.get("iCalUID", "") or ""
+    if "@amion.com" in uid:
+        return True
     return cal_name == AMION_CALENDAR_NAME
-
-
-def _should_skip_amion_event(raw: dict) -> bool:
-    """
-    Filter out AMION events that should not appear in the briefing:
-    - Vacation / Leave events (not actionable shift info)
-    - All-day recurring events (these duplicate the timed 'Call'-prefixed shift events)
-    """
-    title = raw.get("summary", "")
-    if title in _AMION_SKIP_TITLES:
-        return True
-    start_raw = raw.get("start", {})
-    all_day = "date" in start_raw and "dateTime" not in start_raw
-    if all_day and raw.get("recurringEventId"):
-        return True
-    return False
 
 
 def _parse_event(raw: dict, cal_id: str, cal_name: str) -> CalendarEvent | None:
@@ -87,6 +74,7 @@ def _parse_event(raw: dict, cal_id: str, cal_name: str) -> CalendarEvent | None:
         start_dt = dtparser.parse(start_raw["dateTime"])
         end_dt = dtparser.parse(end_raw["dateTime"])
 
+    organizer = raw.get("organizer") or {}
     return CalendarEvent(
         id=raw["id"],
         title=raw.get("summary", "(No title)"),
@@ -97,7 +85,9 @@ def _parse_event(raw: dict, cal_id: str, cal_name: str) -> CalendarEvent | None:
         all_day=all_day,
         calendar_id=cal_id,
         calendar_name=cal_name,
-        is_amion=_is_amion_event(cal_name),
+        is_amion=_is_amion_event(cal_name, raw),
+        i_cal_uid=raw.get("iCalUID"),
+        organizer_email=organizer.get("email"),
     )
 
 
@@ -134,8 +124,6 @@ def fetch_week_events(week_start: datetime, week_end: datetime) -> list[Calendar
             )
             for raw in result.get("items", []):
                 if raw.get("status") == "cancelled":
-                    continue
-                if _is_amion_event(cal_name) and _should_skip_amion_event(raw):
                     continue
                 event = _parse_event(raw, cal_id, cal_name)
                 if event:

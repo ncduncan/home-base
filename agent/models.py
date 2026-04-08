@@ -23,9 +23,11 @@ class CalendarEvent(BaseModel):
     all_day: bool = False
     calendar_id: str
     calendar_name: str = ""
-    # AMION shift scheduling events get special handling in the briefing.
-    # See CLAUDE.md section "AMION Calendar Nuances" — interpretation pending.
+    # AMION shift scheduling events get special handling. Detected via either
+    # the calendar name OR an iCalUID containing '@amion.com' (more reliable).
     is_amion: bool = False
+    i_cal_uid: Optional[str] = None
+    organizer_email: Optional[str] = None
 
 
 class AsanaTask(BaseModel):
@@ -35,6 +37,7 @@ class AsanaTask(BaseModel):
     project: Optional[str] = None
     url: str
     notes: Optional[str] = None
+    assignee_name: Optional[str] = None
 
 
 class WeatherDay(BaseModel):
