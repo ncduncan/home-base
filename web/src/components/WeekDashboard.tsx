@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { format, addDays, startOfToday, startOfDay, parseISO, isSameDay } from 'date-fns'
 import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { resetProviderTokenCache } from '../lib/calendar'
 import { Button } from '@/components/ui/button'
 import { fetchWorkspaceUsers } from '../lib/asana'
 import DayColumn from './DayColumn'
@@ -212,13 +213,33 @@ export default function WeekDashboard({
             variant="outline"
             size="sm"
             className="text-xs h-7 shrink-0"
-            onClick={() => void supabase.auth.signInWithOAuth({
-              provider: 'google',
-              options: {
-                scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-                redirectTo: window.location.href,
-              },
-            })}
+            onClick={async () => {
+              // 1. Try a silent Supabase session refresh — this fixes the
+              //    common case where only the Supabase JWT has expired and
+              //    the stored Google refresh_token is still valid.
+              const { data, error } = await supabase.auth.refreshSession()
+              resetProviderTokenCache()
+              if (!error && data.session) {
+                onRefreshEvents()
+                return
+              }
+              // 2. Fall back to a full Google OAuth re-auth, but pre-fill the
+              //    account so the user skips the chooser, and request a fresh
+              //    refresh token (prompt=consent) so the edge function has a
+              //    valid one stored.
+              await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                  scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
+                  redirectTo: window.location.href,
+                  queryParams: {
+                    access_type: 'offline',
+                    prompt: 'consent',
+                    login_hint: userEmail,
+                  },
+                },
+              })
+            }}
           >
             Reconnect
           </Button>

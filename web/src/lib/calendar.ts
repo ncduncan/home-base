@@ -13,6 +13,19 @@ export class CalendarAuthError extends Error {
 let cachedToken: string | null = null
 let cachedTokenExpiry = 0 // epoch ms
 
+export function resetProviderTokenCache(): void {
+  cachedToken = null
+  cachedTokenExpiry = 0
+}
+
+// Reset the cache whenever Supabase emits a new session — keeps us from
+// holding a stale Google access_token after a silent refresh or re-login.
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
+    resetProviderTokenCache()
+  }
+})
+
 async function getProviderToken(): Promise<string> {
   // 1. Use cached token if still valid (5-min buffer)
   if (cachedToken && Date.now() < cachedTokenExpiry - 5 * 60_000) {
@@ -28,33 +41,56 @@ async function getProviderToken(): Promise<string> {
     return sessionToken
   }
 
-  // 3. Exchange refresh token via edge function (with one retry for transient failures)
-  const jwt = data.session?.access_token
-  if (!jwt) throw new CalendarAuthError()
-
+  // 3. Exchange refresh token via edge function
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
   const url = `${supabaseUrl}/functions/v1/google-token-refresh`
 
-  const callEdgeFn = async () => {
+  const callEdgeFn = async (jwt: string) => {
     return fetch(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${jwt}` },
     })
   }
 
+  // Get a fresh Supabase JWT — refresh if needed so we don't hit the edge fn
+  // with an expired one (the most common cause of "Invalid JWT" 401s).
+  const getJwt = async (forceRefresh = false): Promise<string | null> => {
+    if (forceRefresh) {
+      const { data: refreshed } = await supabase.auth.refreshSession()
+      return refreshed.session?.access_token ?? null
+    }
+    const { data: current } = await supabase.auth.getSession()
+    return current.session?.access_token ?? null
+  }
+
+  let jwt = await getJwt()
+  if (!jwt) {
+    jwt = await getJwt(true)
+    if (!jwt) throw new CalendarAuthError()
+  }
+
   let resp: Response
   try {
-    resp = await callEdgeFn()
-    if (!resp.ok && resp.status >= 500) {
-      // Retry once on server errors
-      await new Promise(r => setTimeout(r, 500))
-      resp = await callEdgeFn()
-    }
+    resp = await callEdgeFn(jwt)
   } catch (e) {
-    // Network error — retry once
     console.warn('Token refresh network error, retrying:', e)
     await new Promise(r => setTimeout(r, 500))
-    resp = await callEdgeFn()
+    resp = await callEdgeFn(jwt)
+  }
+
+  // 401 from the edge function means our Supabase JWT was rejected — try a
+  // forced refresh and retry once before surfacing CalendarAuthError.
+  if (resp.status === 401) {
+    const refreshed = await getJwt(true)
+    if (refreshed) {
+      resp = await callEdgeFn(refreshed)
+    }
+  }
+
+  // Retry once on transient server errors
+  if (!resp.ok && resp.status >= 500) {
+    await new Promise(r => setTimeout(r, 500))
+    resp = await callEdgeFn(jwt)
   }
 
   if (!resp.ok) {
