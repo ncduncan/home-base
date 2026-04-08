@@ -21,6 +21,15 @@ async function asanaGet(path: string): Promise<unknown> {
   return res.json()
 }
 
+// Asana's default response field set is minimal — when we create or update a
+// task we want the same shape that fetchTasksForUser uses, so the UI can
+// render the assignee, projects, etc. without a follow-up GET.
+const TASK_OPT_FIELDS = 'gid,name,due_on,completed,completed_at,assignee.gid,assignee.name,memberships.project.name,notes'
+
+function withTaskOptFields(path: string): string {
+  return path.includes('?') ? `${path}&opt_fields=${TASK_OPT_FIELDS}` : `${path}?opt_fields=${TASK_OPT_FIELDS}`
+}
+
 async function asanaPost(path: string, body: unknown): Promise<unknown> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
@@ -196,7 +205,7 @@ export async function createTask(fields: {
 }): Promise<AsanaTask> {
   const wsGid = _resolvedWorkspaceGid ?? workspaceGid
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const json = await asanaPost('/tasks', { ...fields, workspace: wsGid }) as any
+  const json = await asanaPost(withTaskOptFields('/tasks'), { ...fields, workspace: wsGid }) as any
   return parseTask(json.data)
 }
 
@@ -205,7 +214,7 @@ export async function updateTask(
   fields: Partial<{ name: string; due_on: string | null; assignee: string | null; notes: string | null; completed: boolean }>,
 ): Promise<AsanaTask> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const json = await asanaPut(`/tasks/${gid}`, fields) as any
+  const json = await asanaPut(withTaskOptFields(`/tasks/${gid}`), fields) as any
   return parseTask(json.data)
 }
 

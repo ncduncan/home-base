@@ -144,20 +144,57 @@ function getDateStr(e: Record<string, unknown>): string {
   return start.date ?? (start.dateTime ?? '').slice(0, 10)
 }
 
+// Expand a multi-day all-day event into the list of dates it covers.
+// For all-day events Google uses an exclusive end.date, so a Mon→next-Mon
+// event covers Mon through Sun (7 days). Timed events stay on their start day.
+function getCoveredDates(e: Record<string, unknown>): string[] {
+  const start = e.start as Record<string, string> ?? {}
+  const end = e.end as Record<string, string> ?? {}
+  if (start.date && end.date && end.date > start.date) {
+    const dates: string[] = []
+    let cur = start.date
+    while (cur < end.date) {
+      dates.push(cur)
+      cur = nextDay(cur)
+    }
+    return dates
+  }
+  const single = getDateStr(e)
+  return single ? [single] : []
+}
+
 function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarEvent[] {
   const byDate = new Map<string, { type: AmionType; raw: Record<string, unknown> }[]>()
+
+  // TEMP DIAGNOSTIC — prints every raw AMION event so we can see what the
+  // feed actually looks like for days that aren't rendering correctly. Remove
+  // after the Sun May 3 / Sun May 24 issue is understood.
+  console.log('[amion] raw items:', rawItems.map(i => ({
+    title: i.summary,
+    start: i.start,
+    end: i.end,
+    iCalUID: i.iCalUID,
+  })))
 
   for (const item of rawItems) {
     if (item.status === 'cancelled') continue
     const title = (item.summary as string) ?? ''
     const type = classifyAmionTitle(title)
     if (type === 'skip') continue
-    const dateStr = getDateStr(item)
-    if (!dateStr) continue
-    const group = byDate.get(dateStr) ?? []
-    group.push({ type, raw: item })
-    byDate.set(dateStr, group)
+    // Expand multi-day all-day events (e.g. an SC1 backup block spanning a
+    // whole week) so each day of the span gets the marker — otherwise only
+    // the start day would emit a shift.
+    for (const dateStr of getCoveredDates(item)) {
+      const group = byDate.get(dateStr) ?? []
+      group.push({ type, raw: item })
+      byDate.set(dateStr, group)
+    }
   }
+
+  // TEMP DIAGNOSTIC — show the by-date bucketing
+  console.log('[amion] byDate buckets:', Object.fromEntries(
+    [...byDate.entries()].map(([k, v]) => [k, v.map(e => ({ type: e.type, title: (e.raw.summary as string) }))])
+  ))
 
   const results: CalendarEvent[] = []
 
