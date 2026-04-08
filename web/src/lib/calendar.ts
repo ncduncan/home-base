@@ -164,6 +164,11 @@ function getCoveredDates(e: Record<string, unknown>): string[] {
 }
 
 function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarEvent[] {
+  // TEMP DEBUG v3 — print every AMION input the function actually receives
+  console.log('[amion-debug v3] input count:', rawItems.length, 'titles:',
+    rawItems.map(i => `${(i.summary as string) ?? '?'}@${(i.start as Record<string,string> | undefined)?.date ?? (i.start as Record<string,string> | undefined)?.dateTime ?? '?'}`)
+  )
+
   const byDate = new Map<string, { type: AmionType; raw: Record<string, unknown> }[]>()
 
   for (const item of rawItems) {
@@ -333,6 +338,9 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
       })
     }
   }
+
+  // TEMP DEBUG v3 — print every shift the function actually emits
+  console.log('[amion-debug v3] output:', results.map(r => `${r.amion_kind}@${r.start}`))
 
   return results
 }

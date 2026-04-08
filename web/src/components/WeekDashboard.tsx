@@ -293,6 +293,19 @@ export default function WeekDashboard({
             }
             return isSameDay(parseISO(e.start), date)
           })
+          // TEMP DEBUG v3 — for Sundays only, dump what events made it through
+          if (date.getDay() === 0) {
+            console.log(
+              `[col-debug v3] ${dayDateStr} (Sun) events:`,
+              dayEvents.length,
+              'amion:',
+              dayEvents.filter(e => e.is_amion).map(e => `${e.amion_kind}@${e.start}`),
+              'allEventCount:',
+              events.length,
+              'allAmion:',
+              events.filter(e => e.is_amion).map(e => `${e.amion_kind}@${e.start}`),
+            )
+          }
           const dayTasks = tasksForDay(dayDateStr, isToday)
 
           return (
