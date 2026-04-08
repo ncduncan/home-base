@@ -65,19 +65,33 @@ export default function DashboardPage({ session }: Props) {
     fetchHomebaseEvents(start, end).then(setHomebaseEvents).catch(() => {})
   }, [weekRange])
 
+  // Tracks the latest in-flight fetch so out-of-order responses can be
+  // discarded. Without this, rapid Next/Prev clicks issue several fetches
+  // and whichever resolves last wins — which can blow away the visible
+  // week's events with stale data from a different week.
+  const fetchSeqRef = useRef(0)
+
   const fetchEvents = useCallback((offset: number) => {
+    const seq = ++fetchSeqRef.current
     setEventsLoading(true)
     setEventsError(null)
     setEventsAuthError(false)
     loadOverrides(offset)
     loadHomebaseEvents(offset)
     fetchCalendarEvents(offset)
-      .then(setRawEvents)
+      .then(events => {
+        if (seq !== fetchSeqRef.current) return // stale response, ignore
+        setRawEvents(events)
+      })
       .catch((e: unknown) => {
+        if (seq !== fetchSeqRef.current) return
         if (e instanceof CalendarAuthError) setEventsAuthError(true)
         else setEventsError(e instanceof Error ? e.message : 'Failed to load calendar')
       })
-      .finally(() => setEventsLoading(false))
+      .finally(() => {
+        if (seq !== fetchSeqRef.current) return
+        setEventsLoading(false)
+      })
   }, [loadOverrides, loadHomebaseEvents])
 
   useEffect(() => { fetchEvents(weekOffset) }, [fetchEvents, weekOffset])

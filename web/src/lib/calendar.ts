@@ -166,16 +166,6 @@ function getCoveredDates(e: Record<string, unknown>): string[] {
 function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarEvent[] {
   const byDate = new Map<string, { type: AmionType; raw: Record<string, unknown> }[]>()
 
-  // TEMP DIAGNOSTIC — prints every raw AMION event so we can see what the
-  // feed actually looks like for days that aren't rendering correctly. Remove
-  // after the Sun May 3 / Sun May 24 issue is understood.
-  console.log('[amion] raw items:', rawItems.map(i => ({
-    title: i.summary,
-    start: i.start,
-    end: i.end,
-    iCalUID: i.iCalUID,
-  })))
-
   for (const item of rawItems) {
     if (item.status === 'cancelled') continue
     const title = (item.summary as string) ?? ''
@@ -190,11 +180,6 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
       byDate.set(dateStr, group)
     }
   }
-
-  // TEMP DIAGNOSTIC — show the by-date bucketing
-  console.log('[amion] byDate buckets:', Object.fromEntries(
-    [...byDate.entries()].map(([k, v]) => [k, v.map(e => ({ type: e.type, title: (e.raw.summary as string) }))])
-  ))
 
   const results: CalendarEvent[] = []
 
