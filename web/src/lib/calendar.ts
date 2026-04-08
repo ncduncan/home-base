@@ -164,11 +164,6 @@ function getCoveredDates(e: Record<string, unknown>): string[] {
 }
 
 function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarEvent[] {
-  // TEMP DEBUG v3 — print every AMION input the function actually receives
-  console.log('[amion-debug v3] input count:', rawItems.length, 'titles:',
-    rawItems.map(i => `${(i.summary as string) ?? '?'}@${(i.start as Record<string,string> | undefined)?.date ?? (i.start as Record<string,string> | undefined)?.dateTime ?? '?'}`)
-  )
-
   const byDate = new Map<string, { type: AmionType; raw: Record<string, unknown> }[]>()
 
   for (const item of rawItems) {
@@ -339,9 +334,6 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
     }
   }
 
-  // TEMP DEBUG v3 — print every shift the function actually emits
-  console.log('[amion-debug v3] output:', results.map(r => `${r.amion_kind}@${r.start}`))
-
   return results
 }
 
@@ -390,6 +382,15 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
     items: Array<{ id: string; summary: string; summaryOverride?: string; selected?: boolean }>
   }
 
+  // The AMION subscription calendar has timeZone=UTC. Without an explicit
+  // timeZone parameter, Google interprets all-day events using the calendar's
+  // own timezone — so a Sunday request whose timeMin is "Sun 00:00 EDT" (=
+  // Mon 04:00 UTC) lands AFTER the UTC start of the all-day Sunday event and
+  // Google silently drops the whole Sunday from the response. Passing the
+  // browser's timezone here forces Google to interpret all-day events in
+  // local time, which keeps Sundays inside the window. Bug history: tracked
+  // down via direct Google API + MCP cross-checks on 2026-04-08.
+  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const calendarData = await Promise.all(
     calendars
       .filter(cal => cal.selected !== false)
@@ -397,6 +398,7 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
         const params = new URLSearchParams({
           timeMin: timeMin.toISOString(),
           timeMax: timeMax.toISOString(),
+          timeZone: userTimeZone,
           singleEvents: 'true',
           orderBy: 'startTime',
           maxResults: '250',
