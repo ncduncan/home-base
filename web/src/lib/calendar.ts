@@ -166,16 +166,6 @@ function getCoveredDates(e: Record<string, unknown>): string[] {
 function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarEvent[] {
   const byDate = new Map<string, { type: AmionType; raw: Record<string, unknown> }[]>()
 
-  // TEMP DIAG — list every raw AMION event with title, start, end so we can
-  // diagnose Sunday-shift cases. Remove once the issue is fixed.
-  console.log('[amion] raw:', rawItems.map(i => ({
-    t: i.summary,
-    s: (i.start as Record<string, string> | undefined)?.date
-      ?? (i.start as Record<string, string> | undefined)?.dateTime,
-    e: (i.end as Record<string, string> | undefined)?.date
-      ?? (i.end as Record<string, string> | undefined)?.dateTime,
-  })))
-
   for (const item of rawItems) {
     if (item.status === 'cancelled') continue
     const title = (item.summary as string) ?? ''
@@ -190,11 +180,6 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
       byDate.set(dateStr, group)
     }
   }
-
-  // TEMP DIAG — show buckets so we can see where events landed
-  console.log('[amion] buckets:', Object.fromEntries(
-    [...byDate.entries()].map(([k, v]) => [k, v.map(e => `${e.type}:${(e.raw.summary as string)}`)])
-  ))
 
   const results: CalendarEvent[] = []
 
@@ -394,7 +379,7 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
   }
   if (!listResp.ok) throw new Error('Failed to fetch calendar list')
   const { items: calendars = [] } = await listResp.json() as {
-    items: Array<{ id: string; summary: string; selected?: boolean }>
+    items: Array<{ id: string; summary: string; summaryOverride?: string; selected?: boolean }>
   }
 
   const calendarData = await Promise.all(
@@ -418,14 +403,25 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
       })
   )
 
-  // Detect AMION events by iCalUID (contains '@amion.com') — reliable regardless of calendar name
+  // Detect AMION events by EITHER iCalUID containing @amion.com OR the source
+  // calendar being the AMION subscription. iCalUID alone is unreliable: Google
+  // sometimes rewrites UIDs for recurring instances expanded from iCal feeds,
+  // so we fall back to matching the calendar's source URL — which always
+  // contains 'amion.com' for the AMION feed.
   const amionItems: Array<Record<string, unknown>> = []
   const regularEvents: CalendarEvent[] = []
 
   for (const { cal, items } of calendarData) {
+    const calName = (cal.summary ?? '').toLowerCase()
+    const calOverride = (cal.summaryOverride ?? '').toLowerCase()
+    const isAmionCalendar =
+      calName.includes('amion.com') ||
+      calOverride === 'caitie work' ||
+      calName === 'caitie work'
+
     for (const item of items) {
       const uid = (item.iCalUID as string) ?? ''
-      if (uid.includes('@amion.com')) {
+      if (isAmionCalendar || uid.includes('@amion.com')) {
         amionItems.push(item)
         continue
       }
