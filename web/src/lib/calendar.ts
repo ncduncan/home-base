@@ -166,6 +166,16 @@ function getCoveredDates(e: Record<string, unknown>): string[] {
 function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarEvent[] {
   const byDate = new Map<string, { type: AmionType; raw: Record<string, unknown> }[]>()
 
+  // TEMP DIAG — list every raw AMION event with title, start, end so we can
+  // diagnose Sunday-shift cases. Remove once the issue is fixed.
+  console.log('[amion] raw:', rawItems.map(i => ({
+    t: i.summary,
+    s: (i.start as Record<string, string> | undefined)?.date
+      ?? (i.start as Record<string, string> | undefined)?.dateTime,
+    e: (i.end as Record<string, string> | undefined)?.date
+      ?? (i.end as Record<string, string> | undefined)?.dateTime,
+  })))
+
   for (const item of rawItems) {
     if (item.status === 'cancelled') continue
     const title = (item.summary as string) ?? ''
@@ -180,6 +190,11 @@ function processAmionEvents(rawItems: Array<Record<string, unknown>>): CalendarE
       byDate.set(dateStr, group)
     }
   }
+
+  // TEMP DIAG — show buckets so we can see where events landed
+  console.log('[amion] buckets:', Object.fromEntries(
+    [...byDate.entries()].map(([k, v]) => [k, v.map(e => `${e.type}:${(e.raw.summary as string)}`)])
+  ))
 
   const results: CalendarEvent[] = []
 
