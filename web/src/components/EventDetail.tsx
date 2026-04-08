@@ -84,19 +84,24 @@ export default function EventDetail({ event, override, userEmail, onSave, onDele
   }
 
   return (
-    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-          {event.is_amion ? 'Shift Override' : 'Event Details'}
-        </span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+    <div className="p-4 space-y-3">
+      {/* Title + close */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-gray-900 truncate">
+            {event.is_amion ? (event.amion_kind ?? 'Shift') : event.title}
+          </div>
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            {event.is_amion ? 'Shift override' : 'Event details'}
+          </div>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0 -mr-1 -mt-1 p-1">
           <X size={14} />
         </button>
       </div>
 
       {/* Info line */}
-      <div className="text-xs text-gray-400">
+      <div className="text-[11px] text-gray-400 break-words">
         {event.calendar_name}
         {event.organizer_email && ` · ${event.organizer_email}`}
         {event.overridden && (

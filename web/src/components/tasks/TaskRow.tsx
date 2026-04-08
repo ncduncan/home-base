@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import type { AsanaTask, AsanaUser } from '../../types'
 import AssigneeButton from './AssigneeButton'
 import DueDateChip from './DueDateChip'
@@ -40,7 +41,9 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
   }
 
   return (
-    <li className="group border-b border-gray-50 last:border-0">
+    <Popover open={expanded} onOpenChange={setExpanded}>
+      <li className="group border-b border-gray-50 last:border-0">
+      <PopoverAnchor asChild>
       <div className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-gray-50/50">
         <Checkbox
           checked={task.completed}
@@ -117,31 +120,34 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
         )}
       </div>
 
-      {expanded && (
-        <div className="px-2 pb-2 pl-7 space-y-1.5">
-          {compact && (
-            <div className="flex items-center gap-2">
-              <AssigneeButton
-                assignee={task.assignee}
-                users={users}
-                onSave={gid => void onUpdate(task.gid, { assignee_gid: gid })}
-              />
-              <DueDateChip
-                due_on={task.due_on}
-                completed={task.completed}
-                onSave={val => void onUpdate(task.gid, { due_on: val })}
-              />
-            </div>
-          )}
-          <Textarea
-            value={notesVal}
-            onChange={e => setNotesVal(e.target.value)}
-            onBlur={() => void saveNotes()}
-            placeholder="Add a note..."
-            className="text-[11px] h-14 resize-none w-full border-gray-100 focus:border-gray-300"
+      </PopoverAnchor>
+      <PopoverContent
+        className="w-[360px] p-4 space-y-3"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="text-sm font-semibold text-gray-900 break-words">{task.name}</div>
+        <div className="flex items-center gap-2">
+          <AssigneeButton
+            assignee={task.assignee}
+            users={users}
+            onSave={gid => void onUpdate(task.gid, { assignee_gid: gid })}
+          />
+          <DueDateChip
+            due_on={task.due_on}
+            completed={task.completed}
+            onSave={val => void onUpdate(task.gid, { due_on: val })}
           />
         </div>
-      )}
+        <Textarea
+          value={notesVal}
+          onChange={e => setNotesVal(e.target.value)}
+          onBlur={() => void saveNotes()}
+          placeholder="Add a note..."
+          className="text-xs min-h-[100px] resize-y w-full"
+        />
+      </PopoverContent>
     </li>
+    </Popover>
   )
 }

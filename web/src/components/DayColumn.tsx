@@ -6,6 +6,7 @@ import EventDetail from './EventDetail'
 import DayHeaderPanel from './DayHeaderPanel'
 import TaskRow from './tasks/TaskRow'
 import type { TaskUpdatePatch } from './tasks/TaskRow'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   isHomebaseEventId,
   homebaseIdFromCalendarEventId,
@@ -118,55 +119,72 @@ function OwnerSection({
             const isExpanded = expandedEventId === event.id
             const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
             const isHomebase = isHomebaseEventId(event.id)
+            // Homebase events have inline delete only (no override panel).
+            // Everything else uses the floating popover so the details can
+            // breathe outside the narrow column.
+            const triggerButton = (
+              <button
+                className={`w-full text-left px-3 py-1.5 transition-colors ${
+                  isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/50'
+                }`}
+              >
+                <div className="text-[11px] text-gray-900 leading-tight pr-5">
+                  {event.is_amion ? shiftLabel(event.amion_kind) : event.title}
+                </div>
+                <div className="text-[10px] text-gray-400 leading-tight">
+                  {event.is_amion
+                    ? formatAmionTime(event)
+                    : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
+                </div>
+                {event.location && !event.is_amion && (
+                  <div className="text-[10px] text-gray-400 truncate">{event.location}</div>
+                )}
+                {event.notes && (
+                  <div className="text-[10px] text-gray-500 italic">{event.notes}</div>
+                )}
+                {event.overridden && (
+                  <div className="text-[9px] text-amber-500 font-medium">edited</div>
+                )}
+              </button>
+            )
+
             return (
               <li key={event.id} className="group/event relative">
-                <button
-                  onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
-                  className={`w-full text-left px-3 py-1.5 transition-colors ${
-                    isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/50'
-                  }`}
-                >
-                  <div className="text-[11px] text-gray-900 leading-tight pr-5">
-                    {event.is_amion ? shiftLabel(event.amion_kind) : event.title}
-                  </div>
-                  <div className="text-[10px] text-gray-400 leading-tight">
-                    {event.is_amion
-                      ? formatAmionTime(event)
-                      : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
-                  </div>
-                  {event.location && !event.is_amion && (
-                    <div className="text-[10px] text-gray-400 truncate">{event.location}</div>
-                  )}
-                  {event.notes && (
-                    <div className="text-[10px] text-gray-500 italic">{event.notes}</div>
-                  )}
-                  {event.overridden && (
-                    <div className="text-[9px] text-amber-500 font-medium">edited</div>
-                  )}
-                </button>
-
-                {isHomebase && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void onDeleteHomebaseEvent(homebaseIdFromCalendarEventId(event.id))
-                    }}
-                    className="absolute top-1.5 right-2 opacity-0 group-hover/event:opacity-100 text-gray-300 hover:text-red-500 transition-all text-[10px]"
-                    aria-label="Delete event"
+                {isHomebase ? (
+                  <>
+                    {triggerButton}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void onDeleteHomebaseEvent(homebaseIdFromCalendarEventId(event.id))
+                      }}
+                      className="absolute top-1.5 right-2 opacity-0 group-hover/event:opacity-100 text-gray-300 hover:text-red-500 transition-all text-[10px]"
+                      aria-label="Delete event"
+                    >
+                      ✕
+                    </button>
+                  </>
+                ) : (
+                  <Popover
+                    open={isExpanded}
+                    onOpenChange={(open) => setExpandedEventId(open ? event.id : null)}
                   >
-                    ✕
-                  </button>
-                )}
-
-                {isExpanded && !isHomebase && (
-                  <EventDetail
-                    event={event}
-                    override={eventOverride}
-                    userEmail={userEmail}
-                    onSave={onSaveOverride}
-                    onDelete={onDeleteOverride}
-                    onClose={() => setExpandedEventId(null)}
-                  />
+                    <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+                    <PopoverContent
+                      className="w-[360px] p-0"
+                      align="start"
+                      onOpenAutoFocus={(e) => e.preventDefault()}
+                    >
+                      <EventDetail
+                        event={event}
+                        override={eventOverride}
+                        userEmail={userEmail}
+                        onSave={onSaveOverride}
+                        onDelete={onDeleteOverride}
+                        onClose={() => setExpandedEventId(null)}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 )}
               </li>
             )
