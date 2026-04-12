@@ -1,0 +1,39 @@
+name: TRMNL Finance Dashboard Update
+
+on:
+  schedule:
+    # Daily at 5am ET (09:00 UTC during EDT, 10:00 during EST)
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    name: Push market data to TRMNL display
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Push finance data to TRMNL
+        env:
+          # Reuses the existing TRMNL webhook (replaces the Home Base display)
+          TRMNL_WEBHOOK_URL: ${{ secrets.TRMNL_WEBHOOK_URL }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+          # These are required by Settings but not used by the finance updater.
+          # Provide dummy values so pydantic-settings doesn't fail at import.
+          ASANA_PAT: unused
+          ASANA_WORKSPACE_GID: unused
+          OPENWEATHERMAP_API_KEY: unused
+        run: python -m agent.trmnl_finance_update

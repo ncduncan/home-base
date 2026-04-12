@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # ── TRMNL display ─────────────────────────────────────────────────────────
     trmnl_webhook_url: str = ""
 
+    # ── TRMNL Finance Dashboard ───────────────────────────────────────────────
+    fred_api_key: str = ""
+
     # ── Feature flags ─────────────────────────────────────────────────────────
     # If true: print briefing to stdout; skip email + calendar writes
     briefing_dry_run: bool = False

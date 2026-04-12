@@ -1,13 +1,13 @@
 name: TRMNL Display Update
 
 on:
-  push:
-    branches: [main]
-  schedule:
-    # 6am, 12pm, 6pm Eastern Time (EDT = UTC-4)
-    - cron: '0 10 * * *'
-    - cron: '0 16 * * *'
-    - cron: '0 22 * * *'
+  # push:
+  #   branches: [main]
+  # schedule:
+  #   # 6am, 12pm, 6pm Eastern Time (EDT = UTC-4)
+  #   - cron: '0 10 * * *'
+  #   - cron: '0 16 * * *'
+  #   - cron: '0 22 * * *'
   workflow_dispatch:
 
 jobs:
