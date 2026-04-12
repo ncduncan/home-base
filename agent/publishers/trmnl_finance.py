@@ -2,8 +2,9 @@
 TRMNL e-ink financial market dashboard publisher.
 
 Transforms a MarketSnapshot into merge_variables and POSTs to the TRMNL
-Private Plugin webhook. The chart is rendered as CSS-positioned dots in
-the Liquid template (no SVG) to stay within TRMNL's 2KB payload limit.
+Private Plugin webhook. The chart uses a tiny inline SVG (percentage
+viewBox) for connecting lines plus CSS-positioned marker shapes, all
+within TRMNL's 2KB payload limit.
 
 ──────────────────────────────────────────────────────────────────────────────
 TRMNL Liquid Template
@@ -20,55 +21,50 @@ Paste this into your Private Plugin markup on usetrmnl.com:
 
     <div style="display:flex;flex:1;padding:6px 8px;gap:8px;overflow:hidden;">
 
-      <!-- LEFT PANEL: Metrics -->
-      <div style="width:260px;display:flex;flex-direction:column;justify-content:center;gap:6px;">
+      <!-- LEFT PANEL: Metrics (full height) -->
+      <div style="width:250px;display:flex;flex-direction:column;justify-content:space-between;gap:4px;">
         {% for m in metrics %}
-        <div style="border:1.5px solid #000;border-radius:4px;padding:5px 10px;">
+        <div style="flex:1;border:1.5px solid #000;border-radius:4px;padding:6px 10px;display:flex;flex-direction:column;justify-content:center;">
           <div style="font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#666;">{{ m.label }}</div>
           <div style="display:flex;align-items:baseline;gap:6px;">
-            <span style="font-size:22px;font-weight:bold;line-height:1.2;">{{ m.value }}</span>
-            <span style="font-size:18px;">{{ m.signal }}</span>
+            <span style="font-size:24px;font-weight:bold;line-height:1.1;">{{ m.value }}</span>
+            <span style="font-size:20px;">{{ m.signal }}</span>
           </div>
         </div>
         {% endfor %}
       </div>
 
-      <!-- RIGHT PANEL: Chart + Secondary -->
+      <!-- RIGHT PANEL: Chart -->
       <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
 
         <div style="font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#666;padding-left:4px;">10-Year Trend</div>
 
         <!-- Chart area -->
         <div style="flex:1;border:1.5px solid #000;border-radius:4px;position:relative;overflow:hidden;">
+          <!-- SVG lines (percentage viewBox overlaid on chart) -->
+          {{ chart_svg }}
+          <!-- Marker dots -->
           {% for p in chart %}
-          <div style="position:absolute;left:{{ p.l }}%;bottom:{{ p.c }}%;width:5px;height:5px;background:#000;border-radius:50%;transform:translate(-50%,50%);"></div>
-          <div style="position:absolute;left:{{ p.l }}%;bottom:{{ p.t }}%;width:5px;height:5px;border:1.5px solid #000;background:#fff;transform:translate(-50%,50%);"></div>
-          <div style="position:absolute;left:{{ p.l }}%;bottom:{{ p.e }}%;width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-bottom:5px solid #000;transform:translate(-50%,50%);"></div>
+          <div style="position:absolute;left:{{ p.l }}%;bottom:{{ p.c }}%;width:6px;height:6px;background:#000;border-radius:50%;transform:translate(-50%,50%);"></div>
+          <div style="position:absolute;left:{{ p.l }}%;bottom:{{ p.t }}%;width:6px;height:6px;border:1.5px solid #000;background:#fff;transform:translate(-50%,50%);"></div>
+          <div style="position:absolute;left:{{ p.l }}%;bottom:{{ p.e }}%;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:6px solid #000;transform:translate(-50%,50%);"></div>
           {% endfor %}
           <!-- Y-axis labels -->
-          <div style="position:absolute;left:2px;top:1px;font-size:8px;color:#666;">{{ y_top }}</div>
-          <div style="position:absolute;left:2px;bottom:1px;font-size:8px;color:#666;">{{ y_bot }}</div>
-          <div style="position:absolute;right:2px;top:1px;font-size:8px;color:#666;">{{ c_top }}</div>
-          <div style="position:absolute;right:2px;bottom:1px;font-size:8px;color:#666;">{{ c_bot }}</div>
+          <div style="position:absolute;left:2px;top:2px;font-size:8px;color:#666;">{{ y_top }}</div>
+          <div style="position:absolute;left:2px;bottom:2px;font-size:8px;color:#666;">{{ y_bot }}</div>
+          <div style="position:absolute;right:2px;top:2px;font-size:8px;color:#666;">{{ c_top }}</div>
+          <div style="position:absolute;right:2px;bottom:2px;font-size:8px;color:#666;">{{ c_bot }}</div>
         </div>
 
-        <!-- Legend + X-axis -->
-        <div style="display:flex;justify-content:space-between;font-size:8px;color:#666;padding:0 4px;">
+        <!-- X-axis + Legend -->
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#666;padding:0 4px;">
           <span>{{ x_start }}</span><span>{{ x_end }}</span>
         </div>
-        <div style="display:flex;gap:12px;font-size:9px;color:#333;padding-left:4px;">
+        <div style="display:flex;gap:14px;font-size:10px;color:#333;padding-left:4px;">
           <span>● CAPE</span>
           <span>□ 10yr</span>
           <span>▲ Excess Yld</span>
         </div>
-
-        {% if secondary %}
-        <div style="display:flex;gap:12px;justify-content:center;font-size:11px;font-weight:bold;color:#333;">
-          {% for s in secondary %}
-          <span>{{ s.label }} {{ s.value }}</span>
-          {% endfor %}
-        </div>
-        {% endif %}
 
       </div>
     </div>
@@ -144,35 +140,22 @@ def _format_metrics(snap: MarketSnapshot) -> list[dict]:
     ]
 
 
-def _format_secondary(snap: MarketSnapshot) -> list[dict]:
-    items = []
-    if snap.cpi_yoy is not None:
-        items.append({"label": "CPI", "value": f"{snap.cpi_yoy:.1f}%"})
-    if snap.gdp_growth is not None:
-        items.append({"label": "GDP", "value": f"{snap.gdp_growth:.1f}%"})
-    if snap.oil_price is not None:
-        items.append({"label": "OIL", "value": f"${snap.oil_price:.0f}"})
-    return items
-
-
 # ── Chart data as percentage positions ───────────────────────────────────────
 
 
-def _build_chart_data(history: list[MonthlyDataPoint]) -> tuple[list[dict], dict]:
+def _build_chart_data(
+    history: list[MonthlyDataPoint],
+) -> tuple[list[dict], str, dict]:
     """
-    Convert history into an array of {l, c, t, e} percentage positions for
-    CSS absolute positioning, plus axis label strings.
+    Convert history into:
+      1. Array of {l, c, t, e} percentage positions for CSS dot markers
+      2. Compact SVG string with 3 polylines connecting the dots
+      3. Axis label strings
 
-    Each point has:
-      l = left %  (x position, 0-100)
-      c = bottom % for CAPE
-      t = bottom % for Treasury
-      e = bottom % for Excess Yield
-
-    Returns (chart_points, axis_labels).
+    Returns (chart_points, chart_svg, axis_labels).
     """
     if not history:
-        return [], {}
+        return [], "", {}
 
     # Downsample to ~12 points for compact payload
     step = max(1, (len(history) - 1) // 12)
@@ -184,7 +167,7 @@ def _build_chart_data(history: list[MonthlyDataPoint]) -> tuple[list[dict], dict
 
     n = len(history)
     if n < 2:
-        return [], {}
+        return [], "", {}
 
     # Gather values for scaling
     cape_vals = [p.cape for p in history if p.cape is not None]
@@ -193,7 +176,7 @@ def _build_chart_data(history: list[MonthlyDataPoint]) -> tuple[list[dict], dict
     yield_vals = treas_vals + excess_vals
 
     if not cape_vals or not yield_vals:
-        return [], {}
+        return [], "", {}
 
     def _range(vals, margin=0.1):
         lo, hi = min(vals), max(vals)
@@ -207,12 +190,49 @@ def _build_chart_data(history: list[MonthlyDataPoint]) -> tuple[list[dict], dict
         return round((val - lo) / (hi - lo) * 100)
 
     points = []
+    cape_svg_pts = []
+    treas_svg_pts = []
+    excess_svg_pts = []
+
     for i, p in enumerate(history):
-        pt = {"l": round(i / (n - 1) * 100)}
-        pt["c"] = _pct(p.cape, cape_lo, cape_hi) if p.cape is not None else 50
-        pt["t"] = _pct(p.treasury_10yr, yield_lo, yield_hi) if p.treasury_10yr is not None else 50
-        pt["e"] = _pct(p.excess_yield, yield_lo, yield_hi) if p.excess_yield is not None else 50
-        points.append(pt)
+        l = round(i / (n - 1) * 100)
+        c = _pct(p.cape, cape_lo, cape_hi) if p.cape is not None else 50
+        t = _pct(p.treasury_10yr, yield_lo, yield_hi) if p.treasury_10yr is not None else 50
+        e = _pct(p.excess_yield, yield_lo, yield_hi) if p.excess_yield is not None else 50
+
+        points.append({"l": l, "c": c, "t": t, "e": e})
+
+        # SVG Y is inverted (top=0), so y = 100 - bottom%
+        if p.cape is not None:
+            cape_svg_pts.append(f"{l},{100 - c}")
+        if p.treasury_10yr is not None:
+            treas_svg_pts.append(f"{l},{100 - t}")
+        if p.excess_yield is not None:
+            excess_svg_pts.append(f"{l},{100 - e}")
+
+    # Build minimal SVG — just 3 polylines, percentage viewBox
+    svg_parts = [
+        '<svg viewBox="0 0 100 100" preserveAspectRatio="none" '
+        'style="position:absolute;inset:0;width:100%;height:100%">'
+    ]
+    ve = ' vector-effect="non-scaling-stroke"'
+    if cape_svg_pts:
+        svg_parts.append(
+            f'<polyline points="{" ".join(cape_svg_pts)}" '
+            f'fill="none" stroke="#000" stroke-width="2"{ve}/>'
+        )
+    if treas_svg_pts:
+        svg_parts.append(
+            f'<polyline points="{" ".join(treas_svg_pts)}" '
+            f'fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="6,3"{ve}/>'
+        )
+    if excess_svg_pts:
+        svg_parts.append(
+            f'<polyline points="{" ".join(excess_svg_pts)}" '
+            f'fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="3,2,1,2"{ve}/>'
+        )
+    svg_parts.append("</svg>")
+    chart_svg = "".join(svg_parts)
 
     _mnames = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -230,7 +250,7 @@ def _build_chart_data(history: list[MonthlyDataPoint]) -> tuple[list[dict], dict
         "x_end": _label(history[-1].month),
     }
 
-    return points, axis
+    return points, chart_svg, axis
 
 
 # ── Push to TRMNL ────────────────────────────────────────────────────────────
@@ -239,8 +259,7 @@ def _build_chart_data(history: list[MonthlyDataPoint]) -> tuple[list[dict], dict
 def push_finance_to_trmnl(webhook_url: str, snapshot: MarketSnapshot) -> None:
     """
     Format MarketSnapshot and POST to the TRMNL Private Plugin webhook.
-    Single payload kept under TRMNL's 2KB limit by using CSS chart points
-    instead of inline SVG.
+    Single payload kept under TRMNL's 2KB limit.
     """
     if not webhook_url:
         raise ValueError("TRMNL_WEBHOOK_URL is not configured")
@@ -251,15 +270,14 @@ def push_finance_to_trmnl(webhook_url: str, snapshot: MarketSnapshot) -> None:
     generated_at = f"{now_et.strftime('%b')} {now_et.day}, {hour}:{now_et.strftime('%M')} {ampm}"
 
     metrics = _format_metrics(snapshot)
-    secondary = _format_secondary(snapshot)
-    chart, axis = _build_chart_data(snapshot.history)
+    chart, chart_svg, axis = _build_chart_data(snapshot.history)
 
     payload = {
         "merge_variables": {
             "generated_at": generated_at,
             "metrics": metrics,
-            "secondary": secondary,
             "chart": chart,
+            "chart_svg": chart_svg,
             **axis,
         }
     }
