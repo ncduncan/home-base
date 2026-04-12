@@ -1,9 +1,11 @@
 name: TRMNL Finance Dashboard Update
 
 on:
+  push:
+    branches: [main]
   schedule:
-    # Daily at 5am ET (09:00 UTC during EDT, 10:00 during EST)
-    - cron: '0 9 * * *'
+    # Daily at midnight ET (04:00 UTC during EDT, 05:00 during EST)
+    - cron: '0 4 * * *'
   workflow_dispatch:
 
 jobs:

@@ -41,6 +41,11 @@ Paste this into your Private Plugin markup on usetrmnl.com:
         <div style="flex:1;border:1.5px solid #000;border-radius:4px;padding:4px;overflow:hidden;">
           {{ trend_chart_svg }}
         </div>
+        <div style="display:flex;gap:14px;font-size:9px;color:#333;padding-left:4px;">
+          <span>── CAPE</span>
+          <span>─ ─ 10yr</span>
+          <span>─·─ Excess Yld</span>
+        </div>
 
         <!-- Secondary metrics bar -->
         {% if secondary %}
@@ -141,7 +146,7 @@ def _format_secondary(snap: MarketSnapshot) -> list[dict]:
 # ── SVG trend chart ──────────────────────────────────────────────────────────
 
 
-def _render_trend_svg(history: list[MonthlyDataPoint], width: int = 490, height: int = 260) -> str:
+def _render_trend_svg(history: list[MonthlyDataPoint], width: int = 490, height: int = 220) -> str:
     """
     Generate an inline SVG showing 3 overlaid trend lines:
       - CAPE (solid line, right Y-axis)
@@ -151,9 +156,19 @@ def _render_trend_svg(history: list[MonthlyDataPoint], width: int = 490, height:
     if not history:
         return '<svg width="{}" height="{}"></svg>'.format(width, height)
 
-    pad_l, pad_r, pad_t, pad_b = 38, 38, 16, 40
+    pad_l, pad_r, pad_t, pad_b = 34, 34, 12, 28
     chart_w = width - pad_l - pad_r
     chart_h = height - pad_t - pad_b
+
+    # Aggressively downsample for TRMNL's 2KB webhook limit.
+    # 15 points over 10yr ≈ every 8 months — keeps SVG under 2KB.
+    target = 15
+    step = max(1, (len(history) - 1) // target)
+    if step > 1:
+        sampled = [history[i] for i in range(0, len(history), step)]
+        if sampled[-1] is not history[-1]:
+            sampled.append(history[-1])
+        history = sampled
 
     n = len(history)
     if n < 2:
@@ -171,51 +186,20 @@ def _render_trend_svg(history: list[MonthlyDataPoint], width: int = 490, height:
         span = hi - lo or 1.0
         return lo - span * margin, hi + span * margin
 
-    def _to_xy(pts: list[tuple[int, float]], lo: float, hi: float) -> list[tuple[float, float]]:
-        """Convert data points to SVG coordinates."""
+    def _to_xy(pts: list[tuple[int, float]], lo: float, hi: float) -> list[tuple[int, int]]:
+        """Convert data points to SVG coordinates (integer for compact output)."""
         coords = []
         for idx, val in pts:
-            x = pad_l + (idx / (n - 1)) * chart_w
-            y = pad_t + chart_h - ((val - lo) / (hi - lo)) * chart_h
+            x = round(pad_l + (idx / (n - 1)) * chart_w)
+            y = round(pad_t + chart_h - ((val - lo) / (hi - lo)) * chart_h)
             coords.append((x, y))
         return coords
 
-    def _polyline(coords: list[tuple[float, float]], dash: str = "", stroke_w: float = 2.0) -> str:
-        points = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
-        dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
-        return (
-            f'<polyline points="{points}" fill="none" stroke="#000" '
-            f'stroke-width="{stroke_w}"{dash_attr} stroke-linejoin="round" />'
-        )
-
-    # Marker spacing: place a marker every N points to keep the chart readable
-    marker_every = max(1, len(history) // 8)
-
-    def _markers(coords: list[tuple[float, float]], shape: str) -> str:
-        """Generate SVG markers at regular intervals along a line.
-        shape: 'circle', 'square', or 'triangle'
-        """
-        parts: list[str] = []
-        for i, (x, y) in enumerate(coords):
-            if i % marker_every != 0 and i != len(coords) - 1:
-                continue
-            if shape == "circle":
-                parts.append(
-                    f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" '
-                    f'fill="#000" stroke="#000" stroke-width="1" />'
-                )
-            elif shape == "square":
-                parts.append(
-                    f'<rect x="{x - 3:.1f}" y="{y - 3:.1f}" width="6" height="6" '
-                    f'fill="#fff" stroke="#000" stroke-width="1.5" />'
-                )
-            elif shape == "triangle":
-                # Upward-pointing triangle
-                parts.append(
-                    f'<polygon points="{x:.1f},{y - 4:.1f} {x - 3.5:.1f},{y + 3:.1f} '
-                    f'{x + 3.5:.1f},{y + 3:.1f}" fill="#000" stroke="#000" stroke-width="1" />'
-                )
-        return "\n".join(parts)
+    def _polyline(coords: list[tuple[int, int]], dash: str = "", stroke_w: float = 2) -> str:
+        points = " ".join(f"{x},{y}" for x, y in coords)
+        d = f' stroke-dasharray="{dash}"' if dash else ""
+        w = f' stroke-width="{stroke_w}"' if stroke_w != 2 else ' stroke-width="2"'
+        return f'<polyline points="{points}" fill="none" stroke="#000"{w}{d}/>'
 
     # Scale each series independently
     cape_lo, cape_hi = _scale(cape_pts) if cape_pts else (0, 1)
@@ -238,92 +222,47 @@ def _render_trend_svg(history: list[MonthlyDataPoint], width: int = 490, height:
     lines: list[str] = []
     lines.append(f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">')
 
-    # Background
-    lines.append(f'<rect x="{pad_l}" y="{pad_t}" width="{chart_w}" height="{chart_h}" '
-                 f'fill="none" stroke="#ccc" stroke-width="0.5" />')
-
-    # Horizontal grid lines (4 lines)
+    # Background + grid
+    lines.append(f'<rect x="{pad_l}" y="{pad_t}" width="{chart_w}" height="{chart_h}" fill="none" stroke="#ccc" stroke-width="0.5"/>')
     for i in range(1, 4):
-        gy = pad_t + (chart_h * i / 4)
-        lines.append(f'<line x1="{pad_l}" y1="{gy:.1f}" x2="{pad_l + chart_w}" y2="{gy:.1f}" '
-                     f'stroke="#ddd" stroke-width="0.5" />')
+        gy = round(pad_t + chart_h * i / 4)
+        lines.append(f'<line x1="{pad_l}" y1="{gy}" x2="{pad_l+chart_w}" y2="{gy}" stroke="#ddd" stroke-width="0.5"/>')
 
-    # Zero line for excess yield if it crosses zero
+    # Zero line for excess yield
     if yield_lo < 0 < yield_hi:
-        zy = pad_t + chart_h - ((0 - yield_lo) / (yield_hi - yield_lo)) * chart_h
-        lines.append(f'<line x1="{pad_l}" y1="{zy:.1f}" x2="{pad_l + chart_w}" y2="{zy:.1f}" '
-                     f'stroke="#999" stroke-width="1" stroke-dasharray="3,3" />')
+        zy = round(pad_t + chart_h - ((0 - yield_lo) / (yield_hi - yield_lo)) * chart_h)
+        lines.append(f'<line x1="{pad_l}" y1="{zy}" x2="{pad_l+chart_w}" y2="{zy}" stroke="#999" stroke-width="1" stroke-dasharray="3,3"/>')
 
-    # Data lines + markers (circle=CAPE, square=10yr, triangle=Excess)
+    # Data lines — differentiated by stroke pattern (solid / dashed / dot-dash).
+    # Markers omitted to keep SVG under TRMNL's 2KB payload limit.
     if cape_xy:
-        lines.append(_polyline(cape_xy))  # solid
-        lines.append(_markers(cape_xy, "circle"))
+        lines.append(_polyline(cape_xy, stroke_w=2.5))  # solid, thicker
     if treas_xy:
-        lines.append(_polyline(treas_xy, dash="8,4"))  # dashed
-        lines.append(_markers(treas_xy, "square"))
+        lines.append(_polyline(treas_xy, dash="8,4"))
     if excess_xy:
-        lines.append(_polyline(excess_xy, dash="4,4,1,4"))  # dot-dash
-        lines.append(_markers(excess_xy, "triangle"))
+        lines.append(_polyline(excess_xy, dash="3,3,1,3"))
 
-    # Left Y-axis labels (yield %)
-    for frac, anchor in [(0, "start"), (1, "start")]:
-        val = yield_hi - frac * (yield_hi - yield_lo)
-        y = pad_t + frac * chart_h
-        lines.append(f'<text x="{pad_l - 4}" y="{y + 3:.1f}" font-size="9" '
-                     f'text-anchor="end" fill="#333">{val:.1f}%</text>')
+    # Y-axis labels
+    for frac in (0, 1):
+        y = pad_t + frac * chart_h + 3
+        yv = yield_hi - frac * (yield_hi - yield_lo)
+        cv = cape_hi - frac * (cape_hi - cape_lo)
+        lines.append(f'<text x="{pad_l-4}" y="{y}" font-size="9" text-anchor="end" fill="#333">{yv:.1f}%</text>')
+        lines.append(f'<text x="{pad_l+chart_w+4}" y="{y}" font-size="9" text-anchor="start" fill="#333">{cv:.0f}</text>')
 
-    # Right Y-axis labels (CAPE)
-    for frac, anchor in [(0, "end"), (1, "end")]:
-        val = cape_hi - frac * (cape_hi - cape_lo)
-        y = pad_t + frac * chart_h
-        lines.append(f'<text x="{pad_l + chart_w + 4}" y="{y + 3:.1f}" font-size="9" '
-                     f'text-anchor="start" fill="#333">{val:.0f}</text>')
-
-    # X-axis labels (every 24 months for 10yr chart, every 6 for shorter)
+    # X-axis labels
+    _mnames = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
     x_step = 24 if n > 60 else 6
+    def _month_label(idx):
+        p = history[idx].month.split("-")
+        return f"{_mnames[int(p[1])]}'{p[0][2:]}"
     for i in range(0, n, x_step):
-        x = pad_l + (i / (n - 1)) * chart_w
-        month_str = history[i].month  # "2024-04"
-        parts = month_str.split("-")
-        month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        label = f"{month_names[int(parts[1])]}'{parts[0][2:]}"
-        lines.append(f'<text x="{x:.1f}" y="{pad_t + chart_h + 14}" font-size="9" '
-                     f'text-anchor="middle" fill="#666">{label}</text>')
-    # Always label the last point
+        x = round(pad_l + (i / (n - 1)) * chart_w)
+        lines.append(f'<text x="{x}" y="{pad_t+chart_h+14}" font-size="9" text-anchor="middle" fill="#666">{_month_label(i)}</text>')
     if n > 1 and (n - 1) % x_step != 0:
-        x = pad_l + chart_w
-        month_str = history[-1].month
-        parts = month_str.split("-")
-        month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        label = f"{month_names[int(parts[1])]}'{parts[0][2:]}"
-        lines.append(f'<text x="{x:.1f}" y="{pad_t + chart_h + 14}" font-size="9" '
-                     f'text-anchor="middle" fill="#666">{label}</text>')
+        lines.append(f'<text x="{pad_l+chart_w}" y="{pad_t+chart_h+14}" font-size="9" text-anchor="middle" fill="#666">{_month_label(n-1)}</text>')
 
-    # Legend (line sample + marker + label)
-    legend_y = height - 6
-    legend_items = [
-        ("CAPE", "", "circle", pad_l + 10),
-        ("10yr", "8,4", "square", pad_l + 110),
-        ("Excess Yld", "4,4,1,4", "triangle", pad_l + 210),
-    ]
-    for label, dash, marker, lx in legend_items:
-        dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
-        lines.append(f'<line x1="{lx}" y1="{legend_y}" x2="{lx + 20}" y2="{legend_y}" '
-                     f'stroke="#000" stroke-width="2"{dash_attr} />')
-        # Marker at midpoint of legend line
-        mx = lx + 10
-        if marker == "circle":
-            lines.append(f'<circle cx="{mx}" cy="{legend_y}" r="3" fill="#000" />')
-        elif marker == "square":
-            lines.append(f'<rect x="{mx - 3}" y="{legend_y - 3}" width="6" height="6" '
-                         f'fill="#fff" stroke="#000" stroke-width="1.5" />')
-        elif marker == "triangle":
-            lines.append(f'<polygon points="{mx},{legend_y - 4} {mx - 3.5},{legend_y + 3} '
-                         f'{mx + 3.5},{legend_y + 3}" fill="#000" />')
-        lines.append(f'<text x="{lx + 24}" y="{legend_y + 3}" font-size="9" fill="#333">'
-                     f'{label}</text>')
+    # Legend rendered in Liquid template to save SVG bytes
 
     lines.append("</svg>")
     return "\n".join(lines)
@@ -333,13 +272,16 @@ def _render_trend_svg(history: list[MonthlyDataPoint], width: int = 490, height:
 
 
 def push_finance_to_trmnl(webhook_url: str, snapshot: MarketSnapshot) -> None:
-    """Format MarketSnapshot and POST to the TRMNL Private Plugin webhook."""
+    """
+    Format MarketSnapshot and POST to the TRMNL Private Plugin webhook.
+
+    TRMNL limits payloads to 2KB (5KB for TRMNL+). To stay within budget
+    we split into two requests using the deep_merge strategy:
+      1. Metrics + secondary + timestamp  (~800 bytes)
+      2. SVG trend chart                  (~1.8KB)
+    """
     if not webhook_url:
         raise ValueError("TRMNL_WEBHOOK_URL is not configured")
-
-    t = snapshot.timestamp.replace(tzinfo=None)  # already UTC-ish
-    # Format as Eastern
-    from datetime import timezone
 
     now_et = datetime.now(tz=EASTERN)
     hour = now_et.hour % 12 or 12
@@ -350,37 +292,46 @@ def push_finance_to_trmnl(webhook_url: str, snapshot: MarketSnapshot) -> None:
     secondary = _format_secondary(snapshot)
     trend_svg = _render_trend_svg(snapshot.history)
 
-    payload = {
+    payload_1 = {
         "merge_variables": {
             "generated_at": generated_at,
             "metrics": metrics,
             "secondary": secondary,
-            "trend_chart_svg": trend_svg,
         }
     }
+    payload_2 = {
+        "merge_variables": {
+            "trend_chart_svg": trend_svg,
+        },
+        "merge_strategy": "deep_merge",
+    }
 
-    # Dry-run mode: print payload instead of POSTing
+    # Dry-run mode: print payloads and write SVG for preview
     if webhook_url == "dry":
         import json
 
-        print("[trmnl_finance] DRY RUN — merge_variables:")
-        mv = payload["merge_variables"].copy()
-        # Truncate SVG for readability
-        mv["trend_chart_svg"] = mv["trend_chart_svg"][:200] + "..."
-        print(json.dumps(mv, indent=2))
-        # Also write full SVG to temp file for preview
+        print("[trmnl_finance] DRY RUN — payload 1 (metrics):")
+        print(f"  size: {len(json.dumps(payload_1))} bytes")
+        print(json.dumps(payload_1, indent=2))
+        print(f"\n[trmnl_finance] DRY RUN — payload 2 (chart, deep_merge):")
+        print(f"  size: {len(json.dumps(payload_2))} bytes")
         svg_path = "/tmp/trmnl_finance_chart.svg"
         with open(svg_path, "w") as f:
             f.write(trend_svg)
-        print(f"[trmnl_finance] SVG chart written to {svg_path}")
+        print(f"  SVG written to {svg_path}")
         return
 
     with httpx.Client(timeout=15.0) as client:
-        resp = client.post(webhook_url, json=payload)
-        resp.raise_for_status()
+        resp1 = client.post(webhook_url, json=payload_1)
+        resp1.raise_for_status()
+        print(f"[trmnl_finance] POST 1 (metrics): {resp1.status_code}")
+
+        resp2 = client.post(webhook_url, json=payload_2)
+        resp2.raise_for_status()
+        print(f"[trmnl_finance] POST 2 (chart, deep_merge): {resp2.status_code}")
 
     print(
-        f"[trmnl_finance] Pushed: CAPE={snapshot.cape_ratio:.1f} "
+        f"[trmnl_finance] Done: CAPE={snapshot.cape_ratio:.1f} "
         f"10yr={snapshot.treasury_10yr:.2f}% "
         f"Excess={snapshot.excess_yield:+.2f}% — {generated_at}"
     )
