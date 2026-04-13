@@ -19,29 +19,33 @@ Paste this into your Private Plugin markup on usetrmnl.com:
       <span class="instance_label">{{ generated_at }}</span>
     </div>
 
-    <div style="display:flex;flex:1;padding:6px 8px;gap:8px;overflow:hidden;">
+    <div style="display:flex;flex:1;padding:4px 8px;gap:8px;overflow:hidden;">
 
       <!-- LEFT PANEL: Metrics (full height) -->
-      <div style="width:250px;display:flex;flex-direction:column;justify-content:space-between;gap:4px;">
+      <div style="width:250px;display:flex;flex-direction:column;gap:3px;">
         {% for m in metrics %}
-        <div style="flex:1;border:1.5px solid #000;border-radius:4px;padding:6px 10px;display:flex;flex-direction:column;justify-content:center;">
+        <div style="flex:1;border:1.5px solid #000;border-radius:4px;padding:4px 10px;display:flex;flex-direction:column;justify-content:center;">
           <div style="font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#666;">{{ m.label }}</div>
           <div style="display:flex;align-items:baseline;gap:6px;">
             <span style="font-size:24px;font-weight:bold;line-height:1.1;">{{ m.value }}</span>
-            <span style="font-size:20px;">{{ m.signal }}</span>
+            <span style="font-size:18px;">{{ m.signal }}</span>
           </div>
+          <div style="font-size:9px;color:#888;margin-top:1px;">{{ m.ctx }}</div>
         </div>
         {% endfor %}
       </div>
 
       <!-- RIGHT PANEL: Chart -->
-      <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+      <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
 
-        <div style="font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#666;padding-left:4px;">10-Year Trend</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px;">
+          <span style="font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#666;">10-Year Trend</span>
+          <span style="font-size:10px;color:#333;">● CAPE &nbsp; □ 10yr &nbsp; ▲ Excess Yld</span>
+        </div>
 
         <!-- Chart area -->
         <div style="flex:1;border:1.5px solid #000;border-radius:4px;position:relative;overflow:hidden;">
-          <!-- SVG lines (percentage viewBox overlaid on chart) -->
+          <!-- SVG lines -->
           {{ chart_svg }}
           <!-- Marker dots -->
           {% for p in chart %}
@@ -49,21 +53,16 @@ Paste this into your Private Plugin markup on usetrmnl.com:
           <div style="position:absolute;left:{{ p.l }}%;bottom:{{ p.t }}%;width:6px;height:6px;border:1.5px solid #000;background:#fff;transform:translate(-50%,50%);"></div>
           <div style="position:absolute;left:{{ p.l }}%;bottom:{{ p.e }}%;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:6px solid #000;transform:translate(-50%,50%);"></div>
           {% endfor %}
-          <!-- Y-axis labels -->
-          <div style="position:absolute;left:2px;top:2px;font-size:8px;color:#666;">{{ y_top }}</div>
-          <div style="position:absolute;left:2px;bottom:2px;font-size:8px;color:#666;">{{ y_bot }}</div>
-          <div style="position:absolute;right:2px;top:2px;font-size:8px;color:#666;">{{ c_top }}</div>
-          <div style="position:absolute;right:2px;bottom:2px;font-size:8px;color:#666;">{{ c_bot }}</div>
+          <!-- Axis labels -->
+          <div style="position:absolute;left:3px;top:2px;font-size:10px;color:#555;font-weight:bold;">{{ y_top }}</div>
+          <div style="position:absolute;left:3px;bottom:2px;font-size:10px;color:#555;font-weight:bold;">{{ y_bot }}</div>
+          <div style="position:absolute;right:3px;top:2px;font-size:10px;color:#555;font-weight:bold;">{{ c_top }}</div>
+          <div style="position:absolute;right:3px;bottom:2px;font-size:10px;color:#555;font-weight:bold;">{{ c_bot }}</div>
         </div>
 
-        <!-- X-axis + Legend -->
-        <div style="display:flex;justify-content:space-between;font-size:9px;color:#666;padding:0 4px;">
+        <!-- X-axis -->
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#555;font-weight:bold;padding:0 4px;">
           <span>{{ x_start }}</span><span>{{ x_end }}</span>
-        </div>
-        <div style="display:flex;gap:14px;font-size:10px;color:#333;padding-left:4px;">
-          <span>● CAPE</span>
-          <span>□ 10yr</span>
-          <span>▲ Excess Yld</span>
         </div>
 
       </div>
@@ -74,6 +73,7 @@ Paste this into your Private Plugin markup on usetrmnl.com:
 ──────────────────────────────────────────────────────────────────────────────
 """
 
+import statistics
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -82,6 +82,10 @@ import httpx
 from agent.models import MarketSnapshot, MonthlyDataPoint
 
 EASTERN = ZoneInfo("America/New_York")
+
+# Shiller regression coefficients (same as in market_data.py)
+_REGRESSION_A = -0.0118
+_REGRESSION_B = 1.098
 
 # ── Signal thresholds ────────────────────────────────────────────────────────
 
@@ -107,35 +111,68 @@ def _signal_icon(key: str, value: float) -> str:
     return _SIGNAL_ICONS[_classify_signal(key, value)]
 
 
+def _sigma_str(val: float, mean: float, std: float) -> str:
+    """Format how many std devs val is from mean, e.g. '+1.9σ'."""
+    if std == 0:
+        return "at avg"
+    sigma = (val - mean) / std
+    return f"{sigma:+.1f}σ"
+
+
 # ── Metric formatting ────────────────────────────────────────────────────────
 
 
 def _format_metrics(snap: MarketSnapshot) -> list[dict]:
+    """Build metric cards with 10yr average context."""
+    h = snap.history
+
+    # Compute 10yr stats from history
+    cape_vals = [p.cape for p in h if p.cape is not None]
+    treas_vals = [p.treasury_10yr for p in h if p.treasury_10yr is not None]
+    excess_vals = [p.excess_yield for p in h if p.excess_yield is not None]
+
+    cape_avg = statistics.mean(cape_vals) if cape_vals else 0
+    cape_std = statistics.stdev(cape_vals) if len(cape_vals) > 1 else 0
+    treas_avg = statistics.mean(treas_vals) if treas_vals else 0
+    treas_std = statistics.stdev(treas_vals) if len(treas_vals) > 1 else 0
+    excess_avg = statistics.mean(excess_vals) if excess_vals else 0
+    excess_std = statistics.stdev(excess_vals) if len(excess_vals) > 1 else 0
+
+    # Projected return stats from CAPE history
+    proj_vals = [_REGRESSION_A + _REGRESSION_B * (1.0 / c) for c in cape_vals] if cape_vals else []
+    proj_avg = statistics.mean(proj_vals) if proj_vals else 0
+    proj_std = statistics.stdev(proj_vals) if len(proj_vals) > 1 else 0
+
     return [
         {
-            "label": "S&P 500 (TTM)",
+            "label": "S&P 500 TTM",
             "value": f"{snap.sp500_ttm_return:+.1%}",
             "signal": _signal_icon("sp500_ttm", snap.sp500_ttm_return),
+            "ctx": "avg ~10%",
         },
         {
-            "label": "CAPE Ratio",
+            "label": "CAPE",
             "value": f"{snap.cape_ratio:.1f}",
             "signal": _signal_icon("cape", snap.cape_ratio),
+            "ctx": f"avg {cape_avg:.0f} · {_sigma_str(snap.cape_ratio, cape_avg, cape_std)}",
         },
         {
             "label": "10yr Treasury",
             "value": f"{snap.treasury_10yr:.2f}%",
             "signal": _signal_icon("treasury", snap.treasury_10yr),
+            "ctx": f"avg {treas_avg:.1f}% · {_sigma_str(snap.treasury_10yr, treas_avg, treas_std)}",
         },
         {
             "label": "Excess Yield",
             "value": f"{snap.excess_yield:+.2f}%",
             "signal": _signal_icon("excess", snap.excess_yield),
+            "ctx": f"avg {excess_avg:+.1f}% · {_sigma_str(snap.excess_yield, excess_avg, excess_std)}",
         },
         {
-            "label": "Est. 10yr Return",
+            "label": "10yr Fwd Return",
             "value": f"{snap.projected_10yr_return:.1%} real",
             "signal": _signal_icon("projected", snap.projected_10yr_return),
+            "ctx": f"avg {proj_avg:.1%} · {_sigma_str(snap.projected_10yr_return, proj_avg, proj_std)}",
         },
     ]
 
@@ -149,7 +186,7 @@ def _build_chart_data(
     """
     Convert history into:
       1. Array of {l, c, t, e} percentage positions for CSS dot markers
-      2. Compact SVG string with 3 polylines connecting the dots
+      2. Compact SVG string with 3 polylines + zero line
       3. Axis label strings
 
     Returns (chart_points, chart_svg, axis_labels).
@@ -210,29 +247,23 @@ def _build_chart_data(
         if p.excess_yield is not None:
             excess_svg_pts.append(f"{l},{100 - e}")
 
-    # Build minimal SVG — just 3 polylines, percentage viewBox
-    svg_parts = [
-        '<svg viewBox="0 0 100 100" preserveAspectRatio="none" '
-        'style="position:absolute;inset:0;width:100%;height:100%">'
-    ]
-    ve = ' vector-effect="non-scaling-stroke"'
+    # Build minimal SVG — polylines + zero line.
+    # Uses viewBox percentages; vector-effect omitted to save payload bytes.
+    s = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">'
+
+    # Zero line for yield axis
+    if yield_lo < 0 < yield_hi:
+        zy = 100 - _pct(0, yield_lo, yield_hi)
+        s += f'<line x1="0" y1="{zy}" x2="100" y2="{zy}" stroke="#999" stroke-width="1" stroke-dasharray="4,3"/>'
+
     if cape_svg_pts:
-        svg_parts.append(
-            f'<polyline points="{" ".join(cape_svg_pts)}" '
-            f'fill="none" stroke="#000" stroke-width="2"{ve}/>'
-        )
+        s += f'<polyline points="{" ".join(cape_svg_pts)}" fill="none" stroke="#000" stroke-width="2"/>'
     if treas_svg_pts:
-        svg_parts.append(
-            f'<polyline points="{" ".join(treas_svg_pts)}" '
-            f'fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="6,3"{ve}/>'
-        )
+        s += f'<polyline points="{" ".join(treas_svg_pts)}" fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="6,3"/>'
     if excess_svg_pts:
-        svg_parts.append(
-            f'<polyline points="{" ".join(excess_svg_pts)}" '
-            f'fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="3,2,1,2"{ve}/>'
-        )
-    svg_parts.append("</svg>")
-    chart_svg = "".join(svg_parts)
+        s += f'<polyline points="{" ".join(excess_svg_pts)}" fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="3,2,1,2"/>'
+    s += "</svg>"
+    chart_svg = s
 
     _mnames = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -242,8 +273,8 @@ def _build_chart_data(
         return f"{_mnames[int(p[1])]} '{p[0][2:]}"
 
     axis = {
-        "y_top": f"{yield_hi:.1f}%",
-        "y_bot": f"{yield_lo:.1f}%",
+        "y_top": f"{yield_hi:.0f}%",
+        "y_bot": f"{yield_lo:.0f}%",
         "c_top": f"{cape_hi:.0f}",
         "c_bot": f"{cape_lo:.0f}",
         "x_start": _label(history[0].month),
