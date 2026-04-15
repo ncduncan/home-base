@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { format, addDays, startOfToday, startOfDay, parseISO, isSameDay } from 'date-fns'
 import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { resetProviderTokenCache } from '../lib/calendar'
 import { Button } from '@/components/ui/button'
 import { fetchWorkspaceUsers } from '../lib/asana'
 import DayColumn from './DayColumn'
@@ -74,6 +73,14 @@ export default function WeekDashboard({
     }).catch(() => {/* non-critical */})
   }, [userEmail])
 
+  // When Google calendar auth expires, just sign the user out so they land on
+  // the login page and can re-auth with one click — no stale-banner step.
+  useEffect(() => {
+    if (eventsAuthError) {
+      void supabase.auth.signOut()
+    }
+  }, [eventsAuthError])
+
   const mutations = useTaskMutations(tasks, setTasks, users)
 
   const handleRefresh = () => {
@@ -93,13 +100,14 @@ export default function WeekDashboard({
   const weatherByDate = new Map(weather.map(w => [w.date, w]))
   const gusCareByDate = new Map(gusCare.map(g => [g.date, g]))
 
-  // Task placement: tasks for a specific day, with past-due + undated rolled into today
+  // Task placement: tasks for a specific day, with past-due + undated rolled into today.
+  // A task due in the past is shown ONLY under today (not its original due date).
   const todayStr = format(todayDate, 'yyyy-MM-dd')
   function tasksForDay(dayDateStr: string, isToday: boolean): AsanaTask[] {
     return tasks
       .filter(t => {
         if (t.completed) return false
-        if (t.due_on === dayDateStr) return true
+        if (t.due_on === dayDateStr && t.due_on >= todayStr) return true
         if (isToday) {
           if (t.due_on === null) return true
           if (t.due_on && t.due_on < todayStr) return true
@@ -203,48 +211,6 @@ export default function WeekDashboard({
   return (
     <div>
       {header}
-
-      {eventsAuthError && (
-        <div className="mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3">
-          <p className="text-xs text-amber-700">
-            Calendar session expired — events may be stale.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs h-7 shrink-0"
-            onClick={async () => {
-              // 1. Try a silent Supabase session refresh — this fixes the
-              //    common case where only the Supabase JWT has expired and
-              //    the stored Google refresh_token is still valid.
-              const { data, error } = await supabase.auth.refreshSession()
-              resetProviderTokenCache()
-              if (!error && data.session) {
-                onRefreshEvents()
-                return
-              }
-              // 2. Fall back to a full Google OAuth re-auth, but pre-fill the
-              //    account so the user skips the chooser, and request a fresh
-              //    refresh token (prompt=consent) so the edge function has a
-              //    valid one stored.
-              await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                  scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-                  redirectTo: window.location.href,
-                  queryParams: {
-                    access_type: 'offline',
-                    prompt: 'consent',
-                    login_hint: userEmail,
-                  },
-                },
-              })
-            }}
-          >
-            Reconnect
-          </Button>
-        </div>
-      )}
 
       {eventsError && (
         <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-3">

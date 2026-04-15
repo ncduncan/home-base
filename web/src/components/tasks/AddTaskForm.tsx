@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
 import { createTask } from '../../lib/asana'
@@ -16,19 +16,30 @@ interface Props {
 export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onClose }: Props) {
   const [name, setName] = useState('')
   const [dueDate, setDueDate] = useState(defaultDueDate ?? format(new Date(), 'yyyy-MM-dd'))
-  const [assigneeGid, setAssigneeGid] = useState(selfGid)
+  // Initialize to selfGid if available, else the first user — mirrors what the
+  // <select> shows by default so visual == actual.
+  const [assigneeGid, setAssigneeGid] = useState(selfGid || users[0]?.gid || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // If selfGid or users load AFTER this form mounts (race condition on first
+  // open), sync the assignee so the dropdown's displayed value matches state.
+  useEffect(() => {
+    if (!assigneeGid && (selfGid || users[0]?.gid)) {
+      setAssigneeGid(selfGid || users[0].gid)
+    }
+  }, [selfGid, users, assigneeGid])
 
   const submit = async () => {
     if (!name.trim()) return
     setSaving(true)
     setError(null)
     try {
+      const fallbackAssignee = assigneeGid || selfGid || users[0]?.gid
       const task = await createTask({
         name: name.trim(),
         due_on: dueDate || undefined,
-        assignee: assigneeGid || undefined,
+        assignee: fallbackAssignee || undefined,
       })
       onAdd(task)
       setName('')

@@ -22,15 +22,17 @@ Paste this into your Private Plugin markup on usetrmnl.com:
     <div style="display:flex;flex:1;padding:4px 8px;gap:8px;overflow:hidden;">
 
       <!-- LEFT PANEL: Metrics (full height) -->
-      <div style="width:250px;display:flex;flex-direction:column;gap:3px;">
+      <div style="width:280px;display:flex;flex-direction:column;gap:3px;">
         {% for m in metrics %}
-        <div style="flex:1;border:1.5px solid #000;border-radius:4px;padding:4px 10px;display:flex;flex-direction:column;justify-content:center;">
-          <div style="font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#666;">{{ m.label }}</div>
-          <div style="display:flex;align-items:baseline;gap:6px;">
-            <span style="font-size:24px;font-weight:bold;line-height:1.1;">{{ m.value }}</span>
-            <span style="font-size:18px;">{{ m.signal }}</span>
+        <div style="flex:1;border:1.5px solid #000;border-radius:4px;padding:4px 10px;display:flex;align-items:center;">
+          <div style="flex:1;">
+            <div style="font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#666;">{{ m.label }}</div>
+            <div style="display:flex;align-items:baseline;gap:4px;">
+              <span style="font-size:24px;font-weight:bold;line-height:1.1;">{{ m.value }}</span>
+              <span style="font-size:18px;">{{ m.signal }}</span>
+            </div>
           </div>
-          <div style="font-size:9px;color:#888;margin-top:1px;">{{ m.ctx }}</div>
+          <div style="text-align:right;font-size:9px;color:#666;line-height:1.3;">{{ m.ctx }}</div>
         </div>
         {% endfor %}
       </div>
@@ -154,25 +156,25 @@ def _format_metrics(snap: MarketSnapshot) -> list[dict]:
             "label": "CAPE",
             "value": f"{snap.cape_ratio:.1f}",
             "signal": _signal_icon("cape", snap.cape_ratio),
-            "ctx": f"avg {cape_avg:.0f} · {_sigma_str(snap.cape_ratio, cape_avg, cape_std)}",
+            "ctx": f"avg {cape_avg:.0f}<br>{_sigma_str(snap.cape_ratio, cape_avg, cape_std)}",
         },
         {
             "label": "10yr Treasury",
             "value": f"{snap.treasury_10yr:.2f}%",
             "signal": _signal_icon("treasury", snap.treasury_10yr),
-            "ctx": f"avg {treas_avg:.1f}% · {_sigma_str(snap.treasury_10yr, treas_avg, treas_std)}",
+            "ctx": f"avg {treas_avg:.1f}%<br>{_sigma_str(snap.treasury_10yr, treas_avg, treas_std)}",
         },
         {
             "label": "Excess Yield",
             "value": f"{snap.excess_yield:+.2f}%",
             "signal": _signal_icon("excess", snap.excess_yield),
-            "ctx": f"avg {excess_avg:+.1f}% · {_sigma_str(snap.excess_yield, excess_avg, excess_std)}",
+            "ctx": f"avg {excess_avg:+.1f}%<br>{_sigma_str(snap.excess_yield, excess_avg, excess_std)}",
         },
         {
             "label": "10yr Fwd Return",
             "value": f"{snap.projected_10yr_return:.1%} real",
             "signal": _signal_icon("projected", snap.projected_10yr_return),
-            "ctx": f"avg {proj_avg:.1%} · {_sigma_str(snap.projected_10yr_return, proj_avg, proj_std)}",
+            "ctx": f"avg {proj_avg:.1%}<br>{_sigma_str(snap.projected_10yr_return, proj_avg, proj_std)}",
         },
     ]
 
@@ -257,11 +259,11 @@ def _build_chart_data(
         s += f'<line x1="0" y1="{zy}" x2="100" y2="{zy}" stroke="#999" stroke-width="1" stroke-dasharray="4,3"/>'
 
     if cape_svg_pts:
-        s += f'<polyline points="{" ".join(cape_svg_pts)}" fill="none" stroke="#000" stroke-width="2"/>'
+        s += f'<polyline points="{" ".join(cape_svg_pts)}" fill="none" stroke="#000" stroke-width="1"/>'
     if treas_svg_pts:
-        s += f'<polyline points="{" ".join(treas_svg_pts)}" fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="6,3"/>'
+        s += f'<polyline points="{" ".join(treas_svg_pts)}" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="6,3"/>'
     if excess_svg_pts:
-        s += f'<polyline points="{" ".join(excess_svg_pts)}" fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="3,2,1,2"/>'
+        s += f'<polyline points="{" ".join(excess_svg_pts)}" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="3,2,1,2"/>'
     s += "</svg>"
     chart_svg = s
 
