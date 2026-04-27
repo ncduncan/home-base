@@ -66,7 +66,6 @@ export default function WeekDashboard({
   const [addMode, setAddMode] = useState<'event' | 'task' | null>(null)
 
   useEffect(() => {
-    console.log('[home-base] WeekDashboard mounted — build with event-creation logging v2')
     fetchWorkspaceUsers().then(all => {
       setUsers(all)
       const self = all.find(u => u.email === userEmail)
