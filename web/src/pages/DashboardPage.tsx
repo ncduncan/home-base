@@ -161,7 +161,7 @@ export default function DashboardPage({ session }: Props) {
 
   // ──────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-hb-page">
       <Header session={session} />
       <main className="px-6 py-6">
         <WeekDashboard

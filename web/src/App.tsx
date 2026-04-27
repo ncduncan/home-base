@@ -44,8 +44,8 @@ export default function App() {
 
   if (session === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-sm">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-hb-page">
+        <div className="text-hb-fg-faint text-sm">Loading...</div>
       </div>
     )
   }

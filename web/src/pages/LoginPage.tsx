@@ -27,7 +27,7 @@ export default function LoginPage({ unauthorized }: Props) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-hb-page">
       <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-sm text-center">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Home-Base</h1>
         <p className="text-gray-500 text-sm mb-8">Nat &amp; Caitie's dashboard</p>
