@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { format, addDays, startOfToday, startOfDay, parseISO, isSameDay } from 'date-fns'
+import { computeBannerSpans } from '../lib/banner-layout'
 import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -199,6 +200,15 @@ export default function WeekDashboard({
     </div>
   )
 
+  // All-day, non-AMION events that should render as spanning ribbons
+  const bannerEvents = events.filter(e => e.all_day && !e.is_amion)
+  const weekDateStrs = days.map(d => format(d.date, 'yyyy-MM-dd'))
+  const bannerSpans = computeBannerSpans(bannerEvents, weekDateStrs)
+  const bannerLaneCount = bannerSpans.reduce((max, s) => Math.max(max, s.lane + 1), 0)
+  const bannerRowsTemplate = bannerLaneCount > 0
+    ? `auto ${'auto '.repeat(bannerLaneCount).trim()} 1fr 1fr`
+    : 'auto auto 1fr 1fr'
+
   if (eventsLoading && tasksLoading && events.length === 0) {
     return (
       <div>
@@ -244,7 +254,10 @@ export default function WeekDashboard({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-7 lg:grid-rows-[auto_auto_1fr_1fr] gap-2 lg:gap-x-2 lg:gap-y-0">
+      <div
+        className="grid grid-cols-1 lg:grid-cols-7 gap-2 lg:gap-x-2 lg:gap-y-0"
+        style={{ gridTemplateRows: bannerRowsTemplate }}
+      >
         {days.map(({ date }, dayIdx) => {
           const dayDateStr = format(date, 'yyyy-MM-dd')
           const isToday = isSameDay(date, todayDate)
@@ -280,9 +293,26 @@ export default function WeekDashboard({
               onToggleTask={(gid, c) => void mutations.toggleTask(gid, c)}
               onDeleteTask={(gid) => void mutations.removeTask(gid)}
               onUpdateTask={mutations.editTask}
+              bannerLaneCount={bannerLaneCount}
             />
           )
         })}
+
+        {/* Spanning banner ribbons — always render starting at row 2 */}
+        {bannerSpans.map(span => (
+          <div
+            key={span.id}
+            className="hidden lg:block px-3 py-1.5 mx-1 my-1 text-[12.5px] text-[#3d2f23] leading-tight border-l-2 border-hb-fam-accent bg-gradient-to-r from-hb-fam-fade via-[#fdf6ee] to-hb-fam-fade rounded-md border-y border-r border-[#f1e6da]"
+            style={{
+              gridColumnStart: span.startCol,
+              gridColumnEnd: span.endCol,
+              gridRowStart: 2 + span.lane,  // row 2 = first banner lane
+            }}
+            title={span.title}
+          >
+            <span>{span.title}</span>
+          </div>
+        ))}
       </div>
 
       {recentlyCompleted.length > 0 && (

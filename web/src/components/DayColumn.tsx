@@ -39,6 +39,7 @@ interface Props {
   onToggleTask: (gid: string, completed: boolean) => void
   onDeleteTask: (gid: string) => void
   onUpdateTask: (gid: string, patch: TaskUpdatePatch) => Promise<void>
+  bannerLaneCount: number
 }
 
 const SHIFT_LABELS: Record<string, string> = {
@@ -220,6 +221,7 @@ function OwnerSection({
 }
 
 const COL_START = ['lg:col-start-1','lg:col-start-2','lg:col-start-3','lg:col-start-4','lg:col-start-5','lg:col-start-6','lg:col-start-7'] as const
+const ROW_START = ['', 'lg:row-start-1','lg:row-start-2','lg:row-start-3','lg:row-start-4','lg:row-start-5','lg:row-start-6','lg:row-start-7'] as const
 
 export default function DayColumn({
   dayIndex, date, isToday, isPast,
@@ -227,6 +229,7 @@ export default function DayColumn({
   onSaveOverride, onDeleteOverride,
   onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
+  bannerLaneCount,
 }: Props) {
   const dayDateStr = format(date, 'yyyy-MM-dd')
   const [headerExpanded, setHeaderExpanded] = useState(false)
@@ -235,10 +238,13 @@ export default function DayColumn({
   const overrideMap = new Map<string, CalendarOverride>()
   for (const o of overrides) overrideMap.set(`${o.event_key}|${o.event_date}`, o)
 
-  // Family banners: all-day non-AMION events (e.g. "Susie/Dave in Boston")
-  // These are not owned by either Nat or Caitie.
-  const bannerEvents = events.filter(e => e.all_day && !e.is_amion)
-  // Split remaining events by owner
+  // When bannerLaneCount > 1, multiple banner lanes push the owner rows down.
+  // Banner row 2 holds the first lane; additional lanes occupy rows 3, 4, ...
+  // So Caitie occupies row (2 + max(1, bannerLaneCount)) and Nat the next row.
+  const caitieRow = 2 + Math.max(1, bannerLaneCount)
+  const natRow = caitieRow + 1
+
+  // Split events by owner (family banners are handled by WeekDashboard as spanning ribbons)
   const ownerEvents = events.filter(e => !(e.all_day && !e.is_amion))
   const caitieEvents = ownerEvents.filter(e => eventOwner(e) === 'caitie')
   const natEvents = ownerEvents.filter(e => eventOwner(e) === 'nat')
@@ -295,21 +301,8 @@ export default function DayColumn({
         )}
       </div>
 
-      {/* Cell 2 — Banner row (per-day banners, kept until Task 5 replaces with spanning ribbons) */}
-      <div className={`${colClass} lg:row-start-2 ${isPast ? 'opacity-50' : ''}`}>
-        {bannerEvents.map(event => (
-          <div
-            key={event.id}
-            className="px-3 py-1.5 bg-hb-fam-fade border-l-2 border-hb-fam-accent text-[12px] text-[#3d2f23] leading-tight border-y border-r border-hb-border-soft"
-            title={event.title}
-          >
-            {event.title}
-          </div>
-        ))}
-      </div>
-
       {/* Cell 3 — CAITIE row */}
-      <div className={`${colClass} lg:row-start-3 bg-hb-card border-x border-hb-border-soft border-t border-hb-border-rule ${
+      <div className={`${colClass} ${ROW_START[caitieRow]} bg-hb-card border-x border-hb-border-soft border-t border-hb-border-rule ${
         isPast ? 'opacity-50' : ''
       }`}>
         <OwnerSection
@@ -334,7 +327,7 @@ export default function DayColumn({
       </div>
 
       {/* Cell 4 — NAT row */}
-      <div className={`${colClass} lg:row-start-4 bg-hb-card border border-hb-border-soft border-t-0 rounded-b-xl ${
+      <div className={`${colClass} ${ROW_START[natRow]} bg-hb-card border border-hb-border-soft border-t-0 rounded-b-xl ${
         isPast ? 'opacity-50' : ''
       }`}>
         <OwnerSection
