@@ -1,53 +1,44 @@
 name: Home-Base Weekly Briefing
 
 on:
-  # schedule disabled 2026-03-08: replaced by the web dashboard (web/)
-  # To re-enable: uncomment the schedule block below
-  # schedule:
-  #   - cron: '0 12 * * 0'
+  schedule:
+    # 11:00 UTC every Sunday = 7am EST / 8am EDT
+    - cron: '0 11 * * 0'
   workflow_dispatch:
-    # Manual trigger retained for testing
+    # Manual trigger for testing
+
+# Public repo: keep run logs clean of personal content. The agent enforces
+# this in code; this comment is a reminder for human edits.
 
 jobs:
   briefing:
     name: Generate & send weekly briefing
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.11'
-          cache: pip
+          node-version: '22'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pip install -e .
+        run: npm ci
 
-      - name: Write Google OAuth token
-        # The token.json contents are stored directly as a GitHub secret (no base64).
-        # Contains the refresh token and client credentials needed for automatic renewal.
-        run: |
-          python3 -c "import os; open('/tmp/google_token.json','w').write(os.environ['GOOGLE_OAUTH_TOKEN'])"
+      - name: Run weekly briefing
+        working-directory: agent/briefing
         env:
           GOOGLE_OAUTH_TOKEN: ${{ secrets.GOOGLE_OAUTH_TOKEN }}
-
-      - name: Run Home-Base briefing agent
-        env:
-          GOOGLE_TOKEN_PATH: /tmp/google_token.json
-
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ASANA_PAT: ${{ secrets.ASANA_PAT }}
           ASANA_WORKSPACE_GID: ${{ secrets.ASANA_WORKSPACE_GID }}
-
-          OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}
-
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
-          # Hardcoded — not sensitive
-          BRIEFING_EMAIL_TO: ncduncan@gmail.com
-          WORK_EMAIL: Nathaniel.duncan@geaerospace.com
-
-        run: python -m agent.main
+          ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
+        run: npm start

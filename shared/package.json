@@ -1,0 +1,26 @@
+{
+  "name": "@home-base/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./calendar/process": "./src/calendar/process.ts",
+    "./calendar/gus-sync": "./src/calendar/gus-sync.ts",
+    "./calendar/io": "./src/calendar/io.ts",
+    "./gus-care": "./src/gus-care.ts",
+    "./overrides": "./src/overrides.ts",
+    "./homebase-events": "./src/homebase-events.ts",
+    "./asana": "./src/asana.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "date-fns": "^4.1.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

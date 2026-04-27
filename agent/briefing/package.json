@@ -1,0 +1,21 @@
+{
+  "name": "@home-base/briefing",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@home-base/shared": "*",
+    "@supabase/supabase-js": "^2.98.0",
+    "date-fns": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3"
+  }
+}

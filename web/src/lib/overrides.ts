@@ -1,81 +1,22 @@
 import { supabase } from './supabase'
-import type { CalendarEvent, CalendarOverride } from '../types'
+import {
+  applyOverrides,
+  fetchOverrides as sharedFetchOverrides,
+  upsertOverride as sharedUpsertOverride,
+  deleteOverride as sharedDeleteOverride,
+} from '@home-base/shared/overrides'
+import type { CalendarOverride } from '@home-base/shared/types'
 
-export async function fetchOverrides(
-  startDate: string,
-  endDate: string
-): Promise<CalendarOverride[]> {
-  const { data, error } = await supabase
-    .from('calendar_overrides')
-    .select('*')
-    .gte('event_date', startDate)
-    .lte('event_date', endDate)
+export { applyOverrides }
 
-  if (error) {
-    console.warn('Failed to fetch overrides:', error.message)
-    return []
-  }
-  return data as CalendarOverride[]
+export function fetchOverrides(startDate: string, endDate: string) {
+  return sharedFetchOverrides(supabase, startDate, endDate)
 }
 
-export async function upsertOverride(
-  override: Omit<CalendarOverride, 'id'>
-): Promise<CalendarOverride> {
-  const { data, error } = await supabase
-    .from('calendar_overrides')
-    .upsert(
-      { ...override, updated_at: new Date().toISOString() },
-      { onConflict: 'event_key,event_date' }
-    )
-    .select()
-    .single()
-
-  if (error) throw new Error(`Failed to save override: ${error.message}`)
-  return data as CalendarOverride
+export function upsertOverride(override: Omit<CalendarOverride, 'id'>) {
+  return sharedUpsertOverride(supabase, override)
 }
 
-export async function deleteOverride(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('calendar_overrides')
-    .delete()
-    .eq('id', id)
-
-  if (error) throw new Error(`Failed to delete override: ${error.message}`)
-}
-
-export function applyOverrides(
-  events: CalendarEvent[],
-  overrides: CalendarOverride[]
-): CalendarEvent[] {
-  if (overrides.length === 0) return events
-
-  const overrideMap = new Map<string, CalendarOverride>()
-  for (const o of overrides) {
-    overrideMap.set(`${o.event_key}|${o.event_date}`, o)
-  }
-
-  const result: CalendarEvent[] = []
-  for (const event of events) {
-    const dateStr = event.start.slice(0, 10)
-    const override = overrideMap.get(`${event.id}|${dateStr}`)
-
-    if (!override) {
-      result.push(event)
-      continue
-    }
-
-    if (override.hidden) continue // filter out hidden events
-
-    result.push({
-      ...event,
-      title: override.title_override ?? event.title,
-      start: override.start_override ?? event.start,
-      end: override.end_override ?? event.end,
-      amion_kind: (override.amion_kind_override as CalendarEvent['amion_kind']) ?? event.amion_kind,
-      notes: override.notes ?? undefined,
-      overridden: true,
-    })
-  }
-
-  return result
+export function deleteOverride(id: string) {
+  return sharedDeleteOverride(supabase, id)
 }

@@ -3,6 +3,9 @@ token.json
 client_secret.json
 *.token.json
 
+# Node
+node_modules/
+
 # Environment
 .env
 .env.*

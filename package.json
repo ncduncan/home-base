@@ -1,0 +1,10 @@
+{
+  "name": "home-base",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "shared",
+    "web",
+    "agent/briefing"
+  ]
+}
