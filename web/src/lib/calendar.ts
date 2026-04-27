@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { OWNER_EMAILS, NAT_WORK_EMAIL } from './owners'
 import {
   fetchCalendarEvents as sharedFetchCalendarEvents,
   syncGusCareInvites as sharedSyncGusCareInvites,
@@ -125,14 +126,14 @@ export function fetchCalendarEvents(weekOffset = 0) {
 
 export function syncGusCareInvites(gusCare: GusResponsibility[]) {
   return sharedSyncGusCareInvites(getProviderToken, gusCare, {
-    attendeeEmail: 'nathaniel.duncan@geaerospace.com',
+    attendeeEmail: NAT_WORK_EMAIL,
   })
 }
 
 export function createOwnedEvent(fields: CreateOwnedEventFields) {
   return sharedCreateOwnedEvent(getProviderToken, fields, {
-    caitieEmail: 'caitante@gmail.com',
-    natEmail: 'ncduncan@gmail.com',
+    caitieEmail: OWNER_EMAILS.caitie,
+    natEmail:    OWNER_EMAILS.nat,
   })
 }
 

@@ -11,6 +11,7 @@ import {
   isHomebaseEventId,
   homebaseIdFromCalendarEventId,
 } from '../lib/homebase-events'
+import { OWNER_LABELS } from '../lib/owners'
 import type {
   AsanaTask,
   AsanaUser,
@@ -103,7 +104,7 @@ function OwnerSection({
   const sectionClass = owner === 'nat'
     ? 'border-l-2 border-hb-nat-accent bg-gradient-to-r from-hb-nat-fade to-hb-card to-45%'
     : 'border-l-2 border-hb-cai-accent bg-gradient-to-r from-hb-cai-fade to-hb-card to-45%'
-  const headerLabel = owner === 'nat' ? 'Nat' : 'Caitie'
+  const headerLabel = OWNER_LABELS[owner]
 
   const isEmpty = events.length === 0 && tasks.length === 0 && !hasDropoff && !hasPickup
 

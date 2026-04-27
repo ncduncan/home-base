@@ -14,6 +14,7 @@ import type { HomebaseEvent } from '../lib/homebase-events'
 import { computeGusCare } from '../lib/gus-care'
 import type { Session } from '@supabase/supabase-js'
 import type { AsanaTask, CalendarEvent, CalendarOverride, WeatherDay } from '../types'
+import { OWNER_EMAILS } from '../lib/owners'
 import Header from '../components/Header'
 import WeekDashboard from '../components/WeekDashboard'
 
@@ -116,7 +117,7 @@ export default function DashboardPage({ session }: Props) {
   // Sync Gus care invites to Google Calendar (Nat only, debounced)
   const syncTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => {
-    if (session.user.email !== 'ncduncan@gmail.com') return
+    if (session.user.email?.toLowerCase() !== OWNER_EMAILS.nat) return
     if (eventsLoading) return
 
     clearTimeout(syncTimerRef.current)

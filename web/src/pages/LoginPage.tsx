@@ -29,8 +29,7 @@ export default function LoginPage({ unauthorized }: Props) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-hb-page">
       <div className="bg-hb-card rounded-xl border border-hb-border-soft shadow-sm p-10 w-full max-w-sm text-center">
-        <h1 className="text-2xl font-semibold text-hb-fg mb-1 tracking-tight">Home-Base</h1>
-        <p className="text-hb-fg-muted text-sm mb-8">Nat &amp; Caitie's dashboard</p>
+        <h1 className="text-2xl font-semibold text-hb-fg mb-8 tracking-tight">Home-Base</h1>
         {unauthorized && (
           <p className="text-[#a14040] text-sm mb-4 bg-[#fcf0f0] border border-[#f1d8d8] rounded-lg p-3">
             This Google account is not authorized.

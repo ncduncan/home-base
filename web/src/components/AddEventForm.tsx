@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
 import type { HomebaseEvent } from '../lib/homebase-events'
+import { OWNER_LABELS, OWNER_EMAILS } from '../lib/owners'
 
 interface Props {
   defaultDate: string           // YYYY-MM-DD
@@ -16,9 +17,11 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('10:00')
   const [allDay, setAllDay] = useState(false)
-  const [owner, setOwner] = useState<'nat' | 'caitie'>(
-    currentUserEmail.toLowerCase().startsWith('caitante') ? 'caitie' : 'nat'
-  )
+  const [owner, setOwner] = useState<'nat' | 'caitie'>(() => {
+    const email = currentUserEmail.toLowerCase()
+    if (OWNER_EMAILS.caitie && email === OWNER_EMAILS.caitie) return 'caitie'
+    return 'nat'
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,14 +74,14 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setOwner(owner === 'nat' ? 'caitie' : 'nat')}
-          title={`Owner: ${owner === 'nat' ? 'Nat' : 'Caitie'} (click to switch)`}
+          title={`Owner: ${OWNER_LABELS[owner]} (click to switch)`}
           className={`w-6 h-6 rounded-full text-[11px] font-semibold flex items-center justify-center border ${
             owner === 'nat'
               ? 'bg-hb-nat-fade border-hb-nat-accent text-hb-fg'
               : 'bg-hb-cai-fade border-hb-cai-accent text-hb-fg'
           }`}
         >
-          {owner === 'nat' ? 'N' : 'C'}
+          {OWNER_LABELS[owner].slice(0, 1).toUpperCase()}
         </button>
 
         <input

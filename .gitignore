@@ -40,3 +40,6 @@ htmlcov/
 
 # E-ink output (local)
 briefing_eink.json
+
+# Superpowers brainstorm session state (local-only, never commit)
+.superpowers/

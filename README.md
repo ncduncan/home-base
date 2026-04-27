@@ -1,8 +1,6 @@
 # Home-Base
 
-Personal dashboard and weekly briefing agent for Nat and Caitie.
-
-**Live dashboard:** https://ncduncan.github.io/home-base/
+Personal dashboard and weekly briefing agent.
 
 ---
 
