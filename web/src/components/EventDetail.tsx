@@ -88,24 +88,24 @@ export default function EventDetail({ event, override, userEmail, onSave, onDele
       {/* Title + close */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-gray-900 truncate">
+          <div className="text-sm font-semibold text-hb-fg truncate">
             {event.is_amion ? (event.amion_kind ?? 'Shift') : event.title}
           </div>
-          <div className="text-[11px] text-gray-500 mt-0.5">
+          <div className="text-[11px] text-hb-fg-secondary mt-0.5">
             {event.is_amion ? 'Shift override' : 'Event details'}
           </div>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0 -mr-1 -mt-1 p-1">
+        <button onClick={onClose} className="text-hb-fg-muted hover:text-hb-fg-secondary shrink-0 -mr-1 -mt-1 p-1">
           <X size={14} />
         </button>
       </div>
 
       {/* Info line */}
-      <div className="text-[11px] text-gray-400 break-words">
+      <div className="text-[11px] text-hb-fg-muted break-words">
         {event.calendar_name}
         {event.organizer_email && ` · ${event.organizer_email}`}
         {event.overridden && (
-          <span className="ml-1 text-amber-500">(overridden)</span>
+          <span className="ml-1 text-[#a07a18]">(overridden)</span>
         )}
       </div>
 
@@ -114,8 +114,8 @@ export default function EventDetail({ event, override, userEmail, onSave, onDele
         onClick={() => setHidden(!hidden)}
         className={`flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
           hidden
-            ? 'bg-red-50 border-red-200 text-red-600'
-            : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+            ? 'bg-[#fcf0f0] border-[#f1d8d8] text-[#a14040]'
+            : 'bg-hb-card border-hb-border-soft text-hb-fg-secondary hover:border-hb-fg-faint'
         }`}
       >
         {hidden ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -127,14 +127,14 @@ export default function EventDetail({ event, override, userEmail, onSave, onDele
           {/* Time adjustment (not for all-day events without existing times) */}
           {!event.all_day && (
             <div className="flex items-center gap-2">
-              <Pencil size={12} className="text-gray-400 shrink-0" />
+              <Pencil size={12} className="text-hb-fg-muted shrink-0" />
               <Input
                 type="time"
                 value={startTime}
                 onChange={e => setStartTime(e.target.value)}
                 className="w-28 h-8 text-xs"
               />
-              <span className="text-gray-400 text-xs">to</span>
+              <span className="text-hb-fg-muted text-xs">to</span>
               <Input
                 type="time"
                 value={endTime}
@@ -147,11 +147,11 @@ export default function EventDetail({ event, override, userEmail, onSave, onDele
           {/* AMION kind override */}
           {event.is_amion && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Shift type:</span>
+              <span className="text-xs text-hb-fg-secondary">Shift type:</span>
               <select
                 value={amionKind}
                 onChange={e => setAmionKind(e.target.value)}
-                className="text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700"
+                className="text-xs border border-hb-border-soft rounded-md px-2 py-1.5 bg-hb-card text-hb-fg"
               >
                 {AMION_KINDS.map(k => (
                   <option key={k.value} value={k.value}>{k.label}</option>
