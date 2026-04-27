@@ -21,6 +21,7 @@ import type {
 } from '../types'
 
 interface Props {
+  dayIndex: number
   date: Date
   isToday: boolean
   isPast: boolean
@@ -212,8 +213,10 @@ function OwnerSection({
   )
 }
 
+const COL_START = ['lg:col-start-1','lg:col-start-2','lg:col-start-3','lg:col-start-4','lg:col-start-5','lg:col-start-6','lg:col-start-7'] as const
+
 export default function DayColumn({
-  date, isToday, isPast,
+  dayIndex, date, isToday, isPast,
   events, rawEvents, overrides, weather, gusCare, tasks, users, userEmail,
   onSaveOverride, onDeleteOverride,
   onDeleteHomebaseEvent,
@@ -243,39 +246,38 @@ export default function DayColumn({
   const natDropoff = gusCare?.dropoff === 'nat'
   const natPickup = gusCare?.pickup === 'nat'
 
-  return (
-    <div className={`flex flex-col lg:grid lg:grid-rows-subgrid lg:row-span-4 lg:flex-none bg-white rounded-xl border shadow-sm overflow-hidden ${
-      isToday ? 'border-[#305CDE] ring-1 ring-[#305CDE]/30' : 'border-gray-100'
-    } ${isPast ? 'opacity-75' : ''}`}>
+  const colClass = COL_START[dayIndex]
 
-      {/* Row 1 — Day header */}
-      <div>
+  return (
+    <div className="contents">
+      {/* Cell 1 — Day header */}
+      <div className={`${colClass} lg:row-start-1 bg-hb-card border border-hb-border-soft rounded-t-xl border-b-0 ${
+        isToday ? 'bg-hb-today-bg' : ''
+      } ${isPast ? 'opacity-50' : ''}`}>
         <button
           onClick={() => setHeaderExpanded(!headerExpanded)}
-          className={`w-full px-3 py-2 flex items-start justify-between gap-2 transition-colors ${
-            isToday ? 'bg-[#305CDE]/10 hover:bg-[#305CDE]/20' : 'bg-gray-50/80 hover:bg-gray-100/60'
-          }`}
+          className="w-full px-3 py-2.5 flex items-start justify-between gap-2 text-left"
         >
-          <div className="text-left">
-            <div className={`text-[10px] font-semibold uppercase tracking-wider ${
-              isToday ? 'text-[#305CDE]' : 'text-gray-500'
+          <div>
+            <div className={`text-[11px] font-medium uppercase tracking-[.08em] ${
+              isToday ? 'text-hb-fg-secondary' : 'text-hb-fg-muted'
             }`}>
               {format(date, 'EEE')}
             </div>
-            <div className={`text-sm font-semibold ${isToday ? 'text-[#305CDE]' : 'text-gray-800'}`}>
+            <div className="text-[17px] font-semibold text-hb-fg leading-tight tracking-tight mt-0.5">
               {format(date, 'MMM d')}
+              {isToday && <span className="ml-1.5 text-[10px] font-medium text-hb-fg-muted tracking-normal normal-case">· today</span>}
             </div>
           </div>
           {weather && (
             <div className="text-right shrink-0">
               <div className="text-base leading-none">{wmoToIcon(weather.weatherCode)}</div>
-              <div className="text-[10px] text-gray-500 leading-tight mt-0.5">
+              <div className="text-[11px] text-hb-fg-muted leading-tight mt-0.5 tabular-nums">
                 {weather.tempMin}–{weather.tempMax}°F
               </div>
             </div>
           )}
         </button>
-
         {headerExpanded && (
           <DayHeaderPanel
             date={dayDateStr}
@@ -287,12 +289,12 @@ export default function DayColumn({
         )}
       </div>
 
-      {/* Row 2 — Family banners (empty when none, but row still reserved if any column has banners) */}
-      <div>
+      {/* Cell 2 — Banner row (per-day banners, kept until Task 5 replaces with spanning ribbons) */}
+      <div className={`${colClass} lg:row-start-2 ${isPast ? 'opacity-50' : ''}`}>
         {bannerEvents.map(event => (
           <div
             key={event.id}
-            className="px-3 py-1.5 bg-violet-50 text-violet-900 text-[11px] font-medium leading-tight border-b border-violet-100 last:border-b-0"
+            className="px-3 py-1.5 bg-hb-fam-fade border-l-2 border-hb-fam-accent text-[12px] text-[#3d2f23] leading-tight border-y border-r border-hb-border-soft"
             title={event.title}
           >
             {event.title}
@@ -300,48 +302,55 @@ export default function DayColumn({
         ))}
       </div>
 
-      {/* Row 3 — CAITIE section */}
-      <OwnerSection
-        owner="caitie"
-        events={caitieEvents}
-        tasks={caitieTasks}
-        users={users}
-        overrideMap={overrideMap}
-        dayDateStr={dayDateStr}
-        expandedEventId={expandedEventId}
-        setExpandedEventId={setExpandedEventId}
-        userEmail={userEmail}
-        hasDropoff={caitieDropoff}
-        hasPickup={caitiePickup}
-        onSaveOverride={onSaveOverride}
-        onDeleteOverride={onDeleteOverride}
-        onDeleteHomebaseEvent={onDeleteHomebaseEvent}
-        onToggleTask={onToggleTask}
-        onDeleteTask={onDeleteTask}
-        onUpdateTask={onUpdateTask}
-      />
+      {/* Cell 3 — CAITIE row */}
+      <div className={`${colClass} lg:row-start-3 bg-hb-card border-x border-hb-border-soft border-t border-hb-border-rule ${
+        isPast ? 'opacity-50' : ''
+      }`}>
+        <OwnerSection
+          owner="caitie"
+          events={caitieEvents}
+          tasks={caitieTasks}
+          users={users}
+          overrideMap={overrideMap}
+          dayDateStr={dayDateStr}
+          expandedEventId={expandedEventId}
+          setExpandedEventId={setExpandedEventId}
+          userEmail={userEmail}
+          hasDropoff={caitieDropoff}
+          hasPickup={caitiePickup}
+          onSaveOverride={onSaveOverride}
+          onDeleteOverride={onDeleteOverride}
+          onDeleteHomebaseEvent={onDeleteHomebaseEvent}
+          onToggleTask={onToggleTask}
+          onDeleteTask={onDeleteTask}
+          onUpdateTask={onUpdateTask}
+        />
+      </div>
 
-      {/* Row 4 — NAT section */}
-      <OwnerSection
-        owner="nat"
-        events={natEvents}
-        tasks={natTasks}
-        users={users}
-        overrideMap={overrideMap}
-        dayDateStr={dayDateStr}
-        expandedEventId={expandedEventId}
-        setExpandedEventId={setExpandedEventId}
-        userEmail={userEmail}
-        hasDropoff={natDropoff}
-        hasPickup={natPickup}
-        onSaveOverride={onSaveOverride}
-        onDeleteOverride={onDeleteOverride}
-        onDeleteHomebaseEvent={onDeleteHomebaseEvent}
-        onToggleTask={onToggleTask}
-        onDeleteTask={onDeleteTask}
-        onUpdateTask={onUpdateTask}
-      />
-
+      {/* Cell 4 — NAT row */}
+      <div className={`${colClass} lg:row-start-4 bg-hb-card border border-hb-border-soft border-t-0 rounded-b-xl ${
+        isPast ? 'opacity-50' : ''
+      }`}>
+        <OwnerSection
+          owner="nat"
+          events={natEvents}
+          tasks={natTasks}
+          users={users}
+          overrideMap={overrideMap}
+          dayDateStr={dayDateStr}
+          expandedEventId={expandedEventId}
+          setExpandedEventId={setExpandedEventId}
+          userEmail={userEmail}
+          hasDropoff={natDropoff}
+          hasPickup={natPickup}
+          onSaveOverride={onSaveOverride}
+          onDeleteOverride={onDeleteOverride}
+          onDeleteHomebaseEvent={onDeleteHomebaseEvent}
+          onToggleTask={onToggleTask}
+          onDeleteTask={onDeleteTask}
+          onUpdateTask={onUpdateTask}
+        />
+      </div>
     </div>
   )
 }

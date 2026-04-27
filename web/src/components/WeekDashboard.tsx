@@ -244,13 +244,11 @@ export default function WeekDashboard({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-7 lg:grid-rows-[auto_auto_auto_auto] gap-2 lg:gap-y-0 lg:gap-x-2">
-        {days.map(({ date }) => {
+      <div className="grid grid-cols-1 lg:grid-cols-7 lg:grid-rows-[auto_auto_1fr_1fr] gap-2 lg:gap-x-2 lg:gap-y-0">
+        {days.map(({ date }, dayIdx) => {
           const dayDateStr = format(date, 'yyyy-MM-dd')
           const isToday = isSameDay(date, todayDate)
           const isPast = date < todayDate && !isToday
-          // Multi-day all-day events (non-AMION) repeat on every day they span;
-          // single-day and timed events match by their start day only.
           const dayEvents = events.filter(e => {
             if (e.all_day && !e.is_amion) {
               const start = parseISO(e.start)
@@ -264,6 +262,7 @@ export default function WeekDashboard({
           return (
             <DayColumn
               key={dayDateStr}
+              dayIndex={dayIdx}
               date={date}
               isToday={isToday}
               isPast={isPast}
