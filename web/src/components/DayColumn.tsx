@@ -266,10 +266,8 @@ export default function DayColumn({
   return (
     <div className="contents">
       {/* Cell 1 — Day header */}
-      <div className={`${colClass} lg:row-start-1 border rounded-t-md border-b-0 ${
-        isToday
-          ? 'bg-hb-fg border-hb-fg text-white'
-          : 'bg-hb-card border-hb-border-soft'
+      <div className={`${colClass} lg:row-start-1 border border-hb-border-soft rounded-t-md border-b-0 ${
+        isToday ? 'bg-[#e8e8e8]' : 'bg-hb-card'
       } ${isPast ? 'opacity-50' : ''}`}>
         <button
           onClick={() => setHeaderExpanded(!headerExpanded)}
@@ -277,23 +275,19 @@ export default function DayColumn({
         >
           <div>
             <div className={`text-[11px] font-medium uppercase tracking-[.08em] ${
-              isToday ? 'text-white/60' : 'text-hb-fg-muted'
+              isToday ? 'text-hb-fg-secondary' : 'text-hb-fg-muted'
             }`}>
               {format(date, 'EEE')}
             </div>
-            <div className={`text-[17px] font-semibold leading-tight tracking-tight mt-0.5 ${
-              isToday ? 'text-white' : 'text-hb-fg'
-            }`}>
+            <div className="text-[17px] font-semibold text-hb-fg leading-tight tracking-tight mt-0.5">
               {format(date, 'MMM d')}
-              {isToday && <span className="ml-1.5 text-[10px] font-medium text-white/55 tracking-normal normal-case">· today</span>}
+              {isToday && <span className="ml-1.5 text-[10px] font-medium text-hb-fg-muted tracking-normal normal-case">· today</span>}
             </div>
           </div>
           {weather && (
             <div className="text-right shrink-0">
               <div className="text-base leading-none">{wmoToIcon(weather.weatherCode)}</div>
-              <div className={`text-[11px] leading-tight mt-0.5 tabular-nums ${
-                isToday ? 'text-white/60' : 'text-hb-fg-muted'
-              }`}>
+              <div className="text-[11px] text-hb-fg-muted leading-tight mt-0.5 tabular-nums">
                 {weather.tempMin}–{weather.tempMax}°F
               </div>
             </div>
