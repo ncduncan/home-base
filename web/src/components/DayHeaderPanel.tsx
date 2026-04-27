@@ -18,9 +18,9 @@ export default function DayHeaderPanel({
 
   if (hiddenForDate.length === 0) {
     return (
-      <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-        <span className="text-[11px] text-gray-400 italic">No hidden events for this day.</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+      <div className="px-4 py-3 bg-[#fafafa] border-t border-hb-border-soft flex items-center justify-between">
+        <span className="text-[11px] text-hb-fg-muted italic">No hidden events for this day.</span>
+        <button onClick={onClose} className="text-hb-fg-muted hover:text-hb-fg-secondary">
           <X size={14} />
         </button>
       </div>
@@ -28,18 +28,18 @@ export default function DayHeaderPanel({
   }
 
   return (
-    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-2">
+    <div className="px-4 py-3 bg-[#fafafa] border-t border-hb-border-soft space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <span className="text-xs font-medium text-hb-fg-secondary uppercase tracking-wider">
           {format(parseISO(`${date}T00:00:00`), 'EEEE, MMM d')}
         </span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+        <button onClick={onClose} className="text-hb-fg-muted hover:text-hb-fg-secondary">
           <X size={14} />
         </button>
       </div>
 
       <div className="space-y-1.5">
-        <div className="text-[11px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+        <div className="text-[11px] text-hb-fg-secondary uppercase tracking-wider flex items-center gap-1">
           <EyeOff size={10} />
           Hidden ({hiddenForDate.length})
         </div>
@@ -47,11 +47,11 @@ export default function DayHeaderPanel({
           const ev = eventsByKey.get(`${o.event_key}|${o.event_date}`)
           const label = ev?.title || ev?.amion_kind || o.event_key
           return (
-            <div key={o.id} className="flex items-center justify-between bg-white rounded-md border border-gray-200 px-2 py-1.5">
-              <span className="text-xs text-gray-700 truncate">{label}</span>
+            <div key={o.id} className="flex items-center justify-between bg-hb-card rounded-md border border-hb-border-soft px-2 py-1.5">
+              <span className="text-xs text-hb-fg truncate">{label}</span>
               <button
                 onClick={() => void onUnhide(o.id)}
-                className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0 ml-2"
+                className="text-xs text-hb-fg hover:black flex items-center gap-1 shrink-0 ml-2"
               >
                 <Undo2 size={11} />
                 Restore
