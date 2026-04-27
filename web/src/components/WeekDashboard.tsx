@@ -316,9 +316,9 @@ export default function WeekDashboard({
       </div>
 
       {recentlyCompleted.length > 0 && (
-        <details className="mt-6 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <summary className="px-4 py-2.5 text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none list-none flex items-center gap-1.5">
-            <span className="text-gray-300">▸</span>
+        <details className="mt-6 bg-hb-card rounded-xl border border-hb-border-soft shadow-sm overflow-hidden">
+          <summary className="px-4 py-2.5 text-xs text-hb-fg-muted cursor-pointer hover:text-hb-fg-secondary select-none list-none flex items-center gap-1.5">
+            <span className="text-hb-fg-faint">▸</span>
             Completed recently ({recentlyCompleted.length})
           </summary>
           <ul>

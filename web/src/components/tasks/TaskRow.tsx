@@ -42,9 +42,9 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
 
   return (
     <Popover open={expanded} onOpenChange={setExpanded}>
-      <li className="group border-b border-gray-50 last:border-0">
+      <li className="group border-b border-hb-border-rule last:border-0">
       <PopoverAnchor asChild>
-      <div className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-gray-50/50">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-black/[.02]">
         <Checkbox
           checked={task.completed}
           onCheckedChange={checked => onToggle(task.gid, checked as boolean)}
@@ -61,15 +61,15 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
               if (e.key === 'Enter') { e.preventDefault(); void saveName() }
               if (e.key === 'Escape') { setNameVal(task.name); setNameEditing(false) }
             }}
-            className="flex-1 min-w-0 text-xs bg-transparent border-b border-blue-400 outline-none py-0.5"
+            className="flex-1 min-w-0 text-[13px] bg-transparent border-b border-hb-fg outline-none py-0.5"
           />
         ) : (
           <span
             onClick={() => !task.completed && setNameEditing(true)}
-            className={`flex-1 min-w-0 text-xs ${
+            className={`flex-1 min-w-0 text-[13px] ${
               task.completed
-                ? 'line-through text-gray-400'
-                : 'text-gray-900 cursor-pointer hover:text-blue-600'
+                ? 'line-through text-hb-fg-muted'
+                : 'text-hb-fg cursor-pointer hover:text-hb-fg'
             }`}
           >
             {task.name}
@@ -95,7 +95,7 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
         <button
           onClick={() => setExpanded(!expanded)}
           title={expanded ? 'Hide details' : 'Show details'}
-          className="text-[10px] text-gray-400 hover:text-gray-700 transition-colors shrink-0 opacity-50 group-hover:opacity-100"
+          className="text-[10px] text-hb-fg-muted hover:text-hb-fg transition-colors shrink-0 opacity-50 group-hover:opacity-100"
         >
           {expanded ? '▾' : '▸'}
         </button>
@@ -104,17 +104,17 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
           <span className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => { setConfirmDelete(false); onDelete(task.gid) }}
-              className="text-[10px] text-red-500 hover:text-red-700 font-medium"
+              className="text-[10px] text-[#a14040] hover:text-[#7f3232] font-medium"
             >Yes</button>
             <button
               onClick={() => setConfirmDelete(false)}
-              className="text-[10px] text-gray-400 hover:text-gray-600"
+              className="text-[10px] text-hb-fg-muted hover:text-hb-fg-secondary"
             >No</button>
           </span>
         ) : (
           <button
             onClick={() => setConfirmDelete(true)}
-            className="opacity-0 group-hover:opacity-100 text-gray-200 hover:text-red-400 text-[10px] transition-all shrink-0"
+            className="opacity-0 group-hover:opacity-100 text-hb-fg-faint hover:text-[#a14040] text-[10px] transition-all shrink-0"
             aria-label="Delete"
           >✕</button>
         )}
@@ -126,7 +126,7 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <div className="text-sm font-semibold text-gray-900 break-words">{task.name}</div>
+        <div className="text-sm font-semibold text-hb-fg break-words">{task.name}</div>
         <div className="flex items-center gap-2">
           <AssigneeButton
             assignee={task.assignee}
