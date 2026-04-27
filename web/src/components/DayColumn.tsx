@@ -65,9 +65,9 @@ function formatAmionTime(event: CalendarEvent): string {
 
 function GusPill({ kind, label }: { kind: 'pickup' | 'dropoff'; label: string }) {
   return (
-    <div className="px-3 py-1 flex items-center gap-1.5 text-[11px] text-gray-600 bg-blue-50/40">
-      <span className="text-gray-500">{kind === 'dropoff' ? '↓' : '↑'}</span>
-      Gus {kind} <span className="text-gray-400">{label}</span>
+    <div className="px-3 py-1 flex items-center gap-1.5 text-[11px] text-hb-fg-secondary">
+      <span className="text-hb-fg-faint">{kind === 'dropoff' ? '↓' : '↑'}</span>
+      Gus {kind} <span className="text-hb-fg-muted">{label}</span>
     </div>
   )
 }
@@ -99,16 +99,22 @@ function OwnerSection({
   onSaveOverride, onDeleteOverride, onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
 }: OwnerSectionProps) {
-  const headerClass = owner === 'nat'
-    ? 'bg-[#305CDE] text-white'
-    : 'bg-yellow-100 text-yellow-800'
-  const headerLabel = owner === 'nat' ? 'NAT' : 'CAITIE'
+  const sectionClass = owner === 'nat'
+    ? 'border-l-2 border-hb-nat-accent bg-gradient-to-r from-hb-nat-fade to-hb-card to-45%'
+    : 'border-l-2 border-hb-cai-accent bg-gradient-to-r from-hb-cai-fade to-hb-card to-45%'
+  const headerLabel = owner === 'nat' ? 'Nat' : 'Caitie'
+
+  const isEmpty = events.length === 0 && tasks.length === 0 && !hasDropoff && !hasPickup
 
   return (
-    <div className="border-t border-gray-100 first:border-t-0">
-      <div className={`px-3 py-1 text-[10px] font-semibold uppercase tracking-wider ${headerClass}`}>
+    <div className={`${sectionClass} min-h-[80px] py-2`}>
+      <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[.1em] text-hb-fg-secondary">
         {headerLabel}
       </div>
+
+      {isEmpty && (
+        <div className="px-3 text-[11px] text-hb-fg-faint italic">—</div>
+      )}
 
       {/* Gus pills owned by this person */}
       {hasDropoff && <GusPill kind="dropoff" label="7am" />}
@@ -126,25 +132,25 @@ function OwnerSection({
             const triggerButton = (
               <button
                 className={`w-full text-left px-3 py-1.5 transition-colors ${
-                  isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/50'
+                  isExpanded ? 'bg-black/[.03]' : 'hover:bg-black/[.02]'
                 }`}
               >
-                <div className="text-[11px] text-gray-900 leading-tight pr-5">
+                <div className="text-[13px] text-hb-fg leading-tight pr-5">
                   {event.is_amion ? shiftLabel(event.amion_kind) : event.title}
                 </div>
-                <div className="text-[10px] text-gray-400 leading-tight">
+                <div className="text-[11px] text-hb-fg-muted leading-tight tabular-nums">
                   {event.is_amion
                     ? formatAmionTime(event)
                     : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
                 </div>
                 {event.location && !event.is_amion && (
-                  <div className="text-[10px] text-gray-400 truncate">{event.location}</div>
+                  <div className="text-[11px] text-hb-fg-muted truncate">{event.location}</div>
                 )}
                 {event.notes && (
-                  <div className="text-[10px] text-gray-500 italic">{event.notes}</div>
+                  <div className="text-[11px] text-hb-fg-secondary italic">{event.notes}</div>
                 )}
                 {event.overridden && (
-                  <div className="text-[9px] text-amber-500 font-medium">edited</div>
+                  <div className="text-[10px] text-[#a07a18] font-medium">edited</div>
                 )}
               </button>
             )
