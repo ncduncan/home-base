@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
-import { USER_COLORS } from '../lib/userColors'
 import type { HomebaseEvent } from '../lib/homebase-events'
 
 interface Props {
@@ -49,17 +48,17 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
   }
 
   return (
-    <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm space-y-2">
+    <div className="px-4 py-3 bg-hb-card border border-hb-border-soft rounded-xl shadow-sm space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">New event</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+        <span className="text-xs font-semibold text-hb-fg-secondary uppercase tracking-[.1em]">New event</span>
+        <button onClick={onClose} className="text-hb-fg-muted hover:text-hb-fg-secondary">
           <X size={14} />
         </button>
       </div>
 
       <input
         autoFocus
-        className="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-blue-400"
+        className="w-full text-sm bg-hb-card border border-hb-border-soft rounded-md px-2 py-1.5 outline-none focus:border-hb-fg-faint"
         placeholder="Event title..."
         value={title}
         onChange={e => setTitle(e.target.value)}
@@ -73,7 +72,11 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
         <button
           onClick={() => setOwner(owner === 'nat' ? 'caitie' : 'nat')}
           title={`Owner: ${owner === 'nat' ? 'Nat' : 'Caitie'} (click to switch)`}
-          className={`w-6 h-6 rounded-full text-[11px] font-semibold flex items-center justify-center ${USER_COLORS[owner].avatar}`}
+          className={`w-6 h-6 rounded-full text-[11px] font-semibold flex items-center justify-center border ${
+            owner === 'nat'
+              ? 'bg-hb-nat-fade border-hb-nat-accent text-hb-fg'
+              : 'bg-hb-cai-fade border-hb-cai-accent text-hb-fg'
+          }`}
         >
           {owner === 'nat' ? 'N' : 'C'}
         </button>
@@ -82,10 +85,10 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
           type="date"
           value={date}
           onChange={e => setDate(e.target.value)}
-          className="text-xs h-7 border border-gray-200 rounded px-2 bg-white"
+          className="text-xs h-7 border border-hb-border-soft rounded-md px-2 bg-hb-card"
         />
 
-        <label className="flex items-center gap-1 text-xs text-gray-600">
+        <label className="flex items-center gap-1 text-xs text-hb-fg-secondary">
           <input
             type="checkbox"
             checked={allDay}
@@ -101,14 +104,14 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
               type="time"
               value={startTime}
               onChange={e => setStartTime(e.target.value)}
-              className="text-xs h-7 border border-gray-200 rounded px-2 bg-white"
+              className="text-xs h-7 border border-hb-border-soft rounded-md px-2 bg-hb-card"
             />
-            <span className="text-xs text-gray-400">–</span>
+            <span className="text-xs text-hb-fg-muted">–</span>
             <input
               type="time"
               value={endTime}
               onChange={e => setEndTime(e.target.value)}
-              className="text-xs h-7 border border-gray-200 rounded px-2 bg-white"
+              className="text-xs h-7 border border-hb-border-soft rounded-md px-2 bg-hb-card"
             />
           </>
         )}
@@ -118,15 +121,15 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
         <button
           onClick={() => void submit()}
           disabled={saving || !title.trim()}
-          className="text-xs h-7 px-3 bg-gray-900 text-white rounded disabled:opacity-40 hover:bg-gray-700 transition-colors"
+          className="text-xs h-7 px-3 bg-hb-fg text-white rounded-md disabled:opacity-40 hover:bg-black transition-colors"
         >
           {saving ? 'Adding...' : 'Add event'}
         </button>
       </div>
 
       {error && (
-        <div className="px-2 py-1 bg-red-50 border border-red-200 rounded">
-          <p className="text-[11px] text-red-600">{error}</p>
+        <div className="px-2 py-1 bg-[#fcf0f0] border border-[#f1d8d8] rounded">
+          <p className="text-[11px] text-[#a14040]">{error}</p>
         </div>
       )}
     </div>
