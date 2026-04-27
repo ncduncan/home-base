@@ -53,17 +53,17 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
   }
 
   return (
-    <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm space-y-2">
+    <div className="px-4 py-3 bg-hb-card border border-hb-border-soft rounded-xl shadow-sm space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">New task</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+        <span className="text-xs font-semibold text-hb-fg-secondary uppercase tracking-[.1em]">New task</span>
+        <button onClick={onClose} className="text-hb-fg-muted hover:text-hb-fg-secondary">
           <X size={14} />
         </button>
       </div>
 
       <input
         autoFocus
-        className="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-blue-400"
+        className="w-full text-sm bg-hb-card border border-hb-border-soft rounded-md px-2 py-1.5 outline-none focus:border-hb-fg-faint"
         placeholder="Task name..."
         value={name}
         onChange={e => setName(e.target.value)}
@@ -78,7 +78,7 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
           <select
             value={assigneeGid}
             onChange={e => setAssigneeGid(e.target.value)}
-            className="text-xs h-7 border border-gray-200 rounded px-2 bg-white"
+            className="text-xs h-7 border border-hb-border-soft rounded-md px-2 bg-hb-card"
           >
             {users.map(u => (
               <option key={u.gid} value={u.gid}>{firstWord(u.name)}</option>
@@ -90,7 +90,7 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
           type="date"
           value={dueDate}
           onChange={e => setDueDate(e.target.value)}
-          className="text-xs h-7 border border-gray-200 rounded px-2 bg-white"
+          className="text-xs h-7 border border-hb-border-soft rounded-md px-2 bg-hb-card"
         />
 
         <div className="flex-1" />
@@ -98,15 +98,15 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
         <button
           onClick={() => void submit()}
           disabled={saving || !name.trim()}
-          className="text-xs h-7 px-3 bg-gray-900 text-white rounded disabled:opacity-40 hover:bg-gray-700 transition-colors"
+          className="text-xs h-7 px-3 bg-hb-fg text-white rounded-md disabled:opacity-40 hover:bg-black transition-colors"
         >
           {saving ? 'Adding...' : 'Add task'}
         </button>
       </div>
 
       {error && (
-        <div className="px-2 py-1 bg-red-50 border border-red-200 rounded">
-          <p className="text-[11px] text-red-600">{error}</p>
+        <div className="px-2 py-1 bg-[#fcf0f0] border border-[#f1d8d8] rounded">
+          <p className="text-[11px] text-[#a14040]">{error}</p>
         </div>
       )}
     </div>
