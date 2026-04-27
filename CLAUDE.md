@@ -22,7 +22,7 @@ and a Sunday-morning briefing agent that emails them a weekly summary.
 3. Pulls due/overdue Asana tasks for both users
 4. Runs the same shared rules the dashboard uses (AMION processor, gus-care, overrides)
 5. Reconciles Gus pickup/dropoff calendar invites idempotently
-6. Asks Gemini (`gemini-2.0-flash`) for a friendly intro paragraph + action items
+6. Asks Claude (`claude-opus-4-7` via `@anthropic-ai/sdk`) for a friendly intro paragraph + action items
 7. Renders an HTML email and sends it via Gmail API to both Nat and Caitie
 
 The web dashboard (web/) is the day-to-day surface. Both consume `shared/`.
@@ -65,7 +65,7 @@ home-base/
 │   │       ├── week-window.ts    # Sun→Sat date computation
 │   │       ├── data-fetch.ts     # Parallel fetch via shared/ + service-role Supabase
 │   │       ├── briefing-data.ts  # Week grid + todos + conflict detection
-│   │       ├── narrative.ts      # Gemini 2.0 flash with JSON schema + fallback
+│   │       ├── narrative.ts      # Claude Opus 4.7 with output_config JSON schema + fallback
 │   │       ├── email-template.ts # Inline-styled HTML render
 │   │       └── gmail-send.ts     # RFC 2822 multipart, gmail.send API
 │   ├── trmnl_update.py           # ACTIVE — daily TRMNL display update (Python)
@@ -152,7 +152,7 @@ cd agent/briefing
 export GOOGLE_OAUTH_TOKEN="$(cat ~/path/to/token.json)"
 export VITE_SUPABASE_URL=...
 export SUPABASE_SERVICE_ROLE_KEY=...
-export GEMINI_API_KEY=...
+export ANTHROPIC_API_KEY=...
 export ASANA_PAT=...
 export ASANA_WORKSPACE_GID=...
 export ALLOWED_EMAILS=ncduncan@gmail.com,caitante@gmail.com
@@ -204,7 +204,7 @@ revoked in Google account security).
 | `VITE_SUPABASE_ANON_KEY` | deploy.yml | Browser-bundled (intentional) |
 | `SUPABASE_SERVICE_ROLE_KEY` | weekly_briefing.yml | NEW — agent's RLS-bypass key |
 | `ALLOWED_EMAILS` | deploy.yml (browser-bundled), weekly_briefing.yml | Comma-separated recipient list |
-| `GEMINI_API_KEY` | weekly_briefing.yml | Gemini 2.0 flash narrative |
+| `ANTHROPIC_API_KEY` | weekly_briefing.yml | Claude Opus 4.7 narrative pass |
 | `ASANA_PAT` | deploy.yml (browser-bundled ⚠), trmnl_update.yml, weekly_briefing.yml | See security note below |
 | `ASANA_WORKSPACE_GID` | deploy.yml, trmnl_update.yml, weekly_briefing.yml | |
 | `OPENWEATHERMAP_API_KEY` | trmnl_update.yml | Not used by the briefing agent |
@@ -253,3 +253,5 @@ to Node and consume `shared/` like the web app and briefing agent do. Out of sco
 | 2026-03-01 | Initial implementation (Python briefing agent) |
 | 2026-03-08 | Migrated to web dashboard (web/), Sunday cron disabled |
 | 2026-04-27 | Extracted shared/ rules package, rebuilt Sunday agent in Node, re-enabled cron |
+| 2026-04-27 | Removed dormant Python briefing files (commit 5fb8bf2); TRMNL Python pipelines unchanged |
+| 2026-04-27 | Swapped narrative pass from Gemini to Claude Opus 4.7 via @anthropic-ai/sdk |

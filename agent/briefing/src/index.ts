@@ -58,7 +58,7 @@ async function main(): Promise<void> {
   const briefing = buildBriefingData(week, data.events, data.gusCare, data.asanaTasks)
   log(`briefing data: days=${briefing.days.length}, todos=${briefing.todos.length}, conflicts=${briefing.conflicts.length}`)
 
-  const narrative = await generateNarrative(config.geminiApiKey, briefing)
+  const narrative = await generateNarrative(config.anthropicApiKey, briefing)
   log(`narrative: action-items=${narrative.actionItems.length}`)
 
   const html = renderEmailHtml(briefing, narrative)

@@ -7,7 +7,7 @@ export type Config = {
   supabaseUrl: string
   supabaseServiceRoleKey: string
   googleTokenJson: string
-  geminiApiKey: string
+  anthropicApiKey: string
   asanaPat: string
   asanaWorkspaceGid: string
   recipients: string[]
@@ -40,7 +40,7 @@ export function loadConfig(): Config {
     supabaseUrl: required('VITE_SUPABASE_URL'),
     supabaseServiceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
     googleTokenJson: required('GOOGLE_OAUTH_TOKEN'),
-    geminiApiKey: required('GEMINI_API_KEY'),
+    anthropicApiKey: required('ANTHROPIC_API_KEY'),
     asanaPat: required('ASANA_PAT'),
     asanaWorkspaceGid: required('ASANA_WORKSPACE_GID'),
     recipients,

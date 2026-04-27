@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk'
 import type { BriefingData } from './briefing-data.ts'
 
 export type Narrative = {
@@ -7,10 +8,25 @@ export type Narrative = {
   actionItems: string[]
 }
 
-const MODEL = 'gemini-2.0-flash'
+const MODEL = 'claude-opus-4-7'
+
+// No prompt caching: this agent runs once per week, the cache TTL is 1 hour
+// max, and the prompt is well below the 4096-token cache minimum on Opus 4.7.
+// Adding cache_control would charge the 1.25x write premium with zero reads.
+
+const SYSTEM_PROMPT = `You are writing the intro of a weekly briefing email for a couple — Nat and Caitie. Caitie is a medical resident; her shifts come from AMION. They share Gus (their dog) — pickup is 5pm, dropoff is 7am on weekdays.
+
+Given the structured data for the upcoming week, produce JSON with two fields:
+
+1. "intro": a friendly 1-3 sentence paragraph greeting the week. Call out the shape of the week (busy/light, who has the bigger load, any standout days). Warm, plainspoken, no exclamation points unless something genuinely warrants it.
+
+2. "actionItems": a short list (0-5) of things to actually decide or watch for this week. Be specific and actionable. Good examples:
+   - "Find a sitter for Gus pickup Wednesday — both have evening events"
+   - "Caitie's NC overnights Thu–Sat mean Nat handles all 7am dropoffs"
+   Skip items that are already obvious from the schedule.`
 
 /**
- * Send the BriefingData to Gemini and ask for a friendly intro paragraph
+ * Send the BriefingData to Claude and ask for a friendly intro paragraph
  * plus a short list of action items. Failures fall back to a deterministic
  * stub — the briefing should still send even if the API is down.
  */
@@ -18,62 +34,65 @@ export async function generateNarrative(
   apiKey: string,
   data: BriefingData,
 ): Promise<Narrative> {
-  const prompt = buildPrompt(data)
+  const userPrompt = buildUserPrompt(data)
 
   try {
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: 'object',
-              properties: {
-                intro: { type: 'string' },
-                actionItems: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-              },
-              required: ['intro', 'actionItems'],
-            },
-          },
-        }),
-      }
-    )
+    const client = new Anthropic({ apiKey })
 
-    if (!resp.ok) {
-      console.warn(`Gemini API ${resp.status} — using fallback narrative`)
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 2048,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }],
+      output_config: {
+        effort: 'medium',
+        format: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              intro: { type: 'string' },
+              actionItems: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+            },
+            required: ['intro', 'actionItems'],
+            additionalProperties: false,
+          },
+        },
+      },
+    })
+
+    if (response.stop_reason === 'refusal') {
+      console.warn('Claude refused — using fallback narrative')
       return fallbackNarrative(data)
     }
 
-    const json = await resp.json() as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
-    }
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text
+    const text = response.content.find(b => b.type === 'text')?.text
     if (!text) {
-      console.warn('Gemini returned no text — using fallback')
+      console.warn('Claude returned no text — using fallback')
       return fallbackNarrative(data)
     }
 
     const parsed = JSON.parse(text) as Narrative
     if (typeof parsed.intro !== 'string' || !Array.isArray(parsed.actionItems)) {
-      console.warn('Gemini returned malformed JSON — using fallback')
+      console.warn('Claude returned malformed JSON — using fallback')
       return fallbackNarrative(data)
     }
     return parsed
   } catch (e) {
-    console.warn('Gemini narrative pass failed:', (e as Error).message)
+    if (e instanceof Anthropic.APIError) {
+      console.warn(`Anthropic API error ${e.status} — using fallback`)
+    } else {
+      console.warn(`Narrative pass failed: ${(e as Error).name}`)
+    }
     return fallbackNarrative(data)
   }
 }
 
-function buildPrompt(data: BriefingData): string {
-  // Pass JSON; let Gemini reason over the structured data. Keep it short.
+function buildUserPrompt(data: BriefingData): string {
+  // Pass the structured data as JSON; Claude is good at reasoning over it.
   const summary = {
     weekStart: data.week.startDate,
     weekEnd: data.week.endDate,
@@ -94,14 +113,7 @@ function buildPrompt(data: BriefingData): string {
     conflicts: data.conflicts,
   }
 
-  return `You are writing the intro of a weekly briefing email for a couple — Nat and Caitie. Caitie is a medical resident; her shifts come from AMION. They share Gus (their dog) — pickup is 5pm, dropoff is 7am on weekdays. The current week is ${data.week.startDate} to ${data.week.endDate}.
-
-Below is the structured data for the week. Write:
-1. "intro": a friendly 1-3 sentence paragraph greeting the week — call out the shape of the week (busy/light, who has the bigger load, any standout days). Warm, plainspoken, no exclamation points unless something genuinely warrants it.
-2. "actionItems": a short list (0-5) of things to actually decide or watch for this week — be specific and actionable. Examples: "Find a sitter for Gus pickup Wednesday — both have evening events", "Caitie's NC overnights Thu–Sat means Nat handles all 7am dropoffs". Skip items that are already obvious from the schedule.
-
-Data:
-${JSON.stringify(summary, null, 2)}`
+  return `Here is the structured data for the week of ${data.week.startDate} to ${data.week.endDate}:\n\n${JSON.stringify(summary, null, 2)}`
 }
 
 function fallbackNarrative(data: BriefingData): Narrative {
