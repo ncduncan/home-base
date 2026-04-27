@@ -139,7 +139,7 @@ export default function WeekDashboard({
       <div className="flex items-center gap-1 w-44">
         <button
           onClick={() => onWeekChange(-1)}
-          className="text-gray-400 hover:text-gray-700 transition-colors p-1"
+          className="text-hb-fg-muted hover:text-hb-fg transition-colors p-1"
           aria-label="Previous week"
         >
           <ChevronLeft size={18} />
@@ -147,14 +147,14 @@ export default function WeekDashboard({
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="text-gray-300 hover:text-gray-600 transition-colors disabled:opacity-40 p-1"
+          className="text-hb-fg-faint hover:text-hb-fg-secondary transition-colors disabled:opacity-40 p-1"
           aria-label="Refresh"
         >
           <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
         </button>
         <button
           onClick={() => onWeekChange(1)}
-          className="text-gray-400 hover:text-gray-700 transition-colors p-1"
+          className="text-hb-fg-muted hover:text-hb-fg transition-colors p-1"
           aria-label="Next week"
         >
           <ChevronRight size={18} />
@@ -162,13 +162,13 @@ export default function WeekDashboard({
         <button
           onClick={() => onWeekChange(-weekOffset)}
           disabled={weekOffset === 0}
-          className="ml-1 text-xs h-7 px-2.5 rounded-md border bg-white text-gray-600 border-gray-200 hover:border-gray-300 transition-colors disabled:opacity-40 disabled:cursor-default"
+          className="ml-1 text-xs h-7 px-2.5 rounded-md border bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint transition-colors disabled:opacity-40 disabled:cursor-default"
         >
           This week
         </button>
       </div>
 
-      <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-widest">
+      <h2 className="text-sm font-semibold text-hb-fg-secondary uppercase tracking-[.16em]">
         {weekLabel(weekOffset)}
       </h2>
 
@@ -177,8 +177,8 @@ export default function WeekDashboard({
           onClick={() => setAddMode(addMode === 'event' ? null : 'event')}
           className={`flex items-center gap-1 text-xs h-7 px-2.5 rounded-md border transition-colors ${
             addMode === 'event'
-              ? 'bg-gray-900 text-white border-gray-900'
-              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              ? 'bg-hb-fg text-white border-hb-fg'
+              : 'bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint'
           }`}
         >
           <CalendarPlus size={12} />
@@ -188,8 +188,8 @@ export default function WeekDashboard({
           onClick={() => setAddMode(addMode === 'task' ? null : 'task')}
           className={`flex items-center gap-1 text-xs h-7 px-2.5 rounded-md border transition-colors ${
             addMode === 'task'
-              ? 'bg-gray-900 text-white border-gray-900'
-              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              ? 'bg-hb-fg text-white border-hb-fg'
+              : 'bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint'
           }`}
         >
           <Plus size={12} />
