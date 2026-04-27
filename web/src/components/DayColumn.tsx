@@ -67,9 +67,10 @@ function formatAmionTime(event: CalendarEvent): string {
 
 function GusPill({ kind, label }: { kind: 'pickup' | 'dropoff'; label: string }) {
   return (
-    <div className="px-3 py-1 flex items-center gap-1.5 text-[11px] text-hb-fg-secondary">
+    <div className="px-3 py-1.5 flex items-baseline gap-1.5 text-[13px] text-hb-fg leading-tight">
       <span className="text-hb-fg-faint">{kind === 'dropoff' ? '↓' : '↑'}</span>
-      Gus {kind} <span className="text-hb-fg-muted">{label}</span>
+      <span>Gus {kind}</span>
+      <span className="text-[11px] text-hb-fg-muted tabular-nums">{label}</span>
     </div>
   )
 }
@@ -101,21 +102,22 @@ function OwnerSection({
   onSaveOverride, onDeleteOverride, onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
 }: OwnerSectionProps) {
-  const sectionClass = owner === 'nat'
-    ? 'border-l-2 border-hb-nat-accent bg-gradient-to-r from-hb-nat-fade to-hb-card to-45%'
-    : 'border-l-2 border-hb-cai-accent bg-gradient-to-r from-hb-cai-fade to-hb-card to-45%'
+  const edgeClass = owner === 'nat'
+    ? 'border-l-2 border-hb-nat-accent'
+    : 'border-l-2 border-hb-cai-accent'
+  const labelBgClass = owner === 'nat' ? 'bg-hb-nat-fade' : 'bg-hb-cai-fade'
   const headerLabel = OWNER_LABELS[owner]
 
   const isEmpty = events.length === 0 && tasks.length === 0 && !hasDropoff && !hasPickup
 
   return (
-    <div className={`${sectionClass} min-h-[80px] py-2`}>
-      <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[.1em] text-hb-fg-secondary">
+    <div className={`${edgeClass} min-h-[80px]`}>
+      <div className={`${labelBgClass} px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.1em] text-hb-fg-secondary`}>
         {headerLabel}
       </div>
 
       {isEmpty && (
-        <div className="px-3 text-[11px] text-hb-fg-faint italic">—</div>
+        <div className="px-3 pt-2 text-[11px] text-hb-fg-faint italic">—</div>
       )}
 
       {/* Gus pills owned by this person */}
