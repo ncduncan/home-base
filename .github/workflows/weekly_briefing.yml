@@ -10,6 +10,9 @@ on:
 # Public repo: keep run logs clean of personal content. The agent enforces
 # this in code; this comment is a reminder for human edits.
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   briefing:
     name: Generate & send weekly briefing
