@@ -1,0 +1,185 @@
+<h2>Which visual direction feels right?</h2>
+<p class="subtitle">Each mockup shows a single day column with the same content, in three different aesthetic directions. Click to select your favorite — or tell me what you'd mix.</p>
+
+<style>
+  .day-mock {
+    border-radius: 14px;
+    overflow: hidden;
+    font-feature-settings: "ss01", "cv11";
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.02);
+  }
+
+  /* ── A: Editorial / refined ───────────────────────── */
+  .dir-a { background: #fdfcfa; border: 1px solid #e8e3da; font-family: "Iowan Old Style", "Charter", Georgia, serif; }
+  .dir-a .head { padding: 14px 16px 12px; border-bottom: 1px solid #ece7dd; display:flex; justify-content:space-between; align-items:flex-start;}
+  .dir-a .day-of-week { font-family: "Inter", sans-serif; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#988e7c; font-weight:500; }
+  .dir-a .date-num { font-size: 22px; line-height: 1; margin-top: 4px; color:#26211a; font-weight: 500; letter-spacing:-.01em;}
+  .dir-a .wx { text-align:right; font-family:"Inter", sans-serif; }
+  .dir-a .wx-icon { font-size:18px; }
+  .dir-a .wx-temp { font-size:10px; color:#988e7c; }
+  .dir-a .owner-label { padding: 8px 16px 4px; font-family:"Inter",sans-serif; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#a99e8b;}
+  .dir-a .owner-label.nat { color:#3d4f7a; }
+  .dir-a .owner-label.cai { color:#8b6c1f; }
+  .dir-a .evt { padding: 6px 16px 8px; font-size:13px; color:#2a241c; line-height: 1.35;}
+  .dir-a .evt + .evt { border-top: 1px dotted #ede7dc; }
+  .dir-a .evt .when { font-family:"Inter", sans-serif; font-size: 10.5px; color: #988e7c; margin-top:1px; }
+  .dir-a .gus { padding: 5px 16px; font-family:"Inter", sans-serif; font-size: 10.5px; color: #6b6555; background: #f6f1e6;}
+  .dir-a .divider { height:1px; background: #ece7dd;}
+
+  /* ── B: Warm / calm ───────────────────────── */
+  .dir-b { background: #fbfaf7; border: 1px solid #ece8df; font-family: "Inter", system-ui, sans-serif;}
+  .dir-b .head { padding: 14px 14px 12px; background: #f5f1e8;}
+  .dir-b .day-of-week { font-size: 11px; color:#9a9281; font-weight:600; letter-spacing:.04em;}
+  .dir-b .date-num { font-size: 20px; color:#3d3a32; font-weight:600; margin-top:2px; letter-spacing:-.02em; }
+  .dir-b .wx { float:right; text-align:right; }
+  .dir-b .wx-icon { font-size: 22px; }
+  .dir-b .wx-temp { font-size: 10.5px; color:#9a9281; margin-top: 1px;}
+  .dir-b .owner-band { padding: 6px 14px; font-size: 10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#fff;}
+  .dir-b .owner-band.nat { background: linear-gradient(135deg, #5a7bd4, #6e8ad9);}
+  .dir-b .owner-band.cai { background: linear-gradient(135deg, #d4a64a, #d9b15c); color:#3d2f0f;}
+  .dir-b .evt { padding: 8px 14px; font-size: 13px; color:#3d3a32; line-height: 1.35;}
+  .dir-b .evt + .evt { border-top: 1px solid #f1ede2;}
+  .dir-b .evt .when { font-size: 11px; color:#9a9281; margin-top:1px;}
+  .dir-b .gus { padding: 6px 14px; font-size: 11px; color:#6e6754; background:#f5f1e8; display:flex; align-items:center; gap:6px;}
+  .dir-b .gus .arrow { color:#a89c7e;}
+
+  /* ── C: Crisp / minimal mono ───────────────────────── */
+  .dir-c { background: #fff; border: 1px solid #ededed; font-family: "Inter", system-ui, sans-serif;}
+  .dir-c .head { padding: 12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 1px solid #f3f3f3;}
+  .dir-c .day-of-week { font-size: 11px; color:#999; font-weight:500; text-transform:uppercase; letter-spacing:.08em;}
+  .dir-c .date-num { font-size: 18px; color:#000; font-weight:600; margin-top:2px; letter-spacing:-.02em;}
+  .dir-c .wx { text-align:right;}
+  .dir-c .wx-icon { font-size:16px;}
+  .dir-c .wx-temp { font-size:11px; color:#999;}
+  .dir-c .owner-rule { padding: 8px 14px 4px; font-size: 9.5px; font-weight: 600; letter-spacing: .12em; text-transform:uppercase; color:#aaa; display:flex; align-items:center; gap:8px;}
+  .dir-c .owner-rule::after { content:""; flex:1; height:1px; background:#f0f0f0;}
+  .dir-c .owner-rule.nat { color:#000;}
+  .dir-c .owner-rule.nat .dot { width:6px; height:6px; border-radius:50%; background:#000; display:inline-block;}
+  .dir-c .owner-rule.cai { color:#000;}
+  .dir-c .owner-rule.cai .dot { width:6px; height:6px; border-radius:50%; background:transparent; border:1.5px solid #000; display:inline-block;}
+  .dir-c .evt { padding: 6px 14px; font-size: 13px; color:#111; line-height:1.4;}
+  .dir-c .evt + .evt { }
+  .dir-c .evt .when { font-size: 11px; color:#888; font-variant-numeric: tabular-nums;}
+  .dir-c .gus { padding: 5px 14px; font-size:11px; color:#666; display:flex; align-items:center; gap:6px;}
+  .dir-c .gus .pip { color:#aaa;}
+</style>
+
+<div class="cards" style="grid-template-columns: repeat(3, 1fr); gap: 18px;">
+
+  <!-- ===== A: Editorial / refined ===== -->
+  <div class="card" data-choice="editorial" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="day-mock dir-a">
+      <div class="head">
+        <div>
+          <div class="day-of-week">Wed</div>
+          <div class="date-num">Apr 30</div>
+        </div>
+        <div class="wx">
+          <div class="wx-icon">☀</div>
+          <div class="wx-temp">52–68°F</div>
+        </div>
+      </div>
+
+      <div class="owner-label cai">Caitie</div>
+      <div class="evt">
+        Night Call · NC-11H
+        <div class="when">4 pm – 8 am +1</div>
+      </div>
+      <div class="gus">↓ Gus dropoff · 7 am</div>
+
+      <div class="divider"></div>
+
+      <div class="owner-label nat">Nat</div>
+      <div class="evt">
+        Lunch with Mira
+        <div class="when">12:30 pm · Tatte</div>
+      </div>
+      <div class="evt">
+        Submit expense report
+        <div class="when">due today</div>
+      </div>
+      <div class="gus">↑ Gus pickup · 5 pm</div>
+    </div>
+    <div class="card-body" style="margin-top:14px;">
+      <h3>A · Editorial</h3>
+      <p>Serif body, warm off-white, hairline rules, restrained color. Reads like a printed page. Calm, considered.</p>
+    </div>
+  </div>
+
+  <!-- ===== B: Warm / calm ===== -->
+  <div class="card" data-choice="warm" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="day-mock dir-b">
+      <div class="head">
+        <div class="wx" style="float:right;">
+          <div class="wx-icon">☀</div>
+          <div class="wx-temp">52–68°F</div>
+        </div>
+        <div class="day-of-week">WED</div>
+        <div class="date-num">Apr 30</div>
+      </div>
+
+      <div class="owner-band cai">Caitie</div>
+      <div class="evt">
+        Night Call · NC-11H
+        <div class="when">4 pm – 8 am +1</div>
+      </div>
+      <div class="gus"><span class="arrow">↓</span> Gus dropoff · 7 am</div>
+
+      <div class="owner-band nat">Nat</div>
+      <div class="evt">
+        Lunch with Mira
+        <div class="when">12:30 pm · Tatte</div>
+      </div>
+      <div class="evt">
+        Submit expense report
+        <div class="when">due today</div>
+      </div>
+      <div class="gus"><span class="arrow">↑</span> Gus pickup · 5 pm</div>
+    </div>
+    <div class="card-body" style="margin-top:14px;">
+      <h3>B · Warm</h3>
+      <p>Soft cream background, rounded corners, gentle gradients on owner bands. Friendly, lived-in. Feels like home.</p>
+    </div>
+  </div>
+
+  <!-- ===== C: Crisp / minimal mono ===== -->
+  <div class="card" data-choice="minimal" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="day-mock dir-c">
+      <div class="head">
+        <div>
+          <div class="day-of-week">WED</div>
+          <div class="date-num">Apr 30</div>
+        </div>
+        <div class="wx">
+          <div class="wx-icon">☀</div>
+          <div class="wx-temp">52–68°F</div>
+        </div>
+      </div>
+
+      <div class="owner-rule cai"><span class="dot"></span>Caitie</div>
+      <div class="evt">
+        Night Call · NC-11H
+        <div class="when">4 pm – 8 am +1</div>
+      </div>
+      <div class="gus"><span class="pip">↓</span> Gus dropoff · 7 am</div>
+
+      <div class="owner-rule nat"><span class="dot"></span>Nat</div>
+      <div class="evt">
+        Lunch with Mira
+        <div class="when">12:30 pm · Tatte</div>
+      </div>
+      <div class="evt">
+        Submit expense report
+        <div class="when">due today</div>
+      </div>
+      <div class="gus"><span class="pip">↑</span> Gus pickup · 5 pm</div>
+    </div>
+    <div class="card-body" style="margin-top:14px;">
+      <h3>C · Minimal</h3>
+      <p>Near-black on white. Owner identity by ring vs filled dot, not color. Crisp, editorial-tech. Feels like Linear / Vercel.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:24px;">Pick one as the closest starting point — we can borrow elements from the others.</p>

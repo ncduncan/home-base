@@ -1,0 +1,164 @@
+<h2>How should family / multi-day events render?</h2>
+<p class="subtitle">"Deirdre visiting" runs Wed–Fri. Three treatments — same week, same content. Click your pick.</p>
+
+<style>
+  .week { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; position: relative; }
+  .col { background:#fff; border:1px solid #ededed; border-radius:12px; overflow:hidden; box-shadow: 0 1px 2px rgba(0,0,0,.04); font-family:"Inter", system-ui, sans-serif;}
+  .col .head { padding: 10px 12px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f3f3f3;}
+  .col .dow { color:#999; font-weight:500; text-transform:uppercase; letter-spacing:.08em; font-size:11px;}
+  .col .num { color:#000; font-weight:600; letter-spacing:-.02em; margin-top:2px; font-size:17px;}
+  .col .wx { text-align:right; color:#999; font-size:11px;}
+  .col .wx-icon { font-size:16px;}
+  .col .section { border-left: 2px solid transparent;}
+  .col .section.cai { border-left-color:#e8c66e; background:linear-gradient(to right, #fdf9ee, #fff 40%);}
+  .col .section.nat { border-left-color:#8ea5e0; background:linear-gradient(to right, #f4f7fd, #fff 40%);}
+  .col .owner { font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#444; padding: 8px 12px 3px; font-size:10px;}
+  .col .evt { padding: 6px 12px; color:#111; line-height:1.35; font-size:13px;}
+  .col .when { color:#888; font-variant-numeric: tabular-nums; font-size:11px;}
+  .col.today { box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 0 0 1.5px #000 inset; border-color:#000;}
+  .col.today .head { background:#fafafa;}
+
+  /* OPTION 1 — neutral band per day */
+  .v1 .banner { padding: 5px 12px; font-size: 11.5px; color: #555; background: #f5f5f5; border-bottom: 1px solid #ededed; display:flex; align-items:center; gap:6px;}
+  .v1 .banner::before { content:"●"; color:#bbb; font-size:8px;}
+
+  /* OPTION 2 — warm accent band per day, distinct from owner colors */
+  .v2 .banner { padding: 5px 12px; font-size: 11.5px; color: #5a4538; background: #faf3ed; border-bottom: 1px solid #f1e6da; display:flex; align-items:center; gap:6px;}
+  .v2 .banner .dot { width:6px; height:6px; border-radius:50%; background:#c89b6a; display:inline-block;}
+
+  /* OPTION 3 — spanning ribbon that bridges columns */
+  .v3-wrap { position: relative;}
+  .v3 .col .banner-spacer { height: 26px; border-bottom: 1px solid #f3f3f3;}
+  .v3 .ribbon {
+    position: absolute;
+    top: 50px; /* sits over the banner-spacer row */
+    height: 25px;
+    background: #faf3ed;
+    border: 1px solid #efddc8;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 11.5px;
+    color: #5a4538;
+    display: flex; align-items: center; gap:6px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.02);
+    pointer-events: none;
+  }
+  .v3 .ribbon .dot { width:6px; height:6px; border-radius:50%; background:#c89b6a;}
+
+  /* Layout for cards */
+  .card-body { margin-top:14px;}
+  .label-pill { display:inline-block; font-size:10px; color:#888; background:#f4f4f4; border-radius:4px; padding:2px 6px; margin-left:6px; vertical-align:middle;}
+</style>
+
+<div class="cards" style="grid-template-columns: 1fr; gap: 18px; max-width: 1100px; margin: 0 auto;">
+
+  <!-- OPTION 1 — neutral per-day band -->
+  <div class="card" data-choice="neutral" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="week v1">
+      <div class="col">
+        <div class="head"><div><div class="dow">TUE</div><div class="num">Apr 29</div></div><div class="wx"><span class="wx-icon">☀</span><div>48–62°</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Standup<div class="when">9 am</div></div></div>
+      </div>
+      <div class="col today">
+        <div class="head"><div><div class="dow">WED</div><div class="num">Apr 30</div></div><div class="wx"><span class="wx-icon">☀</span><div>52–68°</div></div></div>
+        <div class="banner">Deirdre visiting</div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Night Call<div class="when">4 pm – 8 am +1</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Lunch with Mira<div class="when">12:30 pm</div></div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">THU</div><div class="num">May 1</div></div><div class="wx"><span class="wx-icon">⛅</span><div>50–64°</div></div></div>
+        <div class="banner">Deirdre visiting</div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Vacation</div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">1:1 w/ Sarah<div class="when">3 pm</div></div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">FRI</div><div class="num">May 2</div></div><div class="wx"><span class="wx-icon">🌧</span><div>49–58°</div></div></div>
+        <div class="banner">Deirdre visiting</div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Off early<div class="when">2 pm</div></div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">SAT</div><div class="num">May 3</div></div><div class="wx"><span class="wx-icon">☀</span><div>55–70°</div></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1 · Neutral band</h3>
+      <p>Per-day grey band. Quietest. Fits the minimal aesthetic but reads as low-priority — easy to miss at a glance.</p>
+    </div>
+  </div>
+
+  <!-- OPTION 2 — warm accent per day -->
+  <div class="card" data-choice="warm" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="week v2">
+      <div class="col">
+        <div class="head"><div><div class="dow">TUE</div><div class="num">Apr 29</div></div><div class="wx"><span class="wx-icon">☀</span><div>48–62°</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Standup<div class="when">9 am</div></div></div>
+      </div>
+      <div class="col today">
+        <div class="head"><div><div class="dow">WED</div><div class="num">Apr 30</div></div><div class="wx"><span class="wx-icon">☀</span><div>52–68°</div></div></div>
+        <div class="banner"><span class="dot"></span>Deirdre visiting</div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Night Call<div class="when">4 pm – 8 am +1</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Lunch with Mira<div class="when">12:30 pm</div></div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">THU</div><div class="num">May 1</div></div><div class="wx"><span class="wx-icon">⛅</span><div>50–64°</div></div></div>
+        <div class="banner"><span class="dot"></span>Deirdre visiting</div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Vacation</div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">1:1 w/ Sarah<div class="when">3 pm</div></div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">FRI</div><div class="num">May 2</div></div><div class="wx"><span class="wx-icon">🌧</span><div>49–58°</div></div></div>
+        <div class="banner"><span class="dot"></span>Deirdre visiting</div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Off early<div class="when">2 pm</div></div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">SAT</div><div class="num">May 3</div></div><div class="wx"><span class="wx-icon">☀</span><div>55–70°</div></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2 · Warm accent <span class="label-pill">recommended</span></h3>
+      <p>Soft terracotta/sand band — a third color distinct from Caitie's amber and Nat's blue. Visible at a glance, still calm.</p>
+    </div>
+  </div>
+
+  <!-- OPTION 3 — spanning ribbon -->
+  <div class="card" data-choice="spanning" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="week v3-wrap">
+      <div class="week v3">
+        <div class="col">
+          <div class="head"><div><div class="dow">TUE</div><div class="num">Apr 29</div></div><div class="wx"><span class="wx-icon">☀</span><div>48–62°</div></div></div>
+          <div class="banner-spacer"></div>
+          <div class="section nat"><div class="owner">Nat</div><div class="evt">Standup<div class="when">9 am</div></div></div>
+        </div>
+        <div class="col today">
+          <div class="head"><div><div class="dow">WED</div><div class="num">Apr 30</div></div><div class="wx"><span class="wx-icon">☀</span><div>52–68°</div></div></div>
+          <div class="banner-spacer"></div>
+          <div class="section cai"><div class="owner">Caitie</div><div class="evt">Night Call<div class="when">4 pm – 8 am +1</div></div></div>
+          <div class="section nat"><div class="owner">Nat</div><div class="evt">Lunch with Mira<div class="when">12:30 pm</div></div></div>
+        </div>
+        <div class="col">
+          <div class="head"><div><div class="dow">THU</div><div class="num">May 1</div></div><div class="wx"><span class="wx-icon">⛅</span><div>50–64°</div></div></div>
+          <div class="banner-spacer"></div>
+          <div class="section cai"><div class="owner">Caitie</div><div class="evt">Vacation</div></div>
+          <div class="section nat"><div class="owner">Nat</div><div class="evt">1:1 w/ Sarah<div class="when">3 pm</div></div></div>
+        </div>
+        <div class="col">
+          <div class="head"><div><div class="dow">FRI</div><div class="num">May 2</div></div><div class="wx"><span class="wx-icon">🌧</span><div>49–58°</div></div></div>
+          <div class="banner-spacer"></div>
+          <div class="section nat"><div class="owner">Nat</div><div class="evt">Off early<div class="when">2 pm</div></div></div>
+        </div>
+        <div class="col">
+          <div class="head"><div><div class="dow">SAT</div><div class="num">May 3</div></div><div class="wx"><span class="wx-icon">☀</span><div>55–70°</div></div></div>
+        </div>
+      </div>
+      <!-- Ribbon spans Wed–Fri (cols 2–4 in a 5-col grid). Position: left ~20%, width ~60% with small gap correction -->
+      <div class="ribbon" style="left: calc(20% + 4px); right: calc(20% + 4px);">
+        <span class="dot"></span>Deirdre visiting · Wed–Fri
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3 · Spanning ribbon</h3>
+      <p>One ribbon visually bridges the days the visit covers. More structurally truthful — you see the duration at a glance — but harder to render reliably (overlapping banners, partial weeks).</p>
+    </div>
+  </div>
+
+</div>

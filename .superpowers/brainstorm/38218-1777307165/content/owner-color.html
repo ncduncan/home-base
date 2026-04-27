@@ -1,0 +1,138 @@
+<h2>How subtle should the owner color be?</h2>
+<p class="subtitle">Three ways to differentiate Caitie / Nat sections, from quietest to most present. Click your favorite.</p>
+
+<style>
+  .day-mock {
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #ededed;
+    font-family: "Inter", system-ui, sans-serif;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .day-mock .head {
+    padding: 12px 14px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    border-bottom: 1px solid #f3f3f3;
+  }
+  .day-mock .day-of-week { font-size: 11px; color:#999; font-weight:500; text-transform:uppercase; letter-spacing:.08em;}
+  .day-mock .date-num { font-size: 18px; color:#000; font-weight:600; margin-top:2px; letter-spacing:-.02em;}
+  .day-mock .wx { text-align:right;}
+  .day-mock .wx-icon { font-size:16px;}
+  .day-mock .wx-temp { font-size:11px; color:#999;}
+  .day-mock .evt { padding: 6px 14px; font-size: 13px; color:#111; line-height:1.4;}
+  .day-mock .evt .when { font-size: 11px; color:#888; font-variant-numeric: tabular-nums;}
+  .day-mock .gus { padding: 5px 14px; font-size:11px; color:#666; display:flex; align-items:center; gap:6px;}
+  .day-mock .gus .pip { color:#aaa;}
+
+  /* OPTION 1 — colored dot only, everything else mono */
+  .v1 .owner { padding: 10px 14px 4px; font-size: 10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#444; display:flex; align-items:center; gap:8px;}
+  .v1 .owner::after { content:""; flex:1; height:1px; background:#f0f0f0;}
+  .v1 .owner .dot { width:6px; height:6px; border-radius:50%; display:inline-block;}
+  .v1 .owner.cai .dot { background:#d4a64a;}
+  .v1 .owner.nat .dot { background:#5a7bd4;}
+
+  /* OPTION 2 — colored owner label (the word itself is tinted), no other color */
+  .v2 .owner { padding: 10px 14px 4px; font-size: 10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; display:flex; align-items:center; gap:8px;}
+  .v2 .owner::after { content:""; flex:1; height:1px; background:#f0f0f0;}
+  .v2 .owner.cai { color:#a07a18;}
+  .v2 .owner.nat { color:#3556a8;}
+
+  /* OPTION 3 — left-edge accent rule on the section, owner label mono */
+  .v3 .section { border-left: 2px solid transparent; padding-left: 0;}
+  .v3 .section.cai { border-left-color: #e8c66e; background: linear-gradient(to right, #fdf9ee 0%, #fff 40%);}
+  .v3 .section.nat { border-left-color: #8ea5e0; background: linear-gradient(to right, #f4f7fd 0%, #fff 40%);}
+  .v3 .owner { padding: 10px 14px 4px; font-size: 10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#444;}
+
+</style>
+
+<div class="cards" style="grid-template-columns: repeat(3, 1fr); gap: 18px;">
+
+  <!-- OPTION 1 — quietest -->
+  <div class="card" data-choice="dot" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="day-mock v1">
+      <div class="head">
+        <div>
+          <div class="day-of-week">WED</div>
+          <div class="date-num">Apr 30</div>
+        </div>
+        <div class="wx">
+          <div class="wx-icon">☀</div>
+          <div class="wx-temp">52–68°F</div>
+        </div>
+      </div>
+      <div class="owner cai"><span class="dot"></span>Caitie</div>
+      <div class="evt">Night Call · NC-11H<div class="when">4 pm – 8 am +1</div></div>
+      <div class="gus"><span class="pip">↓</span> Gus dropoff · 7 am</div>
+
+      <div class="owner nat"><span class="dot"></span>Nat</div>
+      <div class="evt">Lunch with Mira<div class="when">12:30 pm · Tatte</div></div>
+      <div class="evt">Submit expense report<div class="when">due today</div></div>
+      <div class="gus"><span class="pip">↑</span> Gus pickup · 5 pm</div>
+    </div>
+    <div class="card-body" style="margin-top:14px;">
+      <h3>1 · Dot only</h3>
+      <p>Owner identity by a single colored dot next to the label. Quietest possible. Color is information only when you look for it.</p>
+    </div>
+  </div>
+
+  <!-- OPTION 2 — tinted label -->
+  <div class="card" data-choice="label" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="day-mock v2">
+      <div class="head">
+        <div>
+          <div class="day-of-week">WED</div>
+          <div class="date-num">Apr 30</div>
+        </div>
+        <div class="wx">
+          <div class="wx-icon">☀</div>
+          <div class="wx-temp">52–68°F</div>
+        </div>
+      </div>
+      <div class="owner cai">Caitie</div>
+      <div class="evt">Night Call · NC-11H<div class="when">4 pm – 8 am +1</div></div>
+      <div class="gus"><span class="pip">↓</span> Gus dropoff · 7 am</div>
+
+      <div class="owner nat">Nat</div>
+      <div class="evt">Lunch with Mira<div class="when">12:30 pm · Tatte</div></div>
+      <div class="evt">Submit expense report<div class="when">due today</div></div>
+      <div class="gus"><span class="pip">↑</span> Gus pickup · 5 pm</div>
+    </div>
+    <div class="card-body" style="margin-top:14px;">
+      <h3>2 · Tinted label</h3>
+      <p>The owner name itself is colored — slightly more visible than a dot, but still a small mark. The events stay pure black-on-white.</p>
+    </div>
+  </div>
+
+  <!-- OPTION 3 — accent rule + faint tint -->
+  <div class="card" data-choice="rule" onclick="toggleSelect(this)" style="padding:18px;">
+    <div class="day-mock v3">
+      <div class="head">
+        <div>
+          <div class="day-of-week">WED</div>
+          <div class="date-num">Apr 30</div>
+        </div>
+        <div class="wx">
+          <div class="wx-icon">☀</div>
+          <div class="wx-temp">52–68°F</div>
+        </div>
+      </div>
+      <div class="section cai">
+        <div class="owner">Caitie</div>
+        <div class="evt">Night Call · NC-11H<div class="when">4 pm – 8 am +1</div></div>
+        <div class="gus"><span class="pip">↓</span> Gus dropoff · 7 am</div>
+      </div>
+      <div class="section nat">
+        <div class="owner">Nat</div>
+        <div class="evt">Lunch with Mira<div class="when">12:30 pm · Tatte</div></div>
+        <div class="evt">Submit expense report<div class="when">due today</div></div>
+        <div class="gus"><span class="pip">↑</span> Gus pickup · 5 pm</div>
+      </div>
+    </div>
+    <div class="card-body" style="margin-top:14px;">
+      <h3>3 · Edge rule + fade</h3>
+      <p>A 2px colored bar on the left edge of each owner section, with a faint tint that fades to white. Color is felt at a glance without dominating.</p>
+    </div>
+  </div>
+
+</div>

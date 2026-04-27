@@ -1,0 +1,210 @@
+<h2>Refined: spanning ribbon + aligned rows + unified family + past-day fade</h2>
+<p class="subtitle">Same week, all four fixes applied. Wed is today. Tue is past (faded). Deirdre visiting Wed–Fri.</p>
+
+<style>
+  /* ─── Shared cell defaults ─── */
+  .week {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: auto auto 1fr 1fr; /* head, banner, caitie, nat */
+    gap: 6px;
+    font-family: "Inter", system-ui, sans-serif;
+  }
+
+  /* The "column" is virtual — each row carries 5 cells */
+  .head, .banner-cell, .cai-cell, .nat-cell {
+    background: #fff;
+    border-left: 1px solid #ededed;
+    border-right: 1px solid #ededed;
+  }
+
+  .head {
+    border-top: 1px solid #ededed;
+    border-radius: 12px 12px 0 0;
+    padding: 10px 12px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    border-bottom: 1px solid #f3f3f3;
+  }
+  .head .dow { font-size:11px; color:#999; font-weight:500; text-transform:uppercase; letter-spacing:.08em;}
+  .head .num { font-size:17px; color:#000; font-weight:600; letter-spacing:-.02em; margin-top:2px;}
+  .head .num .today-tag { font-size:10px; color:#888; font-weight:500; letter-spacing:0; text-transform:none; margin-left:4px;}
+  .head .wx { text-align:right; color:#999; font-size:11px;}
+  .head .wx-icon { font-size:16px;}
+
+  /* Banner row — empty cells are fully transparent, no shadow */
+  .banner-cell { background: transparent; border-left: 0; border-right: 0; min-height: 6px;}
+
+  /* Section cells — Caitie row + Nat row */
+  .section { padding: 8px 0 10px; min-height: 80px; position: relative; }
+  .section .owner {
+    font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #444;
+    padding: 0 12px 4px 12px; font-size: 10px;
+  }
+  .section .evt { padding: 4px 12px; color:#111; line-height:1.35; font-size:13px;}
+  .section .when { color:#888; font-variant-numeric: tabular-nums; font-size:11px;}
+  .section .empty { padding: 0 12px; color:#bbb; font-size:11px; font-style: italic;}
+
+  .cai-cell { border-top: 1px solid #f3f3f3;}
+  .cai-cell .section { border-left: 2px solid #e8c66e; background: linear-gradient(to right, #fdf9ee, #fff 45%);}
+  .nat-cell { border-bottom: 1px solid #ededed; border-radius: 0 0 12px 12px;}
+  .nat-cell .section { border-left: 2px solid #8ea5e0; background: linear-gradient(to right, #f4f7fd, #fff 45%);}
+
+  /* ─── Family ribbon — unified style with section accents ─── */
+  .ribbon {
+    grid-row: 2;
+    grid-column: 2 / 5;            /* Wed → Fri (cols 2–4 of 5) */
+    align-self: stretch;
+    margin: 4px 4px;
+    padding: 6px 12px;
+    font-size: 11.5px;
+    color: #5a4538;
+    border-left: 2px solid #c89b6a;
+    background: linear-gradient(to right, #faf3ed, #fdf6ee 60%, #fcf6ec);
+    border-radius: 6px;
+    border-top: 1px solid #f1e6da;
+    border-right: 1px solid #f1e6da;
+    border-bottom: 1px solid #f1e6da;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ribbon .label {
+    font-size: 9.5px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: #8c6b4f; margin-right: 8px;
+  }
+  .ribbon .body { color:#3d2f23; font-size:13px; }
+
+  /* ─── Today — option A, refined: tinted header + label, no border conflict ─── */
+  .head.today { background: #f6f6f6;}
+  .head.today .dow { color: #555;}
+  .head.today .num .today-tag { color:#555;}
+
+  /* ─── Past day fade (more pronounced than current 75%) ─── */
+  .past .head, .past .banner-cell, .past .cai-cell, .past .nat-cell {
+    opacity: 0.50;
+  }
+
+  /* Per-column targeting via grid-column on each cell */
+  .col1 { grid-column: 1; }
+  .col2 { grid-column: 2; }
+  .col3 { grid-column: 3; }
+  .col4 { grid-column: 4; }
+  .col5 { grid-column: 5; }
+
+  /* Row positioning */
+  .row-head { grid-row: 1; }
+  .row-banner { grid-row: 2; }
+  .row-cai { grid-row: 3; }
+  .row-nat { grid-row: 4; }
+</style>
+
+<div style="max-width: 1100px; margin: 0 auto; padding: 18px; background:#fafafa; border:1px solid #eee; border-radius: 14px;">
+
+  <div class="week">
+
+    <!-- ROW 1: HEADERS -->
+    <div class="head row-head col1 past">
+      <div><div class="dow">TUE</div><div class="num">Apr 29</div></div>
+      <div class="wx"><span class="wx-icon">☀</span><div>48–62°</div></div>
+    </div>
+    <div class="head row-head col2 today">
+      <div><div class="dow">WED</div><div class="num">Apr 30<span class="today-tag">· today</span></div></div>
+      <div class="wx"><span class="wx-icon">☀</span><div>52–68°</div></div>
+    </div>
+    <div class="head row-head col3">
+      <div><div class="dow">THU</div><div class="num">May 1</div></div>
+      <div class="wx"><span class="wx-icon">⛅</span><div>50–64°</div></div>
+    </div>
+    <div class="head row-head col4">
+      <div><div class="dow">FRI</div><div class="num">May 2</div></div>
+      <div class="wx"><span class="wx-icon">🌧</span><div>49–58°</div></div>
+    </div>
+    <div class="head row-head col5">
+      <div><div class="dow">SAT</div><div class="num">May 3</div></div>
+      <div class="wx"><span class="wx-icon">☀</span><div>55–70°</div></div>
+    </div>
+
+    <!-- ROW 2: BANNER ROW. Empty cells transparent; ribbon spans Wed→Fri -->
+    <div class="banner-cell row-banner col1 past"></div>
+    <div class="ribbon">
+      <span class="label">Family</span>
+      <span class="body">Deirdre visiting · Wed–Fri</span>
+    </div>
+    <div class="banner-cell row-banner col5"></div>
+
+    <!-- ROW 3: CAITIE -->
+    <div class="cai-cell row-cai col1 past">
+      <div class="section">
+        <div class="owner">Caitie</div>
+        <div class="empty">—</div>
+      </div>
+    </div>
+    <div class="cai-cell row-cai col2">
+      <div class="section">
+        <div class="owner">Caitie</div>
+        <div class="evt">Night Call · NC-11H<div class="when">4 pm – 8 am +1</div></div>
+      </div>
+    </div>
+    <div class="cai-cell row-cai col3">
+      <div class="section">
+        <div class="owner">Caitie</div>
+        <div class="evt">Vacation</div>
+      </div>
+    </div>
+    <div class="cai-cell row-cai col4">
+      <div class="section">
+        <div class="owner">Caitie</div>
+        <div class="empty">—</div>
+      </div>
+    </div>
+    <div class="cai-cell row-cai col5">
+      <div class="section">
+        <div class="owner">Caitie</div>
+        <div class="empty">—</div>
+      </div>
+    </div>
+
+    <!-- ROW 4: NAT -->
+    <div class="nat-cell row-nat col1 past">
+      <div class="section">
+        <div class="owner">Nat</div>
+        <div class="evt">Standup<div class="when">9 am</div></div>
+      </div>
+    </div>
+    <div class="nat-cell row-nat col2">
+      <div class="section">
+        <div class="owner">Nat</div>
+        <div class="evt">Lunch with Mira<div class="when">12:30 pm · Tatte</div></div>
+        <div class="evt">Submit expense report<div class="when">due today</div></div>
+      </div>
+    </div>
+    <div class="nat-cell row-nat col3">
+      <div class="section">
+        <div class="owner">Nat</div>
+        <div class="evt">1:1 w/ Sarah<div class="when">3 pm</div></div>
+      </div>
+    </div>
+    <div class="nat-cell row-nat col4">
+      <div class="section">
+        <div class="owner">Nat</div>
+        <div class="evt">Off early<div class="when">2 pm</div></div>
+      </div>
+    </div>
+    <div class="nat-cell row-nat col5">
+      <div class="section">
+        <div class="owner">Nat</div>
+        <div class="empty">—</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div style="max-width: 1100px; margin: 24px auto 0; font-family: 'Inter', sans-serif; font-size: 13px; color: #555; line-height: 1.5;">
+  <strong style="color:#000;">What changed:</strong>
+  <ol style="padding-left: 18px;">
+    <li>Banner row's empty cells are fully transparent — no flanking phantom boxes around the ribbon.</li>
+    <li>Caitie and Nat now read across as horizontal bands. Empty days show the owner label + a thin <code>—</code> so the rhythm holds and "nothing scheduled" reads as deliberate, not missing.</li>
+    <li>Family ribbon now uses the same left-edge accent + fade-to-white pattern as the owner sections, just in warm terracotta. Family identity reads as a peer to Caitie/Nat, not a foreign treatment.</li>
+    <li>Past days at 50% opacity (was 75%); today gets the soft-grey header + "· today" suffix from option A. The contrast between past, today, and upcoming is now legible at a glance.</li>
+  </ol>
+  <p><em>Implementation note:</em> the row-aligned grid means moving from each-day-is-a-card to a week-level CSS grid with subgrid. The current code already uses <code>lg:grid-rows-subgrid lg:row-span-4</code> in <code>WeekDashboard</code>, so this is closer to a refinement than a rewrite — but the spanning ribbon for multi-day banners is genuinely new logic.</p>
+</div>

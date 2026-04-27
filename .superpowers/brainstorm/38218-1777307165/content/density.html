@@ -1,0 +1,135 @@
+<h2>How dense should the week feel?</h2>
+<p class="subtitle">Same content (3 days shown), three densities. Scrollable side-to-side if needed. Click your pick.</p>
+
+<style>
+  .week { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+  .col { background:#fff; border:1px solid #ededed; border-radius:12px; overflow:hidden; box-shadow: 0 1px 2px rgba(0,0,0,.04); font-family:"Inter", system-ui, sans-serif;}
+  .col .head { padding: 10px 12px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f3f3f3;}
+  .col .dow { color:#999; font-weight:500; text-transform:uppercase; letter-spacing:.08em;}
+  .col .num { color:#000; font-weight:600; letter-spacing:-.02em; margin-top:2px;}
+  .col .wx { text-align:right; color:#999;}
+  .col .section { border-left: 2px solid transparent;}
+  .col .section.cai { border-left-color:#e8c66e; background:linear-gradient(to right, #fdf9ee, #fff 40%);}
+  .col .section.nat { border-left-color:#8ea5e0; background:linear-gradient(to right, #f4f7fd, #fff 40%);}
+  .col .owner { font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#444; padding: 8px 12px 3px;}
+  .col .evt { padding: 4px 12px; color:#111; line-height:1.35;}
+  .col .when { color:#888; font-variant-numeric: tabular-nums;}
+  .col .gus { padding: 4px 12px; color:#666; display:flex; align-items:center; gap:6px;}
+  .col .gus .pip { color:#aaa;}
+  .col.today { border-color:#000; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 0 0 1px #000 inset;}
+  .col.today .head { background: #fafafa;}
+
+  /* Compact (close to current) */
+  .compact .col .dow { font-size: 10px;}
+  .compact .col .num { font-size: 14px;}
+  .compact .col .wx { font-size: 10.5px;}
+  .compact .col .wx-icon { font-size: 14px;}
+  .compact .col .owner { font-size: 9.5px; }
+  .compact .col .evt { font-size: 11px;}
+  .compact .col .when { font-size: 10px;}
+  .compact .col .gus { font-size: 10.5px;}
+
+  /* Comfortable */
+  .comfortable .col .dow { font-size: 11px;}
+  .comfortable .col .num { font-size: 17px;}
+  .comfortable .col .wx { font-size: 11px;}
+  .comfortable .col .wx-icon { font-size: 16px;}
+  .comfortable .col .owner { font-size: 10px;}
+  .comfortable .col .evt { font-size: 13px; padding: 6px 12px;}
+  .comfortable .col .when { font-size: 11px;}
+  .comfortable .col .gus { font-size: 11px; padding: 5px 12px;}
+
+  /* Spacious */
+  .spacious .col .head { padding: 14px 14px;}
+  .spacious .col .dow { font-size: 11px;}
+  .spacious .col .num { font-size: 20px;}
+  .spacious .col .wx { font-size: 11.5px;}
+  .spacious .col .wx-icon { font-size: 18px;}
+  .spacious .col .owner { font-size: 10px; padding: 12px 14px 4px;}
+  .spacious .col .evt { font-size: 14px; padding: 8px 14px; line-height:1.4;}
+  .spacious .col .when { font-size: 11.5px; margin-top: 2px;}
+  .spacious .col .gus { font-size: 12px; padding: 6px 14px;}
+
+  .card-body { margin-top:14px;}
+  .label-pill { display:inline-block; font-size:10px; color:#888; background:#f4f4f4; border-radius:4px; padding:2px 6px; margin-left:6px; vertical-align:middle;}
+</style>
+
+<div class="cards" style="grid-template-columns: 1fr; gap: 18px; max-width: 920px; margin: 0 auto;">
+
+  <!-- Compact (close to current) -->
+  <div class="card" data-choice="compact" onclick="toggleSelect(this)" style="padding: 18px;">
+    <div class="week compact">
+      <div class="col">
+        <div class="head"><div><div class="dow">TUE</div><div class="num">Apr 29</div></div><div class="wx">☀<div>48–62°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">CICU<div class="when">all day</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Standup<div class="when">9 am</div></div></div>
+      </div>
+      <div class="col today">
+        <div class="head"><div><div class="dow">WED</div><div class="num">Apr 30</div></div><div class="wx">☀<div>52–68°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Night Call · NC-11H<div class="when">4 pm – 8 am +1</div></div><div class="gus"><span class="pip">↓</span> Gus dropoff · 7 am</div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Lunch with Mira<div class="when">12:30 pm · Tatte</div></div><div class="evt">Submit expense report<div class="when">due today</div></div><div class="gus"><span class="pip">↑</span> Gus pickup · 5 pm</div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">THU</div><div class="num">May 1</div></div><div class="wx">⛅<div>50–64°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Vacation<div class="when">all day</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">1:1 w/ Sarah<div class="when">3 pm</div></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1 · Compact <span class="label-pill">closest to current</span></h3>
+      <p>Maximum information density. Fits 7 days easily. Reads small — needs leaning in.</p>
+    </div>
+  </div>
+
+  <!-- Comfortable -->
+  <div class="card" data-choice="comfortable" onclick="toggleSelect(this)" style="padding: 18px;">
+    <div class="week comfortable">
+      <div class="col">
+        <div class="head"><div><div class="dow">TUE</div><div class="num">Apr 29</div></div><div class="wx">☀<div>48–62°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">CICU<div class="when">all day</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Standup<div class="when">9 am</div></div></div>
+      </div>
+      <div class="col today">
+        <div class="head"><div><div class="dow">WED</div><div class="num">Apr 30</div></div><div class="wx">☀<div>52–68°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Night Call · NC-11H<div class="when">4 pm – 8 am +1</div></div><div class="gus"><span class="pip">↓</span> Gus dropoff · 7 am</div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Lunch with Mira<div class="when">12:30 pm · Tatte</div></div><div class="evt">Submit expense report<div class="when">due today</div></div><div class="gus"><span class="pip">↑</span> Gus pickup · 5 pm</div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">THU</div><div class="num">May 1</div></div><div class="wx">⛅<div>50–64°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Vacation<div class="when">all day</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">1:1 w/ Sarah<div class="when">3 pm</div></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2 · Comfortable <span class="label-pill">recommended</span></h3>
+      <p>Body text at a true 13px, larger date numbers. 7 columns still fit on a 1280px+ screen. Genuinely easier to read.</p>
+    </div>
+  </div>
+
+  <!-- Spacious -->
+  <div class="card" data-choice="spacious" onclick="toggleSelect(this)" style="padding: 18px;">
+    <div class="week spacious">
+      <div class="col">
+        <div class="head"><div><div class="dow">TUE</div><div class="num">Apr 29</div></div><div class="wx">☀<div>48–62°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">CICU<div class="when">all day</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Standup<div class="when">9 am</div></div></div>
+      </div>
+      <div class="col today">
+        <div class="head"><div><div class="dow">WED</div><div class="num">Apr 30</div></div><div class="wx">☀<div>52–68°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Night Call · NC-11H<div class="when">4 pm – 8 am +1</div></div><div class="gus"><span class="pip">↓</span> Gus dropoff · 7 am</div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">Lunch with Mira<div class="when">12:30 pm · Tatte</div></div><div class="evt">Submit expense report<div class="when">due today</div></div><div class="gus"><span class="pip">↑</span> Gus pickup · 5 pm</div></div>
+      </div>
+      <div class="col">
+        <div class="head"><div><div class="dow">THU</div><div class="num">May 1</div></div><div class="wx">⛅<div>50–64°</div></div></div>
+        <div class="section cai"><div class="owner">Caitie</div><div class="evt">Vacation<div class="when">all day</div></div></div>
+        <div class="section nat"><div class="owner">Nat</div><div class="evt">1:1 w/ Sarah<div class="when">3 pm</div></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3 · Spacious</h3>
+      <p>Generous padding, 14px body. Beautiful but pushes 7 columns past comfortable on smaller laptops — long days will scroll vertically.</p>
+    </div>
+  </div>
+
+</div>

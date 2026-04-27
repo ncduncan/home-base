@@ -8,7 +8,7 @@ export type Narrative = {
   actionItems: string[]
 }
 
-const MODEL = 'claude-opus-4-7'
+const MODEL = 'claude-sonnet-4-6'
 
 // No prompt caching: this agent runs once per week, the cache TTL is 1 hour
 // max, and the prompt is well below the 4096-token cache minimum on Opus 4.7.
