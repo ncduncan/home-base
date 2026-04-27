@@ -264,7 +264,7 @@ export default function DayColumn({
   return (
     <div className="contents">
       {/* Cell 1 — Day header */}
-      <div className={`${colClass} lg:row-start-1 bg-hb-card border border-hb-border-soft rounded-t-xl border-b-0 ${
+      <div className={`${colClass} lg:row-start-1 bg-hb-card border border-hb-border-soft rounded-t-md border-b-0 ${
         isToday ? 'bg-hb-today-bg' : ''
       } ${isPast ? 'opacity-50' : ''}`}>
         <button
@@ -302,6 +302,14 @@ export default function DayColumn({
         )}
       </div>
 
+      {/* Cell 2 — Banner-row placeholder. Keeps the day card visually
+          continuous when the banner row has height from a ribbon in
+          another column. The actual ribbon (rendered by WeekDashboard)
+          paints over this placeholder where it spans. */}
+      <div className={`${colClass} lg:row-start-2 bg-hb-card border-x border-hb-border-soft ${
+        isPast ? 'opacity-50' : ''
+      }`} aria-hidden />
+
       {/* Cell 3 — CAITIE row */}
       <div className={`${colClass} ${ROW_START[caitieRow]} bg-hb-card border-x border-hb-border-soft border-t border-hb-border-rule ${
         isPast ? 'opacity-50' : ''
@@ -328,7 +336,7 @@ export default function DayColumn({
       </div>
 
       {/* Cell 4 — NAT row */}
-      <div className={`${colClass} ${ROW_START[natRow]} bg-hb-card border border-hb-border-soft border-t-0 rounded-b-xl ${
+      <div className={`${colClass} ${ROW_START[natRow]} bg-hb-card border border-hb-border-soft border-t-0 rounded-b-md ${
         isPast ? 'opacity-50' : ''
       }`}>
         <OwnerSection

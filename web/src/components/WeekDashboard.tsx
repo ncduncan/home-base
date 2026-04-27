@@ -222,7 +222,7 @@ export default function WeekDashboard({
       {header}
 
       {eventsError && (
-        <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-3">
+        <div className="mb-4 px-4 py-2.5 bg-[#fcf0f0] border border-[#f1d8d8] rounded-md flex items-center justify-between gap-3">
           <p className="text-xs text-red-700">{eventsError}</p>
           <Button variant="outline" size="sm" className="text-xs h-7 shrink-0" onClick={handleRefresh}>
             Retry
@@ -315,7 +315,7 @@ export default function WeekDashboard({
       </div>
 
       {recentlyCompleted.length > 0 && (
-        <details className="mt-6 bg-hb-card rounded-xl border border-hb-border-soft shadow-sm overflow-hidden">
+        <details className="mt-6 bg-hb-card rounded-md border border-hb-border-soft shadow-sm overflow-hidden">
           <summary className="px-4 py-2.5 text-xs text-hb-fg-muted cursor-pointer hover:text-hb-fg-secondary select-none list-none flex items-center gap-1.5">
             <span className="text-hb-fg-faint">▸</span>
             Completed recently ({recentlyCompleted.length})

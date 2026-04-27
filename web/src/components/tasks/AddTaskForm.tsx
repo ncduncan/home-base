@@ -53,7 +53,7 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
   }
 
   return (
-    <div className="px-4 py-3 bg-hb-card border border-hb-border-soft rounded-xl shadow-sm space-y-2">
+    <div className="px-4 py-3 bg-hb-card border border-hb-border-soft rounded-md shadow-sm space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-hb-fg-secondary uppercase tracking-[.1em]">New task</span>
         <button onClick={onClose} className="text-hb-fg-muted hover:text-hb-fg-secondary">
