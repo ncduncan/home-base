@@ -120,6 +120,28 @@ body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Home-base modernization palette */
+  --color-hb-page: #fafafa;
+  --color-hb-card: #ffffff;
+  --color-hb-today-bg: #f6f6f6;
+
+  --color-hb-border-soft: #ededed;
+  --color-hb-border-rule: #f3f3f3;
+
+  --color-hb-fg: #111111;
+  --color-hb-fg-secondary: #444444;
+  --color-hb-fg-muted: #888888;
+  --color-hb-fg-faint: #bbbbbb;
+
+  --color-hb-cai-accent: #e8c66e;
+  --color-hb-cai-fade: #fdf9ee;
+
+  --color-hb-nat-accent: #8ea5e0;
+  --color-hb-nat-fade: #f4f7fd;
+
+  --color-hb-fam-accent: #c89b6a;
+  --color-hb-fam-fade: #faf3ed;
 }
 
 @layer base {
