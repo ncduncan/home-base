@@ -203,6 +203,10 @@ export default function WeekDashboard({
   const bannerEvents = events.filter(e => e.all_day && !e.is_amion)
   const weekDateStrs = days.map(d => format(d.date, 'yyyy-MM-dd'))
   const bannerSpans = computeBannerSpans(bannerEvents, weekDateStrs)
+  // Banner is "fully past" when its exclusive end is at or before today's start.
+  const bannerPastById = new Map(
+    bannerEvents.map(e => [e.id, parseISO(e.end) <= todayDate] as const)
+  )
   const bannerLaneCount = bannerSpans.reduce((max, s) => Math.max(max, s.lane + 1), 0)
   const bannerRowsTemplate = bannerLaneCount > 0
     ? `auto ${'auto '.repeat(bannerLaneCount).trim()} 1fr 1fr`
@@ -301,7 +305,9 @@ export default function WeekDashboard({
         {bannerSpans.map(span => (
           <div
             key={span.id}
-            className="hidden lg:block px-3 py-1.5 mx-1 my-1 text-[12.5px] text-[#3d2f23] leading-tight border-l-2 border-hb-fam-accent bg-gradient-to-r from-hb-fam-fade via-[#fdf6ee] to-hb-fam-fade rounded-md border-y border-r border-[#f1e6da]"
+            className={`hidden lg:block px-3 py-1.5 mx-1 my-1 text-[12.5px] text-[#3d2f23] leading-tight border-l-2 border-hb-fam-accent bg-gradient-to-r from-hb-fam-fade via-[#fdf6ee] to-hb-fam-fade rounded-md border-y border-r border-[#f1e6da] ${
+              bannerPastById.get(span.id) ? 'opacity-50' : ''
+            }`}
             style={{
               gridColumnStart: span.startCol,
               gridColumnEnd: span.endCol,

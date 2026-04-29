@@ -307,10 +307,10 @@ export default function DayColumn({
       {/* Cell 2 — Banner-row placeholder. Keeps the day card visually
           continuous when the banner row has height from a ribbon in
           another column. The actual ribbon (rendered by WeekDashboard)
-          paints over this placeholder where it spans. */}
-      <div className={`${colClass} lg:row-start-2 bg-hb-card border-x border-hb-border-soft ${
-        isPast ? 'opacity-50' : ''
-      }`} aria-hidden />
+          paints over this placeholder where it spans. Not faded on past
+          days — the ribbon is full opacity and any fade here would
+          bleed through its mx-1/my-1 margins. */}
+      <div className={`${colClass} lg:row-start-2 bg-hb-card border-x border-hb-border-soft`} aria-hidden />
 
       {/* Cell 3 — CAITIE row */}
       <div className={`${colClass} ${ROW_START[caitieRow]} bg-hb-card border-x border-hb-border-soft border-t border-hb-border-rule ${
