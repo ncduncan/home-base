@@ -16,7 +16,7 @@ A private React SPA deployed to GitHub Pages. Shows:
 
 Access restricted to a configurable allowlist of Google accounts (set via `ALLOWED_EMAILS` secret).
 
-### 2. Sunday Briefing Agent (dormant)
+### 2. Sunday Briefing Agent
 A Python agent that runs via GitHub Actions cron. Reads Google Calendar, Asana tasks, and local weather → feeds it to Gemini → sends an HTML email briefing and fires Google Calendar invites to a work email for personal events affecting work availability.
 
 ---
