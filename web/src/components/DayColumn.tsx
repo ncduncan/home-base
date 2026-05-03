@@ -247,7 +247,8 @@ export default function DayColumn({
   const caitieRow = 2 + Math.max(1, bannerLaneCount)
   const natRow = caitieRow + 1
 
-  // Split events by owner (family banners are handled by WeekDashboard as spanning ribbons)
+  // Split events by owner (family banners are handled by WeekDashboard as spanning ribbons on lg+)
+  const familyEvents = events.filter(e => e.all_day && !e.is_amion)
   const ownerEvents = events.filter(e => !(e.all_day && !e.is_amion))
   const caitieEvents = ownerEvents.filter(e => eventOwner(e) === 'caitie')
   const natEvents = ownerEvents.filter(e => eventOwner(e) === 'nat')
@@ -304,13 +305,33 @@ export default function DayColumn({
         )}
       </div>
 
-      {/* Cell 2 — Banner-row placeholder. Keeps the day card visually
-          continuous when the banner row has height from a ribbon in
-          another column. The actual ribbon (rendered by WeekDashboard)
-          paints over this placeholder where it spans. Not faded on past
-          days — the ribbon is full opacity and any fade here would
-          bleed through its mx-1/my-1 margins. */}
-      <div className={`${colClass} lg:row-start-2 bg-hb-card border-x border-hb-border-soft`} aria-hidden />
+      {/* Cell 2 — Banner row.
+          Desktop (lg+): empty placeholder so the day card stays visually
+          continuous; spanning ribbons (rendered by WeekDashboard) paint
+          over it where they extend.
+          Mobile: spanning ribbons are hidden (no multi-column to span),
+          so render this day's family events inline here. When the day has
+          no family events, hide the cell entirely on mobile to avoid an
+          empty gap between the header and the Caitie row. */}
+      <div
+        className={`${colClass} lg:row-start-2 lg:bg-hb-card lg:border-x lg:border-hb-border-soft ${
+          familyEvents.length === 0 ? 'hidden lg:block' : ''
+        }`}
+        aria-hidden={familyEvents.length === 0 ? true : undefined}
+      >
+        {familyEvents.length > 0 && (
+          <ul className="lg:hidden flex flex-col gap-1">
+            {familyEvents.map(event => (
+              <li
+                key={event.id}
+                className="px-3 py-1.5 text-[13px] text-[#3d2f23] leading-tight border-l-2 border-hb-fam-accent bg-gradient-to-r from-hb-fam-fade via-[#fdf6ee] to-hb-fam-fade rounded-md border-y border-r border-[#f1e6da]"
+              >
+                {event.title}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* Cell 3 — CAITIE row */}
       <div className={`${colClass} ${ROW_START[caitieRow]} bg-hb-card border-x border-hb-border-soft border-t border-hb-border-rule ${
