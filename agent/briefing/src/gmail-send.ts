@@ -22,25 +22,28 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
   const boundary = `=====bound_${Date.now()}_${Math.random().toString(36).slice(2)}=====`
   const headers = [
     `To: ${to.join(', ')}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodeHeader(subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ]
 
+  // Body parts are base64-encoded so non-ASCII content (em dashes, smart
+  // quotes, etc. from event titles or todos) survives intact. 7bit would be
+  // invalid for any byte > 127 and Gmail rejects with 400.
   const body = [
     headers.join('\r\n'),
     '',
     `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: 7bit',
+    'Content-Transfer-Encoding: base64',
     '',
-    text,
+    base64Wrap(text),
     '',
     `--${boundary}`,
     'Content-Type: text/html; charset="UTF-8"',
-    'Content-Transfer-Encoding: 7bit',
+    'Content-Transfer-Encoding: base64',
     '',
-    html,
+    base64Wrap(html),
     '',
     `--${boundary}--`,
   ].join('\r\n')
@@ -65,8 +68,28 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
   )
 
   if (!resp.ok) {
-    throw new Error(`Gmail send failed: ${resp.status}`)
+    // Body is Gmail's error response (no user content), safe to log.
+    const detail = await resp.text().catch(() => '')
+    throw new Error(`Gmail send failed: ${resp.status} ${detail.slice(0, 500)}`)
   }
+}
+
+/**
+ * RFC 2047 encoded-word for Subject / other unstructured headers. ASCII
+ * passes through; anything else gets `=?UTF-8?B?<base64>?=` so the header
+ * line stays 7-bit-clean and Gmail's parser accepts it.
+ */
+function encodeHeader(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7F]*$/.test(value)) return value
+  const b64 = Buffer.from(value, 'utf-8').toString('base64')
+  return `=?UTF-8?B?${b64}?=`
+}
+
+/** Base64-encode and wrap to 76-char lines per RFC 2045. */
+function base64Wrap(value: string): string {
+  const b64 = Buffer.from(value, 'utf-8').toString('base64')
+  return b64.match(/.{1,76}/g)?.join('\r\n') ?? b64
 }
 
 /** Strip HTML tags for the plain-text fallback. Keeps the briefing readable in clients that only render text. */

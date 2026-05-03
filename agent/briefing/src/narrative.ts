@@ -83,7 +83,8 @@ export async function generateNarrative(
     return parsed
   } catch (e) {
     if (e instanceof Anthropic.APIError) {
-      console.warn(`Anthropic API error ${e.status} — using fallback`)
+      // The body is Anthropic's error response (no user content), safe to log.
+      console.warn(`Anthropic API error ${e.status}: ${e.message} — using fallback`)
     } else {
       console.warn(`Narrative pass failed: ${(e as Error).name}`)
     }
