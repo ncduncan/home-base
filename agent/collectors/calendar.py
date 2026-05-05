@@ -48,18 +48,19 @@ def get_service(service_name: str, version: str):
     return build(service_name, version, credentials=load_credentials())
 
 
-AMION_CALENDAR_NAME = "Caitie Work"
+AMION_CALENDAR_NAMES = {"Caitie shifts", "Caitie Work"}
 
 
 def _is_amion_event(cal_name: str, raw: dict) -> bool:
     """
-    AMION shift events come from the 'Caitie Work' calendar subscription.
-    Mirrors the web app: prefer iCalUID '@amion.com' detection over calendar name.
+    AMION shift events come from the 'Caitie shifts' calendar subscription
+    (formerly 'Caitie Work'). Mirrors the web app: prefer iCalUID '@amion.com'
+    detection over calendar name.
     """
     uid = raw.get("iCalUID", "") or ""
     if "@amion.com" in uid:
         return True
-    return cal_name == AMION_CALENDAR_NAME
+    return cal_name in AMION_CALENDAR_NAMES
 
 
 def _parse_event(raw: dict, cal_id: str, cal_name: str) -> CalendarEvent | None:

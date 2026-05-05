@@ -106,7 +106,7 @@ export function processAmionEvents(rawItems: Array<Record<string, unknown>>): Ca
           end: localDT(nextDay(dateStr), 8),
           location: null,
           all_day: false,
-          calendar_name: 'Caitie Work',
+          calendar_name: 'Caitie shifts',
           is_amion: true,
           amion_kind: '24hr',
         })
@@ -118,7 +118,7 @@ export function processAmionEvents(rawItems: Array<Record<string, unknown>>): Ca
           end: localDT(nextDay(dateStr), 8),
           location: null,
           all_day: false,
-          calendar_name: 'Caitie Work',
+          calendar_name: 'Caitie shifts',
           is_amion: true,
           amion_kind: 'night',
         })
@@ -170,7 +170,7 @@ export function processAmionEvents(rawItems: Array<Record<string, unknown>>): Ca
             end: localDT(nextDay(dateStr), 8),
             location: null,
             all_day: false,
-            calendar_name: 'Caitie Work',
+            calendar_name: 'Caitie shifts',
             is_amion: true,
             amion_kind: '24hr',
           })
@@ -186,7 +186,7 @@ export function processAmionEvents(rawItems: Array<Record<string, unknown>>): Ca
           end: localDT(dateStr, 18),
           location: null,
           all_day: false,
-          calendar_name: 'Caitie Work',
+          calendar_name: 'Caitie shifts',
           is_amion: true,
           amion_kind: 'day',
         })
@@ -235,6 +235,7 @@ export function eventOwner(event: CalendarEvent): 'nat' | 'caitie' {
   if (event.homebase_owner) return event.homebase_owner
   if (event.is_amion) return 'caitie'
   if (event.organizer_email === 'caitante@gmail.com') return 'caitie'
+  if (event.calendar_name?.toLowerCase().startsWith('caitie ')) return 'caitie'
   return 'nat'
 }
 
@@ -260,6 +261,8 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
     const calOverride = (cal.summaryOverride ?? '').toLowerCase()
     const isAmionCalendar =
       calName.includes('amion.com') ||
+      calOverride === 'caitie shifts' ||
+      calName === 'caitie shifts' ||
       calOverride === 'caitie work' ||
       calName === 'caitie work'
 

@@ -96,7 +96,13 @@ npm workspaces at the repo root: `shared`, `web`, `agent/briefing`. Run `npm ins
 
 AMION (amion.com) is the physician scheduling system Caitie's residency uses. It syncs
 to Google Calendar via iCal. Detection: any event whose `iCalUID` contains `@amion.com`,
-OR whose source calendar is named "Caitie Work" / matches the AMION feed.
+OR whose source calendar is named "Caitie shifts" (formerly "Caitie Work" — both names
+still match for safety) / matches the AMION feed.
+
+Caitie also has additional non-AMION calendars subscribed under Nat's account
+(e.g. "Caitie research"). These are read-only and treated as regular events owned by
+Caitie via a `calendar_name` prefix match in `eventOwner()` — no AMION transform applied.
+Frontend categorization is owner-based, so both feeds bucket under Caitie automatically.
 
 **The processor lives in `shared/src/calendar/process.ts` → `processAmionEvents()`.**
 

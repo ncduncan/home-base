@@ -228,10 +228,12 @@ def process_amion_events(
 
 
 def event_owner(event: CalendarEvent) -> Literal["nat", "caitie"]:
-    """Mirror of eventOwner() in web/src/lib/calendar.ts."""
+    """Mirror of eventOwner() in shared/src/calendar/process.ts."""
     if event.is_amion:
         return "caitie"
     if (event.organizer_email or "").lower() == "caitante@gmail.com":
+        return "caitie"
+    if (event.calendar_name or "").lower().startswith("caitie "):
         return "caitie"
     return "nat"
 
