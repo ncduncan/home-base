@@ -259,12 +259,14 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
   for (const { cal, items } of sources) {
     const calName = (cal.summary ?? '').toLowerCase()
     const calOverride = (cal.summaryOverride ?? '').toLowerCase()
+    const visibleName = (cal.summaryOverride ?? cal.summary ?? '').toLowerCase()
     const isAmionCalendar =
       calName.includes('amion.com') ||
       calOverride === 'caitie shifts' ||
       calName === 'caitie shifts' ||
       calOverride === 'caitie work' ||
       calName === 'caitie work'
+    const isCaitieAuxCalendar = !isAmionCalendar && visibleName.startsWith('caitie ')
 
     for (const item of items) {
       const uid = (item.iCalUID as string) ?? ''
@@ -276,6 +278,7 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
       const title = (item.summary as string) ?? ''
       if (/^Week\s+\d+\s+of/i.test(title)) continue  // skip "Week N of YYYY" globally
       if (title === 'Gus pickup' || title === 'Gus dropoff') continue  // hide auto-synced gus events
+      if (isCaitieAuxCalendar && title.startsWith('Declined: ')) continue
       const start = item.start as Record<string, string> ?? {}
       const end = item.end as Record<string, string> ?? {}
       const allDay = 'date' in start && !('dateTime' in start)
@@ -288,7 +291,7 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
         end: allDay ? `${end.date}T00:00:00` : end.dateTime,
         location: (item.location as string) ?? null,
         all_day: allDay,
-        calendar_name: cal.summary,
+        calendar_name: cal.summaryOverride ?? cal.summary,
         is_amion: false,
         organizer_email: (item.organizer as { email?: string } | undefined)?.email,
         homebase_owner: homebaseOwner,
