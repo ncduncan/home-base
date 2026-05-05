@@ -22,12 +22,18 @@ const SHIFT_LABELS: Record<string, string> = {
 
 const DROPOFF_HOUR = 7 // 7am
 const PICKUP_HOUR = 17 // 5pm
+const TRAVEL_BUFFER_MIN = 30 // commute padding applied to non-AMION events
 
 /**
  * Compute Gus pickup/dropoff responsibilities from the (overridden) event list.
  *
  * Considers ALL events owned by Caitie (AMION shifts + her regular Google Calendar
- * events). Overrides are already applied upstream in DashboardPage before this runs.
+ * events, including the "Caitie research" calendar). Overrides are already applied
+ * upstream in DashboardPage before this runs.
+ *
+ * Non-AMION events get a 30-min travel buffer on both ends — i.e. a 7:30am meeting
+ * effectively starts at 7:00am for availability purposes. AMION shifts pass through
+ * unbuffered since their hours already account for hospital realities.
  *
  * Caitie is on point unless she's actually busy at the relevant hour:
  * - Pickup at 5pm: Caitie unless any of her events covers 5pm OR starts within
@@ -101,10 +107,12 @@ export function computeGusCare(
 function coversPickup(event: CalendarEvent): boolean {
   if (event.all_day) return true // all-day commitment
 
-  const startHour = hourOf(event.start)
-  const endDate = event.end.slice(0, 10)
-  const startDate = event.start.slice(0, 10)
-  const endHour = hourOf(event.end)
+  const startStr = bufferedStart(event)
+  const endStr = bufferedEnd(event)
+  const startHour = hourOf(startStr)
+  const endHour = hourOf(endStr)
+  const startDate = startStr.slice(0, 10)
+  const endDate = endStr.slice(0, 10)
 
   // Multi-day shift (night, 24hr) starting today: covers 5pm if it starts at/before 7pm
   if (endDate !== startDate) {
@@ -121,17 +129,36 @@ function coversPickup(event: CalendarEvent): boolean {
 function startsByMorning(event: CalendarEvent, dateStr: string): boolean {
   if (event.start.slice(0, 10) !== dateStr) return false
   if (event.all_day) return true
-  return hourOf(event.start) <= 9
+  return hourOf(bufferedStart(event)) <= 9
 }
 
 // Was this event (from yesterday) still running at 7am this morning?
 function runsPastTodayMorning(event: CalendarEvent, todayStr: string): boolean {
-  const endDate = event.end.slice(0, 10)
-  if (endDate !== todayStr) return false
+  if (event.end.slice(0, 10) !== todayStr) return false
   if (event.all_day) return false
-  return hourOf(event.end) > DROPOFF_HOUR
+  return hourOf(bufferedEnd(event)) > DROPOFF_HOUR
 }
 
 function hourOf(isoStr: string): number {
   return parseInt(isoStr.slice(11, 13), 10)
+}
+
+// Apply a 30-min commute buffer to non-AMION timed events, so a 7:30am meeting
+// effectively starts at 7:00am for availability checks. AMION shift hours already
+// bake in hospital realities, so they pass through unchanged.
+function bufferedStart(event: CalendarEvent): string {
+  if (event.is_amion || event.all_day) return event.start
+  return shiftWallClock(event.start, -TRAVEL_BUFFER_MIN)
+}
+function bufferedEnd(event: CalendarEvent): string {
+  if (event.is_amion || event.all_day) return event.end
+  return shiftWallClock(event.end, TRAVEL_BUFFER_MIN)
+}
+// Shift the wall-clock prefix by deltaMin, ignoring any timezone suffix.
+// Treats the prefix as UTC purely for arithmetic — no DST conversion needed.
+function shiftWallClock(iso: string, deltaMin: number): string {
+  const wallClock = iso.slice(0, 19)
+  const d = new Date(`${wallClock}Z`)
+  d.setUTCMinutes(d.getUTCMinutes() + deltaMin)
+  return d.toISOString().slice(0, 19)
 }
