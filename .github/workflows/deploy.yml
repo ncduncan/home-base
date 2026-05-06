@@ -3,7 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['web/**']
+    # `shared/**` is included because the web bundle imports from
+    # @home-base/shared at build time, so shared changes affect the deploy.
+    paths: ['web/**', 'shared/**']
   workflow_dispatch:
 
 # Minimal permissions: read source, write to Pages via OIDC only
