@@ -12,7 +12,6 @@ import {
   isHomebaseEventId,
   homebaseIdFromCalendarEventId,
 } from '../lib/homebase-events'
-import { OWNER_LABELS } from '../lib/owners'
 import type {
   AsanaTask,
   AsanaUser,
@@ -129,11 +128,9 @@ function OwnerSection({
   const edgeClass = owner === 'nat'
     ? 'border-l-2 border-hb-nat-accent'
     : 'border-l-2 border-hb-cai-accent'
-  const labelBgClass = owner === 'nat' ? 'bg-hb-nat-fade' : 'bg-hb-cai-fade'
   const barFillClass = owner === 'nat'
     ? 'bg-hb-nat-fade border-l-2 border-hb-nat-accent'
     : 'bg-hb-cai-fade border-l-2 border-hb-cai-accent'
-  const headerLabel = OWNER_LABELS[owner]
 
   // Owner-specific block + discrete-event split:
   // - Caitie: AMION shifts (+ all-day backup) and Gus events render discretely
@@ -166,10 +163,6 @@ function OwnerSection({
 
   return (
     <div className={`${edgeClass} flex flex-col`}>
-      <div className={`${labelBgClass} px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.1em] text-hb-fg-secondary`}>
-        {headerLabel}
-      </div>
-
       {/* Time canvas — bars positioned by start/end. No axis drawn; vertical
           location alone communicates rough time-of-day. */}
       <div className="relative h-36 px-1">
@@ -366,20 +359,26 @@ export default function DayColumn({
         )}
       </div>
 
-      {/* Banner slot — all-day non-AMION events that touch this day */}
+      {/* Banner slot — all-day non-AMION events that touch this day.
+          Rendered as a dot + title rather than a colored bubble so the row
+          reads as plain text in the day flow. */}
       {familyEvents.length > 0 && (
-        <ul className="px-1.5 pt-1 flex flex-col gap-1">
+        <ul className="px-2 pt-1.5 flex flex-col gap-0.5">
           {familyEvents.map(event => {
             const isPastBanner = parseISO(event.end) <= todayDate
             return (
               <li
                 key={event.id}
-                className={`px-2 py-1 text-[11px] text-[#3d2f23] leading-tight border-l-2 border-hb-fam-accent bg-gradient-to-r from-hb-fam-fade via-[#fdf6ee] to-hb-fam-fade rounded-md border-y border-r border-[#f1e6da] ${
+                className={`flex items-center gap-1.5 text-[11px] leading-tight text-hb-fg ${
                   isPastBanner ? 'opacity-50' : ''
                 }`}
                 title={event.title}
               >
-                {event.title}
+                <span
+                  aria-hidden
+                  className="size-1.5 rounded-full bg-hb-fam-accent shrink-0"
+                />
+                <span className="truncate">{event.title}</span>
               </li>
             )
           })}
