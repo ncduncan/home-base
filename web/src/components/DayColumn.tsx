@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { wmoToIcon } from '../lib/weather'
 import { eventOwner } from '../lib/calendar'
-import { computeBusyBlock, type BusyBlock } from '../lib/busy-block'
+import { computeRangeBlock, computeNatWorkBlock, type BusyBlock } from '../lib/busy-block'
 import EventDetail from './EventDetail'
 import DayHeaderPanel from './DayHeaderPanel'
 import TaskRow from './tasks/TaskRow'
@@ -104,15 +104,32 @@ function OwnerSection({
   const labelBgClass = owner === 'nat' ? 'bg-hb-nat-fade' : 'bg-hb-cai-fade'
   const headerLabel = OWNER_LABELS[owner]
 
-  // Busy block: collapse all timed, non-Gus events into a single earliest-start
-  // → latest-end block. Nat gets a synthetic 8am–5pm baseline on weekdays. Gus
-  // pickup/dropoff render as discrete events below the block. All-day events
-  // (e.g. AMION backup status) also render discretely.
-  const blockSourceEvents = events.filter(e => !e.all_day && !isGusEvent(e))
-  const block = computeBusyBlock(blockSourceEvents, owner, dayDateStr)
-  const discreteEvents = events.filter(e => e.all_day || isGusEvent(e))
+  // Owner-specific block + discrete-event split:
+  // - Caitie: AMION shifts (+ all-day backup) and Gus events render discretely
+  //   with their existing labels; only her non-AMION timed events (research,
+  //   personal Google) collapse into a single earliest-latest block.
+  // - Nat: a static synthetic 8am–5pm M–F "Work" block; every other event he
+  //   owns (incl. Gus) renders discretely with its actual title.
+  const isNat = owner === 'nat'
+  const block: BusyBlock | null = isNat
+    ? computeNatWorkBlock(dayDateStr)
+    : computeRangeBlock(events.filter(e => !e.is_amion && !e.all_day && !isGusEvent(e)))
+  const discreteEvents = isNat
+    ? events
+    : events.filter(e => e.is_amion || e.all_day || isGusEvent(e))
 
-  const isEmpty = !block && discreteEvents.length === 0 && tasks.length === 0
+  // Time-sorted unified item list: block sits at its startISO, events at
+  // their start. Keeps Gus dropoff (7am) above shifts/blocks above Gus
+  // pickup (5pm).
+  type Item =
+    | { kind: 'block'; block: BusyBlock; sortKey: string }
+    | { kind: 'event'; event: CalendarEvent; sortKey: string }
+  const items: Item[] = []
+  if (block) items.push({ kind: 'block', block, sortKey: block.startISO })
+  for (const e of discreteEvents) items.push({ kind: 'event', event: e, sortKey: e.start })
+  items.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+
+  const isEmpty = items.length === 0 && tasks.length === 0
 
   return (
     <div className={`${edgeClass} min-h-[80px]`}>
@@ -124,15 +141,28 @@ function OwnerSection({
         <div className="px-3 pt-2 text-[11px] text-hb-fg-faint italic">—</div>
       )}
 
-      {block && (
-        <div className="px-3 py-1.5 text-[13px] text-hb-fg leading-tight tabular-nums">
-          {formatBusyBlock(block)}
-        </div>
-      )}
-
-      {discreteEvents.length > 0 && (
+      {items.length > 0 && (
         <ul>
-          {discreteEvents.map(event => {
+          {items.map(item => {
+            if (item.kind === 'block') {
+              const b = item.block
+              return (
+                <li key={`block-${b.startISO}`} className="px-3 py-1.5">
+                  {b.label && (
+                    <div className="text-[13px] text-hb-fg leading-tight">{b.label}</div>
+                  )}
+                  <div
+                    className={`leading-tight tabular-nums ${
+                      b.label ? 'text-[11px] text-hb-fg-muted' : 'text-[13px] text-hb-fg'
+                    }`}
+                  >
+                    {formatBusyBlock(b)}
+                  </div>
+                </li>
+              )
+            }
+
+            const event = item.event
             const isExpanded = expandedEventId === event.id
             const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
             const isHomebase = isHomebaseEventId(event.id)
