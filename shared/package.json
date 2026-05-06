@@ -14,7 +14,8 @@
     "./gus-care": "./src/gus-care.ts",
     "./overrides": "./src/overrides.ts",
     "./homebase-events": "./src/homebase-events.ts",
-    "./asana": "./src/asana.ts"
+    "./asana": "./src/asana.ts",
+    "./owner-config": "./src/owner-config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",

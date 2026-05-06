@@ -92,49 +92,94 @@ type GusEventSpec = {
   summary: string
   startHour: number
   endHour: number
-  attendeeEmail: string
+}
+
+type DesiredGusEvent = { attendeeEmail: string; owner: 'nat' | 'caitie' }
+
+type ExistingGusEvent = {
+  eventId: string
+  attendeeEmail: string | null
+  homebaseOwner: 'nat' | 'caitie' | null
+}
+
+async function deleteGusEvent(
+  token: string,
+  eventId: string,
+  summary: string,
+  dateStr: string,
+): Promise<void> {
+  const resp = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+  )
+  if (!resp.ok && resp.status !== 410) {
+    console.warn(`Failed to cancel ${summary} for ${dateStr}:`, resp.status)
+  }
+}
+
+async function createGusEvent(
+  token: string,
+  spec: GusEventSpec,
+  dateStr: string,
+  desired: DesiredGusEvent,
+): Promise<void> {
+  const resp = await fetch(
+    'https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        summary: spec.summary,
+        start: { dateTime: `${dateStr}T${String(spec.startHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
+        end:   { dateTime: `${dateStr}T${String(spec.endHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
+        attendees: [{ email: desired.attendeeEmail }],
+        // Tag the event with the responsible owner so the dashboard parser
+        // routes it to the correct column even when the attendee email is
+        // Caitie's but the event was created on Nat's primary calendar.
+        extendedProperties: { private: { homebase_owner: desired.owner } },
+      }),
+    }
+  )
+  if (!resp.ok && resp.status !== 409) {
+    console.warn(`Failed to create ${spec.summary} for ${dateStr}:`, resp.status)
+  }
 }
 
 async function syncGusEventsBySpec(
   token: string,
-  days: Set<string>,
-  existing: Map<string, string>,
+  desired: Map<string, DesiredGusEvent>,
+  existing: Map<string, ExistingGusEvent>,
   spec: GusEventSpec,
 ): Promise<void> {
-  await Promise.all([
-    ...[...existing.entries()]
-      .filter(([dateStr]) => !days.has(dateStr))
-      .map(async ([dateStr, eventId]) => {
-        const resp = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
-          { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
-        )
-        if (!resp.ok && resp.status !== 410) {
-          console.warn(`Failed to cancel ${spec.summary} for ${dateStr}:`, resp.status)
-        }
-      }),
+  const ops: Promise<void>[] = []
 
-    ...[...days]
-      .filter(dateStr => !existing.has(dateStr))
-      .map(async dateStr => {
-        const resp = await fetch(
-          'https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all',
-          {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              summary: spec.summary,
-              start: { dateTime: `${dateStr}T${String(spec.startHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
-              end:   { dateTime: `${dateStr}T${String(spec.endHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
-              attendees: [{ email: spec.attendeeEmail }],
-            }),
-          }
-        )
-        if (!resp.ok && resp.status !== 409) {
-          console.warn(`Failed to create ${spec.summary} for ${dateStr}:`, resp.status)
-        }
-      }),
-  ])
+  // Cancel events for dates that are no longer desired
+  for (const [dateStr, ex] of existing) {
+    if (!desired.has(dateStr)) {
+      ops.push(deleteGusEvent(token, ex.eventId, spec.summary, dateStr))
+    }
+  }
+
+  // For each desired date, create or replace
+  for (const [dateStr, want] of desired) {
+    const ex = existing.get(dateStr)
+    if (!ex) {
+      ops.push(createGusEvent(token, spec, dateStr, want))
+      continue
+    }
+    const attendeeMatches = ex.attendeeEmail?.toLowerCase() === want.attendeeEmail.toLowerCase()
+    const ownerMatches = ex.homebaseOwner === want.owner
+    if (attendeeMatches && ownerMatches) continue
+    // Mismatch — cancel the existing invite and create a fresh one with the
+    // right attendee/owner. Google sends a cancel notification to the old
+    // attendee and an invite to the new one.
+    ops.push(
+      deleteGusEvent(token, ex.eventId, spec.summary, dateStr)
+        .then(() => createGusEvent(token, spec, dateStr, want))
+    )
+  }
+
+  await Promise.all(ops)
 }
 
 async function fetchExistingGusEvents(
@@ -142,7 +187,7 @@ async function fetchExistingGusEvents(
   query: string,
   timeMin: Date,
   timeMax: Date,
-): Promise<Map<string, string>> {
+): Promise<Map<string, ExistingGusEvent>> {
   const resp = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
     new URLSearchParams({
@@ -154,27 +199,49 @@ async function fetchExistingGusEvents(
     }),
     { headers: { Authorization: `Bearer ${token}` } }
   )
-  const map = new Map<string, string>()
+  const map = new Map<string, ExistingGusEvent>()
   if (!resp.ok) return map
   const { items = [] } = await resp.json() as {
-    items: Array<{ id: string; summary?: string; start?: { dateTime?: string; date?: string } }>
+    items: Array<{
+      id: string
+      summary?: string
+      status?: string
+      start?: { dateTime?: string; date?: string }
+      attendees?: Array<{ email?: string }>
+      extendedProperties?: { private?: Record<string, string> }
+    }>
   }
   for (const item of items) {
     if (item.summary !== query) continue
+    if (item.status === 'cancelled') continue
     const startStr = item.start?.dateTime ?? item.start?.date ?? ''
     const dateStr = startStr.slice(0, 10)
-    if (dateStr) map.set(dateStr, item.id)
+    if (!dateStr) continue
+    const attendeeEmail = item.attendees?.[0]?.email ?? null
+    const homebaseOwner = item.extendedProperties?.private?.homebase_owner as 'nat' | 'caitie' | undefined
+    map.set(dateStr, {
+      eventId: item.id,
+      attendeeEmail,
+      homebaseOwner: homebaseOwner ?? null,
+    })
   }
   return map
 }
 
 export type SyncGusCareInvitesOptions = {
-  /** Email to invite to Gus events (Nat's work email, by default) */
-  attendeeEmail: string
+  /** Nat's work email — used as attendee on days Nat is responsible for Gus */
+  natAttendeeEmail: string
+  /** Caitie's work email — used as attendee on days Caitie is responsible for Gus */
+  caitieAttendeeEmail: string
 }
 
 /**
  * Sync Gus pickup/dropoff Google Calendar invites based on computed responsibilities.
+ * Creates one event per (day, role) for whichever owner is responsible, with that
+ * owner's work email as attendee. When responsibility flips, the existing event's
+ * attendee is replaced (cancel + create) so each person sees the invite only on
+ * their responsible days.
+ *
  * Only operates within the date range of the provided gusCare entries — events
  * outside that window are left untouched. Idempotent: matches existing events by
  * summary + date so it's safe to run from multiple sources (web + agent).
@@ -200,14 +267,17 @@ export async function syncGusCareInvites(
   if (rangeEnd < today) return
   const effectiveStart = rangeStart < today ? today : rangeStart
 
-  // Build sets of days where Nat is responsible (only within range, only future)
-  const pickupDays = new Set<string>()
-  const dropoffDays = new Set<string>()
+  const attendeeFor = (owner: 'nat' | 'caitie') =>
+    owner === 'nat' ? options.natAttendeeEmail : options.caitieAttendeeEmail
+
+  // Build desired-state maps: one entry per future day per role, keyed by date.
+  const pickupDesired = new Map<string, DesiredGusEvent>()
+  const dropoffDesired = new Map<string, DesiredGusEvent>()
   for (const g of gusCare) {
     const d = new Date(`${g.date}T12:00:00`)
     if (d < today) continue
-    if (g.pickup === 'nat') pickupDays.add(g.date)
-    if (g.dropoff === 'nat') dropoffDays.add(g.date)
+    pickupDesired.set(g.date, { attendeeEmail: attendeeFor(g.pickup), owner: g.pickup })
+    dropoffDesired.set(g.date, { attendeeEmail: attendeeFor(g.dropoff), owner: g.dropoff })
   }
 
   const [existingPickups, existingDropoffs] = await Promise.all([
@@ -216,17 +286,15 @@ export async function syncGusCareInvites(
   ])
 
   await Promise.all([
-    syncGusEventsBySpec(token, pickupDays, existingPickups, {
+    syncGusEventsBySpec(token, pickupDesired, existingPickups, {
       summary: 'Gus pickup',
       startHour: 17,
       endHour: 18,
-      attendeeEmail: options.attendeeEmail,
     }),
-    syncGusEventsBySpec(token, dropoffDays, existingDropoffs, {
+    syncGusEventsBySpec(token, dropoffDesired, existingDropoffs, {
       summary: 'Gus dropoff',
       startHour: 7,
       endHour: 8,
-      attendeeEmail: options.attendeeEmail,
     }),
   ])
 }

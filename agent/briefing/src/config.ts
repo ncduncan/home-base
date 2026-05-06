@@ -3,6 +3,8 @@
  * Fails fast on missing required values so we never half-run a briefing.
  */
 
+import { parseOwnerConfig } from '@home-base/shared/owner-config'
+
 export type Config = {
   supabaseUrl: string
   supabaseServiceRoleKey: string
@@ -11,6 +13,8 @@ export type Config = {
   asanaPat: string
   asanaWorkspaceGid: string
   recipients: string[]
+  natAttendeeEmail: string
+  caitieAttendeeEmail: string
   dryRun: boolean
   dryRunOutPath: string | null
 }
@@ -29,12 +33,15 @@ export function loadConfig(): Config {
   // leak rendered email content if accidentally enabled.
   const dryRun = dryRunRaw && !inActions
 
-  const recipientsRaw = required('ALLOWED_EMAILS')
-  const recipients = recipientsRaw
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean)
+  const allowedRaw = required('ALLOWED_EMAILS')
+  const parsed = parseOwnerConfig(allowedRaw)
+  const recipients = parsed.allowedEmails
   if (recipients.length === 0) throw new Error('ALLOWED_EMAILS is empty')
+
+  const natAttendeeEmail = parsed.owners.nat.workEmail
+  const caitieAttendeeEmail = parsed.owners.caitie.workEmail
+  if (!natAttendeeEmail) throw new Error('ALLOWED_EMAILS missing Nat work email (4th colon-field on `nat:` row)')
+  if (!caitieAttendeeEmail) throw new Error('ALLOWED_EMAILS missing Caitie work email (4th colon-field on `caitie:` row)')
 
   return {
     supabaseUrl: required('VITE_SUPABASE_URL'),
@@ -44,6 +51,8 @@ export function loadConfig(): Config {
     asanaPat: required('ASANA_PAT'),
     asanaWorkspaceGid: required('ASANA_WORKSPACE_GID'),
     recipients,
+    natAttendeeEmail,
+    caitieAttendeeEmail,
     dryRun,
     dryRunOutPath: process.env.BRIEFING_DRY_RUN_OUT ?? null,
   }

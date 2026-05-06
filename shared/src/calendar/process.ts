@@ -277,7 +277,6 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
       if (item.status === 'cancelled') continue
       const title = (item.summary as string) ?? ''
       if (/^Week\s+\d+\s+of/i.test(title)) continue  // skip "Week N of YYYY" globally
-      if (title === 'Gus pickup' || title === 'Gus dropoff') continue  // hide auto-synced gus events
       if (isCaitieAuxCalendar && title.startsWith('Declined: ')) continue
       const start = item.start as Record<string, string> ?? {}
       const end = item.end as Record<string, string> ?? {}

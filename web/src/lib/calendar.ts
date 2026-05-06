@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { OWNER_EMAILS, NAT_WORK_EMAIL } from './owners'
+import { OWNER_EMAILS, NAT_WORK_EMAIL, CAITIE_WORK_EMAIL } from './owners'
 import {
   fetchCalendarEvents as sharedFetchCalendarEvents,
   syncGusCareInvites as sharedSyncGusCareInvites,
@@ -126,7 +126,8 @@ export function fetchCalendarEvents(weekOffset = 0) {
 
 export function syncGusCareInvites(gusCare: GusResponsibility[]) {
   return sharedSyncGusCareInvites(getProviderToken, gusCare, {
-    attendeeEmail: NAT_WORK_EMAIL,
+    natAttendeeEmail: NAT_WORK_EMAIL,
+    caitieAttendeeEmail: CAITIE_WORK_EMAIL,
   })
 }
 

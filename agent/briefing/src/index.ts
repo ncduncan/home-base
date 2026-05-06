@@ -48,7 +48,8 @@ async function main(): Promise<void> {
   // mutate the calendar from a local test run).
   if (!config.dryRun) {
     await syncGusCareInvites(getAccessToken, data.gusCare, {
-      attendeeEmail: 'nathaniel.duncan@geaerospace.com',
+      natAttendeeEmail: config.natAttendeeEmail,
+      caitieAttendeeEmail: config.caitieAttendeeEmail,
     })
     log('gus calendar sync: ok')
   } else {

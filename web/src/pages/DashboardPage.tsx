@@ -114,7 +114,10 @@ export default function DashboardPage({ session }: Props) {
   }, [weekOffset])
   const gusCare = useMemo(() => computeGusCare(events, weekDates), [events, weekDates])
 
-  // Sync Gus care invites to Google Calendar (Nat only, debounced)
+  // Sync Gus care invites to Google Calendar (debounced).
+  // Gated to Nat because the OAuth token lives on his personal Google account —
+  // syncGusCareInvites writes to that calendar and adds the responsible person
+  // (Nat or Caitie) as the attendee for each day.
   const syncTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => {
     if (session.user.email?.toLowerCase() !== OWNER_EMAILS.nat) return
@@ -173,7 +176,6 @@ export default function DashboardPage({ session }: Props) {
           eventsAuthError={eventsAuthError}
           onRefreshEvents={() => fetchEvents(weekOffset)}
           weather={weather}
-          gusCare={gusCare}
           overrides={overrides}
           onSaveOverride={handleSaveOverride}
           onDeleteOverride={handleDeleteOverride}

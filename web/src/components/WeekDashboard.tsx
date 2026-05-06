@@ -16,7 +16,6 @@ import type {
   AsanaUser,
   CalendarEvent,
   CalendarOverride,
-  GusResponsibility,
   WeatherDay,
 } from '../types'
 
@@ -28,7 +27,6 @@ interface Props {
   eventsAuthError: boolean
   onRefreshEvents: () => void
   weather: WeatherDay[]
-  gusCare: GusResponsibility[]
   overrides: CalendarOverride[]
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
@@ -55,7 +53,7 @@ function weekLabel(weekOffset: number): string {
 
 export default function WeekDashboard({
   events, rawEvents, eventsLoading, eventsError, eventsAuthError, onRefreshEvents,
-  weather, gusCare, overrides, onSaveOverride, onDeleteOverride,
+  weather, overrides, onSaveOverride, onDeleteOverride,
   onCreateHomebaseEvent, onDeleteHomebaseEvent,
   weekOffset, onWeekChange,
   tasks, setTasks, tasksLoading, userEmail,
@@ -98,7 +96,6 @@ export default function WeekDashboard({
   })
 
   const weatherByDate = new Map(weather.map(w => [w.date, w]))
-  const gusCareByDate = new Map(gusCare.map(g => [g.date, g]))
 
   // Task placement: tasks for a specific day, with past-due + undated rolled into today.
   // A task due in the past is shown ONLY under today (not its original due date).
@@ -286,7 +283,6 @@ export default function WeekDashboard({
               rawEvents={rawEvents}
               overrides={overrides}
               weather={weatherByDate.get(dayDateStr)}
-              gusCare={gusCareByDate.get(dayDateStr)}
               tasks={dayTasks}
               users={users}
               userEmail={userEmail}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { wmoToIcon } from '../lib/weather'
 import { eventOwner } from '../lib/calendar'
+import { computeBusyBlock, type BusyBlock } from '../lib/busy-block'
 import EventDetail from './EventDetail'
 import DayHeaderPanel from './DayHeaderPanel'
 import TaskRow from './tasks/TaskRow'
@@ -17,7 +18,6 @@ import type {
   AsanaUser,
   CalendarEvent,
   CalendarOverride,
-  GusResponsibility,
   WeatherDay,
 } from '../types'
 
@@ -30,7 +30,6 @@ interface Props {
   rawEvents: CalendarEvent[]
   overrides: CalendarOverride[]
   weather: WeatherDay | undefined
-  gusCare: GusResponsibility | undefined
   tasks: AsanaTask[]
   users: AsanaUser[]
   userEmail: string
@@ -65,14 +64,14 @@ function formatAmionTime(event: CalendarEvent): string {
   return `${format(start, 'h')}–${format(end, 'h a')}`
 }
 
-function GusPill({ kind, label }: { kind: 'pickup' | 'dropoff'; label: string }) {
-  return (
-    <div className="px-3 py-1.5 flex items-baseline gap-1.5 text-[13px] text-hb-fg leading-tight">
-      <span className="text-hb-fg-faint">{kind === 'dropoff' ? '↓' : '↑'}</span>
-      <span>Gus {kind}</span>
-      <span className="text-[11px] text-hb-fg-muted tabular-nums">{label}</span>
-    </div>
-  )
+function formatBusyBlock(block: BusyBlock): string {
+  const start = format(parseISO(block.startISO), 'h:mma').toLowerCase()
+  const end = format(parseISO(block.endISO), 'h:mma').toLowerCase()
+  return block.crossesMidnight ? `${start} – ${end} +1` : `${start} – ${end}`
+}
+
+function isGusEvent(event: CalendarEvent): boolean {
+  return event.title === 'Gus pickup' || event.title === 'Gus dropoff'
 }
 
 interface OwnerSectionProps {
@@ -85,8 +84,6 @@ interface OwnerSectionProps {
   expandedEventId: string | null
   setExpandedEventId: (id: string | null) => void
   userEmail: string
-  hasDropoff: boolean
-  hasPickup: boolean
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
   onDeleteHomebaseEvent: (id: string) => Promise<void>
@@ -98,7 +95,6 @@ interface OwnerSectionProps {
 function OwnerSection({
   owner, events, tasks, users, overrideMap, dayDateStr,
   expandedEventId, setExpandedEventId, userEmail,
-  hasDropoff, hasPickup,
   onSaveOverride, onDeleteOverride, onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
 }: OwnerSectionProps) {
@@ -108,7 +104,15 @@ function OwnerSection({
   const labelBgClass = owner === 'nat' ? 'bg-hb-nat-fade' : 'bg-hb-cai-fade'
   const headerLabel = OWNER_LABELS[owner]
 
-  const isEmpty = events.length === 0 && tasks.length === 0 && !hasDropoff && !hasPickup
+  // Busy block: collapse all timed, non-Gus events into a single earliest-start
+  // → latest-end block. Nat gets a synthetic 8am–5pm baseline on weekdays. Gus
+  // pickup/dropoff render as discrete events below the block. All-day events
+  // (e.g. AMION backup status) also render discretely.
+  const blockSourceEvents = events.filter(e => !e.all_day && !isGusEvent(e))
+  const block = computeBusyBlock(blockSourceEvents, owner, dayDateStr)
+  const discreteEvents = events.filter(e => e.all_day || isGusEvent(e))
+
+  const isEmpty = !block && discreteEvents.length === 0 && tasks.length === 0
 
   return (
     <div className={`${edgeClass} min-h-[80px]`}>
@@ -120,13 +124,15 @@ function OwnerSection({
         <div className="px-3 pt-2 text-[11px] text-hb-fg-faint italic">—</div>
       )}
 
-      {/* Gus pills owned by this person */}
-      {hasDropoff && <GusPill kind="dropoff" label="7am" />}
-      {hasPickup && <GusPill kind="pickup" label="5pm" />}
+      {block && (
+        <div className="px-3 py-1.5 text-[13px] text-hb-fg leading-tight tabular-nums">
+          {formatBusyBlock(block)}
+        </div>
+      )}
 
-      {events.length > 0 && (
+      {discreteEvents.length > 0 && (
         <ul>
-          {events.map(event => {
+          {discreteEvents.map(event => {
             const isExpanded = expandedEventId === event.id
             const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
             const isHomebase = isHomebaseEventId(event.id)
@@ -228,7 +234,7 @@ const ROW_START = ['', 'lg:row-start-1','lg:row-start-2','lg:row-start-3','lg:ro
 
 export default function DayColumn({
   dayIndex, date, isToday, isPast,
-  events, rawEvents, overrides, weather, gusCare, tasks, users, userEmail,
+  events, rawEvents, overrides, weather, tasks, users, userEmail,
   onSaveOverride, onDeleteOverride,
   onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
@@ -255,12 +261,6 @@ export default function DayColumn({
   // Split tasks by assignee name
   const caitieTasks = tasks.filter(t => t.assignee?.name?.toLowerCase().startsWith('cait'))
   const natTasks = tasks.filter(t => !t.assignee?.name?.toLowerCase().startsWith('cait'))
-
-  // Gus pills go to whoever's responsible
-  const caitieDropoff = gusCare?.dropoff === 'caitie'
-  const caitiePickup = gusCare?.pickup === 'caitie'
-  const natDropoff = gusCare?.dropoff === 'nat'
-  const natPickup = gusCare?.pickup === 'nat'
 
   const colClass = COL_START[dayIndex]
 
@@ -347,8 +347,6 @@ export default function DayColumn({
           expandedEventId={expandedEventId}
           setExpandedEventId={setExpandedEventId}
           userEmail={userEmail}
-          hasDropoff={caitieDropoff}
-          hasPickup={caitiePickup}
           onSaveOverride={onSaveOverride}
           onDeleteOverride={onDeleteOverride}
           onDeleteHomebaseEvent={onDeleteHomebaseEvent}
@@ -372,8 +370,6 @@ export default function DayColumn({
           expandedEventId={expandedEventId}
           setExpandedEventId={setExpandedEventId}
           userEmail={userEmail}
-          hasDropoff={natDropoff}
-          hasPickup={natPickup}
           onSaveOverride={onSaveOverride}
           onDeleteOverride={onDeleteOverride}
           onDeleteHomebaseEvent={onDeleteHomebaseEvent}
