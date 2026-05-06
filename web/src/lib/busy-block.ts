@@ -20,7 +20,7 @@ export interface BusyBlock {
 const NAT_WORK_START_HOUR = 8
 const NAT_WORK_END_HOUR = 17
 
-export function computeRangeBlock(events: CalendarEvent[]): BusyBlock | null {
+export function computeRangeBlock(events: CalendarEvent[], label?: string): BusyBlock | null {
   if (events.length === 0) return null
   const startISO = events.map(e => e.start).sort()[0]
   const endISO = events.map(e => e.end).sort().at(-1)!
@@ -28,6 +28,7 @@ export function computeRangeBlock(events: CalendarEvent[]): BusyBlock | null {
     startISO,
     endISO,
     crossesMidnight: endISO.slice(0, 10) !== startISO.slice(0, 10),
+    ...(label ? { label } : {}),
   }
 }
 

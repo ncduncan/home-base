@@ -60,6 +60,14 @@ describe('computeRangeBlock', () => {
     expect(block?.crossesMidnight).toBe(false)
   })
 
+  it('label is propagated when provided', () => {
+    const block = computeRangeBlock(
+      [evt(`${monday}T09:00:00`, `${monday}T10:00:00`)],
+      'Research',
+    )
+    expect(block?.label).toBe('Research')
+  })
+
   it('event crossing midnight → crossesMidnight true', () => {
     const block = computeRangeBlock([evt(`${monday}T16:00:00`, `2026-05-05T08:00:00`)])
     expect(block?.crossesMidnight).toBe(true)

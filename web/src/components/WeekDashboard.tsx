@@ -205,9 +205,13 @@ export default function WeekDashboard({
     bannerEvents.map(e => [e.id, parseISO(e.end) <= todayDate] as const)
   )
   const bannerLaneCount = bannerSpans.reduce((max, s) => Math.max(max, s.lane + 1), 0)
+  // Owner rows use `auto` so each row sizes to the busiest day's content
+  // height — Caitie row equals max Caitie cell height across the week, Nat
+  // row equals max Nat cell height. Avoids dead whitespace from the prior
+  // 1fr-1fr split that yoked the two rows to the same height.
   const bannerRowsTemplate = bannerLaneCount > 0
-    ? `auto ${'auto '.repeat(bannerLaneCount).trim()} 1fr 1fr`
-    : 'auto auto 1fr 1fr'
+    ? `auto ${'auto '.repeat(bannerLaneCount).trim()} auto auto`
+    : 'auto auto auto auto'
 
   if (eventsLoading && tasksLoading && events.length === 0) {
     return (

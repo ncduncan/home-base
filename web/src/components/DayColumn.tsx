@@ -113,7 +113,10 @@ function OwnerSection({
   const isNat = owner === 'nat'
   const block: BusyBlock | null = isNat
     ? computeNatWorkBlock(dayDateStr)
-    : computeRangeBlock(events.filter(e => !e.is_amion && !e.all_day && !isGusEvent(e)))
+    : computeRangeBlock(
+        events.filter(e => !e.is_amion && !e.all_day && !isGusEvent(e)),
+        'Research',
+      )
   const discreteEvents = isNat
     ? events
     : events.filter(e => e.is_amion || e.all_day || isGusEvent(e))
@@ -132,7 +135,7 @@ function OwnerSection({
   const isEmpty = items.length === 0 && tasks.length === 0
 
   return (
-    <div className={`${edgeClass} min-h-[80px]`}>
+    <div className={edgeClass}>
       <div className={`${labelBgClass} px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.1em] text-hb-fg-secondary`}>
         {headerLabel}
       </div>
