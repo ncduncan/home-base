@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { format, addDays, startOfToday, startOfDay, parseISO, isSameDay } from 'date-fns'
-import { computeBannerSpans } from '../lib/banner-layout'
 import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -87,10 +86,11 @@ export default function WeekDashboard({
     setTimeout(() => setRefreshing(false), 1200)
   }
 
-  // Build the 7-day grid
+  // 8-day rolling window: Sun + next-Sun peek, rendered as a 4×2 grid.
+  // Prev/next still navigates by 7 days — the trailing Sunday is intentional overflow.
   const todayDate = startOfDay(new Date())
   const sunday = addDays(startOfToday(), -startOfToday().getDay() + weekOffset * 7)
-  const days = Array.from({ length: 7 }, (_, i) => {
+  const days = Array.from({ length: 8 }, (_, i) => {
     const date = addDays(sunday, i)
     return { date }
   })
@@ -196,23 +196,6 @@ export default function WeekDashboard({
     </div>
   )
 
-  // All-day, non-AMION events that should render as spanning ribbons
-  const bannerEvents = events.filter(e => e.all_day && !e.is_amion)
-  const weekDateStrs = days.map(d => format(d.date, 'yyyy-MM-dd'))
-  const bannerSpans = computeBannerSpans(bannerEvents, weekDateStrs)
-  // Banner is "fully past" when its exclusive end is at or before today's start.
-  const bannerPastById = new Map(
-    bannerEvents.map(e => [e.id, parseISO(e.end) <= todayDate] as const)
-  )
-  const bannerLaneCount = bannerSpans.reduce((max, s) => Math.max(max, s.lane + 1), 0)
-  // Owner rows use `auto` so each row sizes to the busiest day's content
-  // height — Caitie row equals max Caitie cell height across the week, Nat
-  // row equals max Nat cell height. Avoids dead whitespace from the prior
-  // 1fr-1fr split that yoked the two rows to the same height.
-  const bannerRowsTemplate = bannerLaneCount > 0
-    ? `auto ${'auto '.repeat(bannerLaneCount).trim()} auto auto`
-    : 'auto auto auto auto'
-
   if (eventsLoading && tasksLoading && events.length === 0) {
     return (
       <div>
@@ -258,11 +241,8 @@ export default function WeekDashboard({
         </div>
       )}
 
-      <div
-        className="grid grid-cols-1 lg:grid-cols-7 gap-2 lg:gap-x-2 lg:gap-y-0"
-        style={{ gridTemplateRows: bannerRowsTemplate }}
-      >
-        {days.map(({ date }, dayIdx) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {days.map(({ date }) => {
           const dayDateStr = format(date, 'yyyy-MM-dd')
           const isToday = isSameDay(date, todayDate)
           const isPast = date < todayDate && !isToday
@@ -279,7 +259,6 @@ export default function WeekDashboard({
           return (
             <DayColumn
               key={dayDateStr}
-              dayIndex={dayIdx}
               date={date}
               isToday={isToday}
               isPast={isPast}
@@ -296,28 +275,10 @@ export default function WeekDashboard({
               onToggleTask={(gid, c) => void mutations.toggleTask(gid, c)}
               onDeleteTask={(gid) => void mutations.removeTask(gid)}
               onUpdateTask={mutations.editTask}
-              bannerLaneCount={bannerLaneCount}
+              todayDate={todayDate}
             />
           )
         })}
-
-        {/* Spanning banner ribbons — always render starting at row 2 */}
-        {bannerSpans.map(span => (
-          <div
-            key={span.id}
-            className={`hidden lg:block px-3 py-1.5 mx-1 my-1 text-[12.5px] text-[#3d2f23] leading-tight border-l-2 border-hb-fam-accent bg-gradient-to-r from-hb-fam-fade via-[#fdf6ee] to-hb-fam-fade rounded-md border-y border-r border-[#f1e6da] ${
-              bannerPastById.get(span.id) ? 'opacity-50' : ''
-            }`}
-            style={{
-              gridColumnStart: span.startCol,
-              gridColumnEnd: span.endCol,
-              gridRowStart: 2 + span.lane,  // row 2 = first banner lane
-            }}
-            title={span.title}
-          >
-            <span>{span.title}</span>
-          </div>
-        ))}
       </div>
 
       {recentlyCompleted.length > 0 && (

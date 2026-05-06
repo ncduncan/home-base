@@ -22,7 +22,6 @@ import type {
 } from '../types'
 
 interface Props {
-  dayIndex: number
   date: Date
   isToday: boolean
   isPast: boolean
@@ -39,7 +38,7 @@ interface Props {
   onToggleTask: (gid: string, completed: boolean) => void
   onDeleteTask: (gid: string) => void
   onUpdateTask: (gid: string, patch: TaskUpdatePatch) => Promise<void>
-  bannerLaneCount: number
+  todayDate: Date
 }
 
 const SHIFT_LABELS: Record<string, string> = {
@@ -74,6 +73,35 @@ function isGusEvent(event: CalendarEvent): boolean {
   return event.title === 'Gus pickup' || event.title === 'Gus dropoff'
 }
 
+// Time-canvas constants. The canvas paints a 7am→7pm window (12 hours) onto
+// 144px. Anything earlier clamps to the top, anything later clamps to the
+// bottom — the "+1" in the rendered time text carries the overflow cue.
+const RANGE_START_HOUR = 7
+const RANGE_END_HOUR = 19
+const CANVAS_HEIGHT_PX = 144
+const MIN_BAR_HEIGHT_PX = 13
+const PX_PER_MIN = CANVAS_HEIGHT_PX / ((RANGE_END_HOUR - RANGE_START_HOUR) * 60)
+
+function isoToMinutesFromRangeStart(iso: string, refDayStr: string): number {
+  const isoDayStr = iso.slice(0, 10)
+  const dayDiff = Math.round(
+    (parseISO(`${isoDayStr}T00:00:00`).getTime() - parseISO(`${refDayStr}T00:00:00`).getTime()) / 86_400_000
+  )
+  const t = parseISO(iso)
+  return dayDiff * 1440 + t.getHours() * 60 + t.getMinutes() - RANGE_START_HOUR * 60
+}
+
+function positionInCanvas(startISO: string, endISO: string, refDayStr: string): { top: number; height: number } {
+  const startMin = isoToMinutesFromRangeStart(startISO, refDayStr)
+  const endMin = isoToMinutesFromRangeStart(endISO, refDayStr)
+  const top = Math.max(0, Math.min(CANVAS_HEIGHT_PX - MIN_BAR_HEIGHT_PX, startMin * PX_PER_MIN))
+  if (endMin <= startMin) {
+    return { top, height: MIN_BAR_HEIGHT_PX }
+  }
+  const bottom = Math.max(MIN_BAR_HEIGHT_PX, Math.min(CANVAS_HEIGHT_PX, endMin * PX_PER_MIN))
+  return { top, height: Math.max(MIN_BAR_HEIGHT_PX, bottom - top) }
+}
+
 interface OwnerSectionProps {
   owner: 'nat' | 'caitie'
   events: CalendarEvent[]
@@ -102,6 +130,9 @@ function OwnerSection({
     ? 'border-l-2 border-hb-nat-accent'
     : 'border-l-2 border-hb-cai-accent'
   const labelBgClass = owner === 'nat' ? 'bg-hb-nat-fade' : 'bg-hb-cai-fade'
+  const barFillClass = owner === 'nat'
+    ? 'bg-hb-nat-fade border-l-2 border-hb-nat-accent'
+    : 'bg-hb-cai-fade border-l-2 border-hb-cai-accent'
   const headerLabel = OWNER_LABELS[owner]
 
   // Owner-specific block + discrete-event split:
@@ -121,129 +152,133 @@ function OwnerSection({
     ? events
     : events.filter(e => e.is_amion || e.all_day || isGusEvent(e))
 
-  // Time-sorted unified item list: block sits at its startISO, events at
-  // their start. Keeps Gus dropoff (7am) above shifts/blocks above Gus
-  // pickup (5pm).
   type Item =
     | { kind: 'block'; block: BusyBlock; sortKey: string }
     | { kind: 'event'; event: CalendarEvent; sortKey: string }
   const items: Item[] = []
   if (block) items.push({ kind: 'block', block, sortKey: block.startISO })
   for (const e of discreteEvents) items.push({ kind: 'event', event: e, sortKey: e.start })
+  // Earlier items render first (DOM lower), later items render on top —
+  // so a brief 1pm point will sit visually above a 9am–5pm Work block.
   items.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 
   const isEmpty = items.length === 0 && tasks.length === 0
 
   return (
-    <div className={edgeClass}>
-      <div className={`${labelBgClass} px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.1em] text-hb-fg-secondary`}>
+    <div className={`${edgeClass} flex flex-col`}>
+      <div className={`${labelBgClass} px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.1em] text-hb-fg-secondary`}>
         {headerLabel}
       </div>
 
-      {isEmpty && (
-        <div className="px-3 pt-2 text-[11px] text-hb-fg-faint italic">—</div>
-      )}
+      {/* Time canvas — bars positioned by start/end. No axis drawn; vertical
+          location alone communicates rough time-of-day. */}
+      <div className="relative h-36 px-1">
+        {items.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-hb-fg-faint italic">
+            {isEmpty ? '—' : ''}
+          </div>
+        )}
 
-      {items.length > 0 && (
-        <ul>
-          {items.map(item => {
-            if (item.kind === 'block') {
-              const b = item.block
-              return (
-                <li key={`block-${b.startISO}`} className="px-3 py-1.5">
-                  {b.label && (
-                    <div className="text-[13px] text-hb-fg leading-tight">{b.label}</div>
-                  )}
-                  <div
-                    className={`leading-tight tabular-nums ${
-                      b.label ? 'text-[11px] text-hb-fg-muted' : 'text-[13px] text-hb-fg'
-                    }`}
-                  >
-                    {formatBusyBlock(b)}
-                  </div>
-                </li>
-              )
-            }
-
-            const event = item.event
-            const isExpanded = expandedEventId === event.id
-            const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
-            const isHomebase = isHomebaseEventId(event.id)
-            // Homebase events have inline delete only (no override panel).
-            // Everything else uses the floating popover so the details can
-            // breathe outside the narrow column.
-            const triggerButton = (
-              <button
-                className={`w-full text-left px-3 py-1.5 transition-colors ${
-                  isExpanded ? 'bg-black/[.03]' : 'hover:bg-black/[.02]'
-                }`}
-              >
-                <div className="text-[13px] text-hb-fg leading-tight pr-5">
-                  {event.is_amion ? shiftLabel(event.amion_kind) : event.title}
-                </div>
-                <div className="text-[11px] text-hb-fg-muted leading-tight tabular-nums">
-                  {event.is_amion
-                    ? formatAmionTime(event)
-                    : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')}
-                </div>
-                {event.location && !event.is_amion && (
-                  <div className="text-[11px] text-hb-fg-muted truncate">{event.location}</div>
-                )}
-                {event.notes && (
-                  <div className="text-[11px] text-hb-fg-secondary italic">{event.notes}</div>
-                )}
-                {event.overridden && (
-                  <div className="text-[10px] text-[#a07a18] font-medium">edited</div>
-                )}
-              </button>
-            )
-
+        {items.map(item => {
+          if (item.kind === 'block') {
+            const b = item.block
+            const { top, height } = positionInCanvas(b.startISO, b.endISO, dayDateStr)
             return (
-              <li key={event.id} className="group/event relative">
-                {isHomebase ? (
-                  <>
-                    {triggerButton}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void onDeleteHomebaseEvent(homebaseIdFromCalendarEventId(event.id))
-                      }}
-                      className="absolute top-1.5 right-2 opacity-0 group-hover/event:opacity-100 text-gray-300 hover:text-red-500 transition-all text-[10px]"
-                      aria-label="Delete event"
-                    >
-                      ✕
-                    </button>
-                  </>
-                ) : (
-                  <Popover
-                    open={isExpanded}
-                    onOpenChange={(open) => setExpandedEventId(open ? event.id : null)}
-                  >
-                    <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-                    <PopoverContent
-                      className="w-[360px] p-0"
-                      align="start"
-                      onOpenAutoFocus={(e) => e.preventDefault()}
-                    >
-                      <EventDetail
-                        event={event}
-                        override={eventOverride}
-                        userEmail={userEmail}
-                        onSave={onSaveOverride}
-                        onDelete={onDeleteOverride}
-                        onClose={() => setExpandedEventId(null)}
-                      />
-                    </PopoverContent>
-                  </Popover>
+              <div
+                key={`block-${b.startISO}`}
+                className={`absolute left-1 right-1 px-1.5 py-px rounded-[3px] overflow-hidden leading-tight ${barFillClass}`}
+                style={{ top: `${top}px`, height: `${height}px` }}
+              >
+                {b.label && (
+                  <div className="text-[11px] font-medium text-hb-fg truncate">{b.label}</div>
                 )}
-              </li>
+                <div className={`text-[10px] tabular-nums ${b.label ? 'text-hb-fg-muted' : 'text-hb-fg'}`}>
+                  {formatBusyBlock(b)}
+                </div>
+              </div>
             )
-          })}
-        </ul>
-      )}
+          }
+
+          const event = item.event
+          const isExpanded = expandedEventId === event.id
+          const eventOverride = overrideMap.get(`${event.id}|${dayDateStr}`) ?? null
+          const isHomebase = isHomebaseEventId(event.id)
+          const { top, height } = positionInCanvas(event.start, event.end, dayDateStr)
+
+          const titleText = event.is_amion ? shiftLabel(event.amion_kind) : event.title
+          const timeText = event.is_amion
+            ? formatAmionTime(event)
+            : event.all_day ? 'all day' : format(parseISO(event.start), 'h:mm a')
+
+          const triggerButton = (
+            <button
+              className={`absolute inset-0 px-1.5 py-px text-left overflow-hidden leading-tight transition-colors ${
+                isExpanded ? 'bg-black/[.04]' : 'hover:bg-black/[.03]'
+              }`}
+            >
+              <div className="text-[11px] font-medium text-hb-fg truncate">{titleText}</div>
+              <div className="text-[10px] text-hb-fg-muted tabular-nums truncate">{timeText}</div>
+              {event.location && !event.is_amion && (
+                <div className="text-[10px] text-hb-fg-muted truncate">{event.location}</div>
+              )}
+              {event.notes && (
+                <div className="text-[10px] text-hb-fg-secondary italic truncate">{event.notes}</div>
+              )}
+              {event.overridden && (
+                <div className="text-[9px] text-[#a07a18] font-medium">edited</div>
+              )}
+            </button>
+          )
+
+          return (
+            <div
+              key={event.id}
+              className={`absolute left-1 right-1 group/event rounded-[3px] overflow-hidden ${barFillClass}`}
+              style={{ top: `${top}px`, height: `${height}px` }}
+            >
+              {isHomebase ? (
+                <>
+                  {triggerButton}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void onDeleteHomebaseEvent(homebaseIdFromCalendarEventId(event.id))
+                    }}
+                    className="absolute top-0.5 right-1 opacity-0 group-hover/event:opacity-100 text-gray-300 hover:text-red-500 transition-all text-[10px] z-10"
+                    aria-label="Delete event"
+                  >
+                    ✕
+                  </button>
+                </>
+              ) : (
+                <Popover
+                  open={isExpanded}
+                  onOpenChange={(open) => setExpandedEventId(open ? event.id : null)}
+                >
+                  <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+                  <PopoverContent
+                    className="w-[360px] p-0"
+                    align="start"
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                  >
+                    <EventDetail
+                      event={event}
+                      override={eventOverride}
+                      userEmail={userEmail}
+                      onSave={onSaveOverride}
+                      onDelete={onDeleteOverride}
+                      onClose={() => setExpandedEventId(null)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+          )
+        })}
+      </div>
 
       {tasks.length > 0 && (
-        <ul>
+        <ul className="mt-auto border-t border-dashed border-hb-border-rule">
           {tasks.map(task => (
             <TaskRow
               key={task.gid}
@@ -257,21 +292,17 @@ function OwnerSection({
           ))}
         </ul>
       )}
-
     </div>
   )
 }
 
-const COL_START = ['lg:col-start-1','lg:col-start-2','lg:col-start-3','lg:col-start-4','lg:col-start-5','lg:col-start-6','lg:col-start-7'] as const
-const ROW_START = ['', 'lg:row-start-1','lg:row-start-2','lg:row-start-3','lg:row-start-4','lg:row-start-5','lg:row-start-6','lg:row-start-7'] as const
-
 export default function DayColumn({
-  dayIndex, date, isToday, isPast,
+  date, isToday, isPast,
   events, rawEvents, overrides, weather, tasks, users, userEmail,
   onSaveOverride, onDeleteOverride,
   onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
-  bannerLaneCount,
+  todayDate,
 }: Props) {
   const dayDateStr = format(date, 'yyyy-MM-dd')
   const [headerExpanded, setHeaderExpanded] = useState(false)
@@ -280,32 +311,29 @@ export default function DayColumn({
   const overrideMap = new Map<string, CalendarOverride>()
   for (const o of overrides) overrideMap.set(`${o.event_key}|${o.event_date}`, o)
 
-  // When bannerLaneCount > 1, multiple banner lanes push the owner rows down.
-  // Banner row 2 holds the first lane; additional lanes occupy rows 3, 4, ...
-  // So Caitie occupies row (2 + max(1, bannerLaneCount)) and Nat the next row.
-  const caitieRow = 2 + Math.max(1, bannerLaneCount)
-  const natRow = caitieRow + 1
-
-  // Split events by owner (family banners are handled by WeekDashboard as spanning ribbons on lg+)
+  // Banner candidates: all-day, non-AMION events that overlap this day.
+  // Multi-day banners render once per day they span (no continuation hint).
   const familyEvents = events.filter(e => e.all_day && !e.is_amion)
   const ownerEvents = events.filter(e => !(e.all_day && !e.is_amion))
   const caitieEvents = ownerEvents.filter(e => eventOwner(e) === 'caitie')
   const natEvents = ownerEvents.filter(e => eventOwner(e) === 'nat')
-  // Split tasks by assignee name
   const caitieTasks = tasks.filter(t => t.assignee?.name?.toLowerCase().startsWith('cait'))
   const natTasks = tasks.filter(t => !t.assignee?.name?.toLowerCase().startsWith('cait'))
 
-  const colClass = COL_START[dayIndex]
+  const ownerProps = {
+    users, overrideMap, dayDateStr,
+    expandedEventId, setExpandedEventId, userEmail,
+    onSaveOverride, onDeleteOverride, onDeleteHomebaseEvent,
+    onToggleTask, onDeleteTask, onUpdateTask,
+  }
 
   return (
-    <div className="contents">
-      {/* Cell 1 — Day header */}
-      <div className={`${colClass} lg:row-start-1 border border-hb-border-soft rounded-t-md border-b-0 ${
-        isToday ? 'bg-[#e8e8e8]' : 'bg-hb-card'
-      } ${isPast ? 'opacity-50' : ''}`}>
+    <article className={`flex flex-col rounded-md border border-hb-border-soft bg-hb-card overflow-hidden ${isPast ? 'opacity-50' : ''}`}>
+      {/* Day header */}
+      <div className={`border-b border-hb-border-rule ${isToday ? 'bg-[#e8e8e8]' : 'bg-hb-card'}`}>
         <button
           onClick={() => setHeaderExpanded(!headerExpanded)}
-          className="w-full px-3 py-2.5 flex items-start justify-between gap-2 text-left"
+          className="w-full px-3 py-2 flex items-start justify-between gap-2 text-left"
         >
           <div>
             <div className={`text-[11px] font-medium uppercase tracking-[.08em] ${
@@ -313,7 +341,7 @@ export default function DayColumn({
             }`}>
               {format(date, 'EEE')}
             </div>
-            <div className="text-[17px] font-semibold text-hb-fg leading-tight tracking-tight mt-0.5">
+            <div className="text-[15px] font-semibold text-hb-fg leading-tight tracking-tight mt-0.5">
               {format(date, 'MMM d')}
               {isToday && <span className="ml-1.5 text-[10px] font-medium text-hb-fg-muted tracking-normal normal-case">· today</span>}
             </div>
@@ -338,79 +366,31 @@ export default function DayColumn({
         )}
       </div>
 
-      {/* Cell 2 — Banner row.
-          Desktop (lg+): empty placeholder so the day card stays visually
-          continuous; spanning ribbons (rendered by WeekDashboard) paint
-          over it where they extend.
-          Mobile: spanning ribbons are hidden (no multi-column to span),
-          so render this day's family events inline here. When the day has
-          no family events, hide the cell entirely on mobile to avoid an
-          empty gap between the header and the Caitie row. */}
-      <div
-        className={`${colClass} lg:row-start-2 lg:bg-hb-card lg:border-x lg:border-hb-border-soft ${
-          familyEvents.length === 0 ? 'hidden lg:block' : ''
-        }`}
-        aria-hidden={familyEvents.length === 0 ? true : undefined}
-      >
-        {familyEvents.length > 0 && (
-          <ul className="lg:hidden flex flex-col gap-1">
-            {familyEvents.map(event => (
+      {/* Banner slot — all-day non-AMION events that touch this day */}
+      {familyEvents.length > 0 && (
+        <ul className="px-1.5 pt-1 flex flex-col gap-1">
+          {familyEvents.map(event => {
+            const isPastBanner = parseISO(event.end) <= todayDate
+            return (
               <li
                 key={event.id}
-                className="px-3 py-1.5 text-[13px] text-[#3d2f23] leading-tight border-l-2 border-hb-fam-accent bg-gradient-to-r from-hb-fam-fade via-[#fdf6ee] to-hb-fam-fade rounded-md border-y border-r border-[#f1e6da]"
+                className={`px-2 py-1 text-[11px] text-[#3d2f23] leading-tight border-l-2 border-hb-fam-accent bg-gradient-to-r from-hb-fam-fade via-[#fdf6ee] to-hb-fam-fade rounded-md border-y border-r border-[#f1e6da] ${
+                  isPastBanner ? 'opacity-50' : ''
+                }`}
+                title={event.title}
               >
                 {event.title}
               </li>
-            ))}
-          </ul>
-        )}
-      </div>
+            )
+          })}
+        </ul>
+      )}
 
-      {/* Cell 3 — CAITIE row */}
-      <div className={`${colClass} ${ROW_START[caitieRow]} bg-hb-card border-x border-hb-border-soft border-t border-hb-border-rule ${
-        isPast ? 'opacity-50' : ''
-      }`}>
-        <OwnerSection
-          owner="caitie"
-          events={caitieEvents}
-          tasks={caitieTasks}
-          users={users}
-          overrideMap={overrideMap}
-          dayDateStr={dayDateStr}
-          expandedEventId={expandedEventId}
-          setExpandedEventId={setExpandedEventId}
-          userEmail={userEmail}
-          onSaveOverride={onSaveOverride}
-          onDeleteOverride={onDeleteOverride}
-          onDeleteHomebaseEvent={onDeleteHomebaseEvent}
-          onToggleTask={onToggleTask}
-          onDeleteTask={onDeleteTask}
-          onUpdateTask={onUpdateTask}
-        />
+      {/* Owner split — equal-width Caitie | Nat columns */}
+      <div className="grid grid-cols-2 flex-1 mt-1">
+        <OwnerSection owner="caitie" events={caitieEvents} tasks={caitieTasks} {...ownerProps} />
+        <OwnerSection owner="nat" events={natEvents} tasks={natTasks} {...ownerProps} />
       </div>
-
-      {/* Cell 4 — NAT row */}
-      <div className={`${colClass} ${ROW_START[natRow]} bg-hb-card border border-hb-border-soft border-t-0 rounded-b-md ${
-        isPast ? 'opacity-50' : ''
-      }`}>
-        <OwnerSection
-          owner="nat"
-          events={natEvents}
-          tasks={natTasks}
-          users={users}
-          overrideMap={overrideMap}
-          dayDateStr={dayDateStr}
-          expandedEventId={expandedEventId}
-          setExpandedEventId={setExpandedEventId}
-          userEmail={userEmail}
-          onSaveOverride={onSaveOverride}
-          onDeleteOverride={onDeleteOverride}
-          onDeleteHomebaseEvent={onDeleteHomebaseEvent}
-          onToggleTask={onToggleTask}
-          onDeleteTask={onDeleteTask}
-          onUpdateTask={onUpdateTask}
-        />
-      </div>
-    </div>
+    </article>
   )
 }
