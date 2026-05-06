@@ -47,10 +47,15 @@ export function computeGusCare(
 ): GusResponsibility[] {
   // Group Caitie's events by start date (AMION shifts + her regular events).
   // Skip "backup" AMION shifts — they don't make her unavailable.
+  // Skip Gus pickup/dropoff invites — they're outputs of this algorithm, not
+  // inputs. Without this guard, a previously-synced Caitie-attributed Gus
+  // dropoff at 7am would trigger startsByMorning() and flip responsibility on
+  // the next run — a self-perpetuating feedback loop.
   const caitieByDate = new Map<string, CalendarEvent[]>()
   for (const event of events) {
     if (eventOwner(event) !== 'caitie') continue
     if (event.is_amion && event.amion_kind === 'backup') continue
+    if (event.title === 'Gus pickup' || event.title === 'Gus dropoff') continue
     const dateStr = event.start.slice(0, 10)
     const existing = caitieByDate.get(dateStr) ?? []
     existing.push(event)
