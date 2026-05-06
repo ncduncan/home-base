@@ -150,7 +150,7 @@ async function syncGusEventsBySpec(
   desired: Map<string, DesiredGusEvent>,
   existing: Map<string, ExistingGusEvent>,
   spec: GusEventSpec,
-): Promise<void> {
+): Promise<boolean> {
   const ops: Promise<void>[] = []
 
   // Cancel events for dates that are no longer desired
@@ -180,6 +180,7 @@ async function syncGusEventsBySpec(
   }
 
   await Promise.all(ops)
+  return ops.length > 0
 }
 
 async function fetchExistingGusEvents(
@@ -250,8 +251,8 @@ export async function syncGusCareInvites(
   getAccessToken: GetAccessToken,
   gusCare: GusResponsibility[],
   options: SyncGusCareInvitesOptions,
-): Promise<void> {
-  if (gusCare.length === 0) return
+): Promise<boolean> {
+  if (gusCare.length === 0) return false
 
   const token = await getAccessToken()
 
@@ -264,7 +265,7 @@ export async function syncGusCareInvites(
   today.setHours(0, 0, 0, 0)
 
   // Don't modify past events
-  if (rangeEnd < today) return
+  if (rangeEnd < today) return false
   const effectiveStart = rangeStart < today ? today : rangeStart
 
   const attendeeFor = (owner: 'nat' | 'caitie') =>
@@ -285,7 +286,7 @@ export async function syncGusCareInvites(
     fetchExistingGusEvents(token, 'Gus dropoff', effectiveStart, rangeEnd),
   ])
 
-  await Promise.all([
+  const [pickupChanged, dropoffChanged] = await Promise.all([
     syncGusEventsBySpec(token, pickupDesired, existingPickups, {
       summary: 'Gus pickup',
       startHour: 17,
@@ -297,6 +298,8 @@ export async function syncGusCareInvites(
       endHour: 8,
     }),
   ])
+
+  return pickupChanged || dropoffChanged
 }
 
 // ── Event editing ─────────────────────────────────────────────────────────────

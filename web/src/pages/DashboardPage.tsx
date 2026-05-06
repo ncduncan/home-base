@@ -125,11 +125,21 @@ export default function DashboardPage({ session }: Props) {
 
     clearTimeout(syncTimerRef.current)
     syncTimerRef.current = setTimeout(() => {
-      syncGusCareInvites(gusCare).catch(() => {/* non-blocking */})
+      syncGusCareInvites(gusCare)
+        .then(changed => {
+          // If the sync updated any Google events, refetch so the dashboard
+          // reflects the new attendee/owner state without a manual reload.
+          if (changed) fetchEvents(weekOffset)
+        })
+        .catch(err => {
+          // Don't block the UI but do surface the error in console so the
+          // user can debug a misbehaving sync (rare, but better than silent).
+          console.error('syncGusCareInvites failed:', err)
+        })
     }, 2000) // 2s debounce
 
     return () => clearTimeout(syncTimerRef.current)
-  }, [gusCare, session.user.email, eventsLoading])
+  }, [gusCare, session.user.email, eventsLoading, fetchEvents, weekOffset])
 
   // ── Override handlers ─────────────────────────────────────────────────────
   const handleSaveOverride = useCallback(async (override: Omit<CalendarOverride, 'id'>) => {
