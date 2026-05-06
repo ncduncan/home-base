@@ -117,11 +117,9 @@ export default function DashboardPage({ session }: Props) {
   // Diagnostic — TEMPORARY.
   useEffect(() => {
     if (eventsLoading) return
-    console.log('[gus-care] computed:', JSON.stringify(
-      gusCare.map(g => ({ date: g.date, dropoff: g.dropoff, pickup: g.pickup, reason: g.reason })),
-      null,
-      2,
-    ))
+    for (const g of gusCare) {
+      console.log(`[gus-care] ${g.date}: dropoff=${g.dropoff} pickup=${g.pickup} reason="${g.reason}"`)
+    }
   }, [gusCare, eventsLoading])
 
   // Sync Gus care invites to Google Calendar (debounced).

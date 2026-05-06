@@ -148,35 +148,49 @@ async function createGusEvent(
 async function syncGusEventsBySpec(
   token: string,
   desired: Map<string, DesiredGusEvent>,
-  existing: Map<string, ExistingGusEvent>,
+  existing: Map<string, ExistingGusEvent[]>,
   spec: GusEventSpec,
 ): Promise<boolean> {
   const ops: Promise<void>[] = []
 
-  // Cancel events for dates that are no longer desired
-  for (const [dateStr, ex] of existing) {
+  // Cancel events for dates that are no longer desired (delete every duplicate)
+  for (const [dateStr, exList] of existing) {
     if (!desired.has(dateStr)) {
-      ops.push(deleteGusEvent(token, ex.eventId, spec.summary, dateStr))
+      for (const ex of exList) {
+        ops.push(deleteGusEvent(token, ex.eventId, spec.summary, dateStr))
+      }
     }
   }
 
-  // For each desired date, create or replace
+  // For each desired date, ensure exactly one matching event exists.
+  // If there are duplicates, keep the first match and delete the rest;
+  // if the kept one mismatches the desired attendee/owner, replace it.
   for (const [dateStr, want] of desired) {
-    const ex = existing.get(dateStr)
-    if (!ex) {
+    const exList = existing.get(dateStr) ?? []
+    if (exList.length === 0) {
       ops.push(createGusEvent(token, spec, dateStr, want))
       continue
     }
-    const attendeeMatches = ex.attendeeEmail?.toLowerCase() === want.attendeeEmail.toLowerCase()
-    const ownerMatches = ex.homebaseOwner === want.owner
-    if (attendeeMatches && ownerMatches) continue
-    // Mismatch — cancel the existing invite and create a fresh one with the
-    // right attendee/owner. Google sends a cancel notification to the old
-    // attendee and an invite to the new one.
-    ops.push(
-      deleteGusEvent(token, ex.eventId, spec.summary, dateStr)
-        .then(() => createGusEvent(token, spec, dateStr, want))
+
+    const matchIdx = exList.findIndex(ex =>
+      ex.attendeeEmail?.toLowerCase() === want.attendeeEmail.toLowerCase()
+      && ex.homebaseOwner === want.owner,
     )
+
+    if (matchIdx >= 0) {
+      // The desired event already exists. Delete any duplicates (with the
+      // wrong attendee/owner, or just spurious copies) and keep the match.
+      for (let i = 0; i < exList.length; i++) {
+        if (i === matchIdx) continue
+        ops.push(deleteGusEvent(token, exList[i].eventId, spec.summary, dateStr))
+      }
+    } else {
+      // No existing event matches — delete all and create a fresh one.
+      for (const ex of exList) {
+        ops.push(deleteGusEvent(token, ex.eventId, spec.summary, dateStr))
+      }
+      ops.push(createGusEvent(token, spec, dateStr, want))
+    }
   }
 
   await Promise.all(ops)
@@ -188,7 +202,7 @@ async function fetchExistingGusEvents(
   query: string,
   timeMin: Date,
   timeMax: Date,
-): Promise<Map<string, ExistingGusEvent>> {
+): Promise<Map<string, ExistingGusEvent[]>> {
   const resp = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
     new URLSearchParams({
@@ -200,7 +214,7 @@ async function fetchExistingGusEvents(
     }),
     { headers: { Authorization: `Bearer ${token}` } }
   )
-  const map = new Map<string, ExistingGusEvent>()
+  const map = new Map<string, ExistingGusEvent[]>()
   if (!resp.ok) return map
   const { items = [] } = await resp.json() as {
     items: Array<{
@@ -220,11 +234,13 @@ async function fetchExistingGusEvents(
     if (!dateStr) continue
     const attendeeEmail = item.attendees?.[0]?.email ?? null
     const homebaseOwner = item.extendedProperties?.private?.homebase_owner as 'nat' | 'caitie' | undefined
-    map.set(dateStr, {
+    const list = map.get(dateStr) ?? []
+    list.push({
       eventId: item.id,
       attendeeEmail,
       homebaseOwner: homebaseOwner ?? null,
     })
+    map.set(dateStr, list)
   }
   return map
 }
@@ -286,11 +302,24 @@ export async function syncGusCareInvites(
     fetchExistingGusEvents(token, 'Gus dropoff', effectiveStart, rangeEnd),
   ])
 
-  // Diagnostic — TEMPORARY.
-  console.log('[gus-sync] desired pickup:',  JSON.stringify(Object.fromEntries(pickupDesired),   null, 2))
-  console.log('[gus-sync] desired dropoff:', JSON.stringify(Object.fromEntries(dropoffDesired),  null, 2))
-  console.log('[gus-sync] existing pickup:', JSON.stringify(Object.fromEntries(existingPickups), null, 2))
-  console.log('[gus-sync] existing dropoff:',JSON.stringify(Object.fromEntries(existingDropoffs),null, 2))
+  // Diagnostic — TEMPORARY. Use single-line %o so the browser doesn't collapse
+  // into a generic "Object" placeholder when text-copied.
+  for (const [date, want] of dropoffDesired) {
+    console.log(`[gus-sync] desired dropoff ${date}: owner=${want.owner} attendee=${want.attendeeEmail}`)
+  }
+  for (const [date, want] of pickupDesired) {
+    console.log(`[gus-sync] desired pickup ${date}: owner=${want.owner} attendee=${want.attendeeEmail}`)
+  }
+  for (const [date, list] of existingDropoffs) {
+    for (const ex of list) {
+      console.log(`[gus-sync] existing dropoff ${date}: owner=${ex.homebaseOwner ?? 'null'} attendee=${ex.attendeeEmail ?? 'null'} id=${ex.eventId}`)
+    }
+  }
+  for (const [date, list] of existingPickups) {
+    for (const ex of list) {
+      console.log(`[gus-sync] existing pickup ${date}: owner=${ex.homebaseOwner ?? 'null'} attendee=${ex.attendeeEmail ?? 'null'} id=${ex.eventId}`)
+    }
+  }
 
   const [pickupChanged, dropoffChanged] = await Promise.all([
     syncGusEventsBySpec(token, pickupDesired, existingPickups, {
@@ -305,7 +334,7 @@ export async function syncGusCareInvites(
     }),
   ])
 
-  console.log('[gus-sync] changed:', { pickupChanged, dropoffChanged })
+  console.log(`[gus-sync] changed: pickupChanged=${pickupChanged} dropoffChanged=${dropoffChanged}`)
 
   return pickupChanged || dropoffChanged
 }
