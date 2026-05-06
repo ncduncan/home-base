@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, busy-block-and-gus-refactor]
+    branches: [main]
     paths: ['web/**']
   workflow_dispatch:
 
