@@ -51,11 +51,17 @@ export function computeGusCare(
   // inputs. Without this guard, a previously-synced Caitie-attributed Gus
   // dropoff at 7am would trigger startsByMorning() and flip responsibility on
   // the next run — a self-perpetuating feedback loop.
+  // Skip all-day non-AMION events — these are family markers / informational
+  // calendar items (e.g. "Sheep", recurring seminar markers from Caitie's
+  // hospital calendar) that don't actually block her at 7am or 5pm. Real
+  // unavailability shows up as timed events. AMION backup is already filtered
+  // above; AMION timed shifts pass through.
   const caitieByDate = new Map<string, CalendarEvent[]>()
   for (const event of events) {
     if (eventOwner(event) !== 'caitie') continue
     if (event.is_amion && event.amion_kind === 'backup') continue
     if (event.title === 'Gus pickup' || event.title === 'Gus dropoff') continue
+    if (event.all_day && !event.is_amion) continue
     const dateStr = event.start.slice(0, 10)
     const existing = caitieByDate.get(dateStr) ?? []
     existing.push(event)
