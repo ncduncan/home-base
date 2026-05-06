@@ -114,11 +114,14 @@ export default function DashboardPage({ session }: Props) {
   }, [weekOffset])
   const gusCare = useMemo(() => computeGusCare(events, weekDates), [events, weekDates])
 
-  // Diagnostic — TEMPORARY. Lets us see what the algorithm produced for the
-  // week and compare to what the dashboard actually renders.
+  // Diagnostic — TEMPORARY.
   useEffect(() => {
     if (eventsLoading) return
-    console.table(gusCare.map(g => ({ date: g.date, dropoff: g.dropoff, pickup: g.pickup, reason: g.reason })))
+    console.log('[gus-care] computed:', JSON.stringify(
+      gusCare.map(g => ({ date: g.date, dropoff: g.dropoff, pickup: g.pickup, reason: g.reason })),
+      null,
+      2,
+    ))
   }, [gusCare, eventsLoading])
 
   // Sync Gus care invites to Google Calendar (debounced).

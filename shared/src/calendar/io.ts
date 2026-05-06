@@ -286,12 +286,11 @@ export async function syncGusCareInvites(
     fetchExistingGusEvents(token, 'Gus dropoff', effectiveStart, rangeEnd),
   ])
 
-  // Diagnostic — TEMPORARY. Surfaces the algorithm's view of state so we can
-  // compare desired vs. existing when responsibility seems wrong.
-  console.log('[gus-sync] desired pickup:', Object.fromEntries(pickupDesired))
-  console.log('[gus-sync] desired dropoff:', Object.fromEntries(dropoffDesired))
-  console.log('[gus-sync] existing pickup:', Object.fromEntries(existingPickups))
-  console.log('[gus-sync] existing dropoff:', Object.fromEntries(existingDropoffs))
+  // Diagnostic — TEMPORARY.
+  console.log('[gus-sync] desired pickup:',  JSON.stringify(Object.fromEntries(pickupDesired),   null, 2))
+  console.log('[gus-sync] desired dropoff:', JSON.stringify(Object.fromEntries(dropoffDesired),  null, 2))
+  console.log('[gus-sync] existing pickup:', JSON.stringify(Object.fromEntries(existingPickups), null, 2))
+  console.log('[gus-sync] existing dropoff:',JSON.stringify(Object.fromEntries(existingDropoffs),null, 2))
 
   const [pickupChanged, dropoffChanged] = await Promise.all([
     syncGusEventsBySpec(token, pickupDesired, existingPickups, {
