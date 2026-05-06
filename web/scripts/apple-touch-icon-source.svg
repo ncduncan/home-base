@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <!-- Square background (no rx — iOS applies its own home-screen mask). -->
+  <rect width="180" height="180" fill="#3a4d63"/>
+  <!-- Roof: scaled from the 32-unit favicon (16,5 27,17 5,17) → 180-unit. -->
+  <polygon points="90,28 152,96 28,96" fill="white"/>
+  <!-- Body -->
+  <rect x="45" y="96" width="90" height="56" fill="white"/>
+  <!-- Door -->
+  <rect x="73" y="118" width="34" height="34" rx="6" fill="#3a4d63"/>
+</svg>

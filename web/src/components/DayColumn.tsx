@@ -372,9 +372,9 @@ export default function DayColumn({
         )}
       </div>
 
-      {/* Banner slot — all-day non-AMION events that touch this day.
-          Dot on start days, no leading marker on continuation days; a small
-          chevron on the right when the event extends past today. */}
+      {/* Banner slot — all-day non-AMION events that touch this day. Dot prefix
+          on every day they span; a small chevron on the right when the event
+          extends past this day. */}
       {familyEvents.length > 0 && (
         <ul className="px-2 pt-1.5 flex flex-col gap-0.5">
           {familyEvents.map(event => {
@@ -388,15 +388,10 @@ export default function DayColumn({
                 }`}
                 title={event.title}
               >
-                {span.continuesFromBefore ? (
-                  // Spacer keeps the title text aligned with start-day rows
-                  <span aria-hidden className="size-1.5 shrink-0" />
-                ) : (
-                  <span
-                    aria-hidden
-                    className="size-1.5 rounded-full bg-hb-fam-accent shrink-0"
-                  />
-                )}
+                <span
+                  aria-hidden
+                  className="size-1.5 rounded-full bg-hb-fam-accent shrink-0"
+                />
                 <span className="truncate flex-1 min-w-0">{event.title}</span>
                 {span.continuesPast && (
                   <ChevronRight

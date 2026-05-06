@@ -86,10 +86,17 @@ export function computeGusCare(
     // Pickup at 5pm: Nat if any of Caitie's events covers 5pm
     const natPickup = dayEvents.some(coversPickup)
 
-    // Dropoff at 7am: Nat if Caitie has an early event today OR overnight event from yesterday
+    // Dropoff at 7am: Nat if Caitie has an early event today, an overnight
+    // event from yesterday running past 7am today, OR a night/24hr AMION
+    // shift starting later today. The night-shift case isn't a hard time
+    // conflict at 7am, but Caitie shouldn't be on dog-walk duty the morning
+    // of a 16- or 24-hour overnight shift — she needs rest time.
     const natDropoffEarly = dayEvents.some(e => startsByMorning(e, dateStr))
     const natDropoffOvernight = prevEvents.some(e => runsPastTodayMorning(e, dateStr))
-    const natDropoff = natDropoffEarly || natDropoffOvernight
+    const natDropoffNightShift = dayEvents.some(e =>
+      e.is_amion && (e.amion_kind === 'night' || e.amion_kind === '24hr')
+    )
+    const natDropoff = natDropoffEarly || natDropoffOvernight || natDropoffNightShift
 
     // Build reason string
     const reasons: string[] = []

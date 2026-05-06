@@ -137,11 +137,11 @@ body {
   --color-hb-cai-accent: #e8c66e;
   --color-hb-cai-fade: #fdf9ee;
 
-  --color-hb-nat-accent: #8ea5e0;
-  --color-hb-nat-fade: #f4f7fd;
+  --color-hb-nat-accent: #6c87a6;
+  --color-hb-nat-fade: #f1f5f8;
 
-  --color-hb-fam-accent: #c89b6a;
-  --color-hb-fam-fade: #faf3ed;
+  --color-hb-fam-accent: #87968b;
+  --color-hb-fam-fade: #f1f4f1;
 }
 
 @layer base {

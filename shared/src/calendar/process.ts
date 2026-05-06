@@ -256,6 +256,15 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
   const amionItems: Array<Record<string, unknown>> = []
   const regularEvents: CalendarEvent[] = []
 
+  // Cross-calendar dedup: when Nat invites Caitie to "Gus dropoff", the accepted
+  // copy lands on Caitie's primary, and if Caitie's primary is subscribed in
+  // Nat's view we'd otherwise see the same logical event twice (different per-
+  // calendar IDs but same iCalUID). The first occurrence wins; calendarList
+  // typically returns the user's own primary first, which is also where the
+  // homebase_owner extendedProperty lives, so this naturally prefers the
+  // canonical copy.
+  const seenIcalUids = new Set<string>()
+
   for (const { cal, items } of sources) {
     const calName = (cal.summary ?? '').toLowerCase()
     const calOverride = (cal.summaryOverride ?? '').toLowerCase()
@@ -275,6 +284,8 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
         continue
       }
       if (item.status === 'cancelled') continue
+      // Skip cross-calendar duplicates of the same logical event.
+      if (uid && seenIcalUids.has(uid)) continue
       const title = (item.summary as string) ?? ''
       if (/^Week\s+\d+\s+of/i.test(title)) continue  // skip "Week N of YYYY" globally
       if (isCaitieAuxCalendar && title.startsWith('Declined: ')) continue
@@ -283,6 +294,7 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
       const allDay = 'date' in start && !('dateTime' in start)
       const extProps = item.extendedProperties as { private?: Record<string, string> } | undefined
       const homebaseOwner = extProps?.private?.homebase_owner as 'nat' | 'caitie' | undefined
+      if (uid) seenIcalUids.add(uid)
       regularEvents.push({
         id: item.id as string,
         title: title || '(No title)',

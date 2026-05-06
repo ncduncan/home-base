@@ -51,8 +51,17 @@ export default function EventDetail({ event, override, userEmail, onSave, onDele
   async function handleSave() {
     setSaving(true)
     try {
-      // Determine the end date for the override - for overnight shifts, end might be next day
-      const endDateStr = event.end.slice(0, 10)
+      // Decide which calendar date the new endTime belongs to:
+      // - end > start  → same day (e.g. shortening a 24hr shift to 8a–5p)
+      // - end ≤ start  → next day (overnight shift, e.g. 4p → 8a +1)
+      // Using the original event's end-date here would lock shortened shifts
+      // into a "+1" cross-midnight, which then leaks into Gus availability.
+      let endDateStr = dateStr
+      if (startTime && endTime && endTime <= startTime) {
+        const next = new Date(`${dateStr}T12:00:00`)
+        next.setDate(next.getDate() + 1)
+        endDateStr = format(next, 'yyyy-MM-dd')
+      }
       await onSave({
         event_key: event.id,
         event_date: dateStr,
