@@ -20,8 +20,8 @@ const SHIFT_LABELS: Record<string, string> = {
   backup: 'Backup',
 }
 
-const DROPOFF_HOUR = 7 // 7am
-const PICKUP_HOUR = 17 // 5pm
+const DROPOFF_HOUR = 7 // 7:30am
+const PICKUP_HOUR = 17 // 5:30pm
 const TRAVEL_BUFFER_MIN = 30 // commute padding applied to non-AMION events
 
 /**
