@@ -61,12 +61,12 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
               if (e.key === 'Enter') { e.preventDefault(); void saveName() }
               if (e.key === 'Escape') { setNameVal(task.name); setNameEditing(false) }
             }}
-            className="flex-1 min-w-0 text-[13px] bg-transparent border-b border-hb-fg outline-none py-0.5"
+            className={`flex-1 min-w-0 ${compact ? 'text-[11px]' : 'text-[13px]'} bg-transparent border-b border-hb-fg outline-none py-0.5`}
           />
         ) : (
           <span
             onClick={() => !task.completed && setNameEditing(true)}
-            className={`flex-1 min-w-0 text-[13px] ${
+            className={`flex-1 min-w-0 ${compact ? 'text-[11px]' : 'text-[13px]'} ${
               task.completed
                 ? 'line-through text-hb-fg-muted'
                 : 'text-hb-fg cursor-pointer hover:text-hb-fg'
