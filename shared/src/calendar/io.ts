@@ -302,25 +302,6 @@ export async function syncGusCareInvites(
     fetchExistingGusEvents(token, 'Gus dropoff', effectiveStart, rangeEnd),
   ])
 
-  // Diagnostic — TEMPORARY. Use single-line %o so the browser doesn't collapse
-  // into a generic "Object" placeholder when text-copied.
-  for (const [date, want] of dropoffDesired) {
-    console.log(`[gus-sync] desired dropoff ${date}: owner=${want.owner} attendee=${want.attendeeEmail}`)
-  }
-  for (const [date, want] of pickupDesired) {
-    console.log(`[gus-sync] desired pickup ${date}: owner=${want.owner} attendee=${want.attendeeEmail}`)
-  }
-  for (const [date, list] of existingDropoffs) {
-    for (const ex of list) {
-      console.log(`[gus-sync] existing dropoff ${date}: owner=${ex.homebaseOwner ?? 'null'} attendee=${ex.attendeeEmail ?? 'null'} id=${ex.eventId}`)
-    }
-  }
-  for (const [date, list] of existingPickups) {
-    for (const ex of list) {
-      console.log(`[gus-sync] existing pickup ${date}: owner=${ex.homebaseOwner ?? 'null'} attendee=${ex.attendeeEmail ?? 'null'} id=${ex.eventId}`)
-    }
-  }
-
   const [pickupChanged, dropoffChanged] = await Promise.all([
     syncGusEventsBySpec(token, pickupDesired, existingPickups, {
       summary: 'Gus pickup',
@@ -333,8 +314,6 @@ export async function syncGusCareInvites(
       endHour: 8,
     }),
   ])
-
-  console.log(`[gus-sync] changed: pickupChanged=${pickupChanged} dropoffChanged=${dropoffChanged}`)
 
   return pickupChanged || dropoffChanged
 }

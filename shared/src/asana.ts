@@ -122,7 +122,10 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
 
     for (const gid of candidates) {
       try {
-        const json = await asanaGet(`/users?workspace=${gid}&opt_fields=gid,name,email`)
+        // Use the path-scoped endpoint (`/workspaces/{gid}/users`) — the
+        // legacy query-param form (`/users?workspace=GID`) returns 400 for
+        // some PATs even when the workspace is otherwise accessible.
+        const json = await asanaGet(`/workspaces/${gid}/users?opt_fields=gid,name,email`)
         _resolvedWorkspaceGid = gid
         return { workspaceGid: gid, users: parseUsers(json) }
       } catch { continue }
