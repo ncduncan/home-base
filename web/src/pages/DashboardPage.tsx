@@ -118,13 +118,26 @@ export default function DashboardPage({ session }: Props) {
   // Gated to Nat because the OAuth token lives on his personal Google account —
   // syncGusCareInvites writes to that calendar and adds the responsible person
   // (Nat or Caitie) as the attendee for each day.
+  //
+  // Single-flight: only one sync runs at a time per tab. If the inputs change
+  // mid-flight we set a "pending" flag and re-run once the in-flight pass
+  // resolves. Combined with PATCH-based reconciliation in syncGusCareInvites,
+  // this keeps the calendar from accumulating duplicate Gus invites.
   const syncTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const inFlightRef = useRef(false)
+  const pendingRef = useRef(false)
+  const [syncTick, setSyncTick] = useState(0)
   useEffect(() => {
     if (session.user.email?.toLowerCase() !== OWNER_EMAILS.nat) return
     if (eventsLoading) return
 
     clearTimeout(syncTimerRef.current)
     syncTimerRef.current = setTimeout(() => {
+      if (inFlightRef.current) {
+        pendingRef.current = true
+        return
+      }
+      inFlightRef.current = true
       syncGusCareInvites(gusCare)
         .then(changed => {
           // If the sync updated any Google events, refetch so the dashboard
@@ -136,10 +149,17 @@ export default function DashboardPage({ session }: Props) {
           // user can debug a misbehaving sync (rare, but better than silent).
           console.error('syncGusCareInvites failed:', err)
         })
+        .finally(() => {
+          inFlightRef.current = false
+          if (pendingRef.current) {
+            pendingRef.current = false
+            setSyncTick(t => t + 1)
+          }
+        })
     }, 2000) // 2s debounce
 
     return () => clearTimeout(syncTimerRef.current)
-  }, [gusCare, session.user.email, eventsLoading, fetchEvents, weekOffset])
+  }, [gusCare, session.user.email, eventsLoading, fetchEvents, weekOffset, syncTick])
 
   // ── Override handlers ─────────────────────────────────────────────────────
   const handleSaveOverride = useCallback(async (override: Omit<CalendarOverride, 'id'>) => {

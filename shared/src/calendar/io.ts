@@ -88,8 +88,11 @@ export async function fetchCalendarEvents(
 
 // ── Gus care GCal invite sync ─────────────────────────────────────────────────
 
+type GusRole = 'pickup' | 'dropoff'
+
 type GusEventSpec = {
   summary: string
+  role: GusRole
   startHour: number
   endHour: number
 }
@@ -100,7 +103,10 @@ type ExistingGusEvent = {
   eventId: string
   attendeeEmail: string | null
   homebaseOwner: 'nat' | 'caitie' | null
+  gusKey: string | null
 }
+
+const gusKeyFor = (dateStr: string, role: GusRole) => `${dateStr}-${role}`
 
 async function deleteGusEvent(
   token: string,
@@ -133,15 +139,52 @@ async function createGusEvent(
         start: { dateTime: `${dateStr}T${String(spec.startHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
         end:   { dateTime: `${dateStr}T${String(spec.endHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
         attendees: [{ email: desired.attendeeEmail }],
-        // Tag the event with the responsible owner so the dashboard parser
-        // routes it to the correct column even when the attendee email is
-        // Caitie's but the event was created on Nat's primary calendar.
-        extendedProperties: { private: { homebase_owner: desired.owner } },
+        extendedProperties: {
+          private: {
+            // homebase_owner routes the event into the correct dashboard
+            // column even when the attendee email is Caitie's but the event
+            // lives on Nat's primary calendar.
+            homebase_owner: desired.owner,
+            // homebase_gus_key is the stable per-(date, role) dedup key.
+            // Two concurrent sync passes always agree on this value, so the
+            // canonical event for a slot is unambiguous regardless of who's
+            // currently responsible.
+            homebase_gus_key: gusKeyFor(dateStr, spec.role),
+          },
+        },
       }),
     }
   )
   if (!resp.ok && resp.status !== 409) {
     console.warn(`Failed to create ${spec.summary} for ${dateStr}:`, resp.status)
+  }
+}
+
+async function patchGusEvent(
+  token: string,
+  eventId: string,
+  spec: GusEventSpec,
+  dateStr: string,
+  desired: DesiredGusEvent,
+): Promise<void> {
+  const resp = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        attendees: [{ email: desired.attendeeEmail }],
+        extendedProperties: {
+          private: {
+            homebase_owner: desired.owner,
+            homebase_gus_key: gusKeyFor(dateStr, spec.role),
+          },
+        },
+      }),
+    }
+  )
+  if (!resp.ok) {
+    console.warn(`Failed to patch ${spec.summary} for ${dateStr}:`, resp.status)
   }
 }
 
@@ -162,34 +205,36 @@ async function syncGusEventsBySpec(
     }
   }
 
-  // For each desired date, ensure exactly one matching event exists.
-  // If there are duplicates, keep the first match and delete the rest;
-  // if the kept one mismatches the desired attendee/owner, replace it.
+  // For each desired date, pick a canonical event by stable gusKey (or fall back
+  // to the first legacy event), delete every other event on that date, and
+  // either no-op or PATCH the canonical to match the desired attendee/owner.
+  // PATCH (not delete+recreate) keeps the event ID stable across passes so
+  // concurrent syncs converge instead of creating duplicates.
   for (const [dateStr, want] of desired) {
     const exList = existing.get(dateStr) ?? []
+    const expectedKey = gusKeyFor(dateStr, spec.role)
+
     if (exList.length === 0) {
       ops.push(createGusEvent(token, spec, dateStr, want))
       continue
     }
 
-    const matchIdx = exList.findIndex(ex =>
-      ex.attendeeEmail?.toLowerCase() === want.attendeeEmail.toLowerCase()
-      && ex.homebaseOwner === want.owner,
-    )
+    const keyedIdx = exList.findIndex(ex => ex.gusKey === expectedKey)
+    const canonicalIdx = keyedIdx >= 0 ? keyedIdx : 0
+    const canonical = exList[canonicalIdx]
 
-    if (matchIdx >= 0) {
-      // The desired event already exists. Delete any duplicates (with the
-      // wrong attendee/owner, or just spurious copies) and keep the match.
-      for (let i = 0; i < exList.length; i++) {
-        if (i === matchIdx) continue
-        ops.push(deleteGusEvent(token, exList[i].eventId, spec.summary, dateStr))
-      }
-    } else {
-      // No existing event matches — delete all and create a fresh one.
-      for (const ex of exList) {
-        ops.push(deleteGusEvent(token, ex.eventId, spec.summary, dateStr))
-      }
-      ops.push(createGusEvent(token, spec, dateStr, want))
+    // Delete every other event on this date — duplicates created by races,
+    // or legacy events without the stable key.
+    for (let i = 0; i < exList.length; i++) {
+      if (i === canonicalIdx) continue
+      ops.push(deleteGusEvent(token, exList[i].eventId, spec.summary, dateStr))
+    }
+
+    const matchesAttendee = canonical.attendeeEmail?.toLowerCase() === want.attendeeEmail.toLowerCase()
+    const matchesOwner = canonical.homebaseOwner === want.owner
+    const matchesKey = canonical.gusKey === expectedKey
+    if (!matchesAttendee || !matchesOwner || !matchesKey) {
+      ops.push(patchGusEvent(token, canonical.eventId, spec, dateStr, want))
     }
   }
 
@@ -234,11 +279,13 @@ async function fetchExistingGusEvents(
     if (!dateStr) continue
     const attendeeEmail = item.attendees?.[0]?.email ?? null
     const homebaseOwner = item.extendedProperties?.private?.homebase_owner as 'nat' | 'caitie' | undefined
+    const gusKey = item.extendedProperties?.private?.homebase_gus_key ?? null
     const list = map.get(dateStr) ?? []
     list.push({
       eventId: item.id,
       attendeeEmail,
       homebaseOwner: homebaseOwner ?? null,
+      gusKey,
     })
     map.set(dateStr, list)
   }
@@ -255,13 +302,17 @@ export type SyncGusCareInvitesOptions = {
 /**
  * Sync Gus pickup/dropoff Google Calendar invites based on computed responsibilities.
  * Creates one event per (day, role) for whichever owner is responsible, with that
- * owner's work email as attendee. When responsibility flips, the existing event's
- * attendee is replaced (cancel + create) so each person sees the invite only on
- * their responsible days.
+ * owner's work email as attendee. When responsibility flips, the existing event is
+ * PATCHed in place (attendee + homebase_owner) so each person sees the invite only
+ * on their responsible days while keeping the event ID stable.
  *
  * Only operates within the date range of the provided gusCare entries — events
  * outside that window are left untouched. Idempotent: matches existing events by
- * summary + date so it's safe to run from multiple sources (web + agent).
+ * a stable extendedProperties.private.homebase_gus_key (`<date>-<role>`) and falls
+ * back to summary+date for legacy events created before the key was introduced.
+ * Safe to run from multiple sources (web + agent) and concurrently — concurrent
+ * passes converge on the same canonical event via PATCH instead of creating
+ * duplicates.
  */
 export async function syncGusCareInvites(
   getAccessToken: GetAccessToken,
@@ -305,11 +356,13 @@ export async function syncGusCareInvites(
   const [pickupChanged, dropoffChanged] = await Promise.all([
     syncGusEventsBySpec(token, pickupDesired, existingPickups, {
       summary: 'Gus pickup',
+      role: 'pickup',
       startHour: 17,
       endHour: 18,
     }),
     syncGusEventsBySpec(token, dropoffDesired, existingDropoffs, {
       summary: 'Gus dropoff',
+      role: 'dropoff',
       startHour: 7,
       endHour: 8,
     }),
