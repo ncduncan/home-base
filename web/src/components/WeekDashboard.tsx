@@ -255,8 +255,9 @@ export default function WeekDashboard({
             return isSameDay(parseISO(e.start), date)
           })
           const dayTasks = tasksForDay(dayDateStr, isToday)
+          const hideOnMobile = isPast && weekOffset === 0
 
-          return (
+          const column = (
             <DayColumn
               key={dayDateStr}
               date={date}
@@ -278,6 +279,10 @@ export default function WeekDashboard({
               todayDate={todayDate}
             />
           )
+
+          return hideOnMobile
+            ? <div key={dayDateStr} className="hidden sm:block">{column}</div>
+            : column
         })}
       </div>
 
