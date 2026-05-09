@@ -43,11 +43,11 @@ function weekLabel(weekOffset: number): string {
   if (weekOffset === 0) return 'This Week'
   const today = startOfToday()
   const sunday = addDays(today, -today.getDay() + weekOffset * 7)
-  const saturday = addDays(sunday, 6)
-  if (sunday.getMonth() === saturday.getMonth()) {
-    return `${format(sunday, 'MMM d')}–${format(saturday, 'd')}`
+  const nextSunday = addDays(sunday, 7)
+  if (sunday.getMonth() === nextSunday.getMonth()) {
+    return `${format(sunday, 'MMM d')}–${format(nextSunday, 'd')}`
   }
-  return `${format(sunday, 'MMM d')}–${format(saturday, 'MMM d')}`
+  return `${format(sunday, 'MMM d')}–${format(nextSunday, 'MMM d')}`
 }
 
 export default function WeekDashboard({

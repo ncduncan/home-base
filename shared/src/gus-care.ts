@@ -86,17 +86,14 @@ export function computeGusCare(
     // Pickup at 5pm: Nat if any of Caitie's events covers 5pm
     const natPickup = dayEvents.some(coversPickup)
 
-    // Dropoff at 7am: Nat if Caitie has an early event today, an overnight
-    // event from yesterday running past 7am today, OR a night/24hr AMION
-    // shift starting later today. The night-shift case isn't a hard time
-    // conflict at 7am, but Caitie shouldn't be on dog-walk duty the morning
-    // of a 16- or 24-hour overnight shift — she needs rest time.
+    // Dropoff at 7am: Nat if Caitie has an early event today (starting by 8am),
+    // or an overnight event from yesterday still running at 7am this morning.
+    // Night shifts start at 4pm — Caitie is free at 7:30am on shift-start days;
+    // the runsPastTodayMorning check handles the NEXT morning (she's still at
+    // hospital until 8am) without any special-case needed here.
     const natDropoffEarly = dayEvents.some(e => startsByMorning(e, dateStr))
     const natDropoffOvernight = prevEvents.some(e => runsPastTodayMorning(e, dateStr))
-    const natDropoffNightShift = dayEvents.some(e =>
-      e.is_amion && (e.amion_kind === 'night' || e.amion_kind === '24hr')
-    )
-    const natDropoff = natDropoffEarly || natDropoffOvernight || natDropoffNightShift
+    const natDropoff = natDropoffEarly || natDropoffOvernight
 
     // Build reason string
     const reasons: string[] = []
@@ -143,18 +140,22 @@ function coversPickup(event: CalendarEvent): boolean {
   return false
 }
 
-// Does this event start at or before 9am today, meaning Caitie is leaving early?
+// Does this event start at or before 8am today, meaning Caitie can't do 7:30am dropoff?
+// Uses the raw start time (no buffer) so 9am+ events don't block dropoff — a 9am
+// commitment leaves plenty of time after a 7:30am dropoff. AMION shifts already pass
+// through unbuffered (bufferedStart is a no-op for them), so the behavior is unchanged
+// for AMION: an 8am day/training shift still blocks, a 4pm night shift still doesn't.
 function startsByMorning(event: CalendarEvent, dateStr: string): boolean {
   if (event.start.slice(0, 10) !== dateStr) return false
   if (event.all_day) return true
-  return hourOf(bufferedStart(event)) <= 9
+  return hourOf(event.start) <= 8
 }
 
 // Was this event (from yesterday) still running at 7am this morning?
 function runsPastTodayMorning(event: CalendarEvent, todayStr: string): boolean {
   if (event.end.slice(0, 10) !== todayStr) return false
   if (event.all_day) return false
-  return hourOf(bufferedEnd(event)) > DROPOFF_HOUR
+  return hourOf(bufferedEnd(event)) >= DROPOFF_HOUR
 }
 
 function hourOf(isoStr: string): number {

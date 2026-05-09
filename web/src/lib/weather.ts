@@ -4,17 +4,6 @@ import type { WeatherDay } from '../types'
 const LAT = 42.3601
 const LON = -71.0589
 
-export function wmoToIcon(code: number): string {
-  if (code === 0) return '☀️'
-  if (code <= 2) return '🌤️'
-  if (code === 3) return '☁️'
-  if (code <= 48) return '🌫️'
-  if (code <= 67) return '🌧️'
-  if (code <= 77) return '❄️'
-  if (code <= 82) return '🌦️'
-  return '⛈️'
-}
-
 export async function fetchWeatherForecast(): Promise<WeatherDay[]> {
   const params = new URLSearchParams({
     latitude: String(LAT),

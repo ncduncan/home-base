@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
-import { wmoToIcon } from '../lib/weather'
+import { Sun, CloudSun, Cloud, CloudFog, CloudDrizzle, CloudRain, CloudSnow, CloudLightning } from 'lucide-react'
 import { eventOwner } from '../lib/calendar'
 import { computeRangeBlock, computeNatWorkBlock, type BusyBlock } from '../lib/busy-block'
 import EventDetail from './EventDetail'
@@ -297,6 +297,19 @@ function OwnerSection({
   )
 }
 
+function WeatherIcon({ code }: { code: number }) {
+  const props = { size: 15, strokeWidth: 1.5, className: 'text-hb-fg-muted' }
+  if (code === 0) return <Sun {...props} />
+  if (code <= 2) return <CloudSun {...props} />
+  if (code === 3) return <Cloud {...props} />
+  if (code <= 48) return <CloudFog {...props} />
+  if (code <= 57) return <CloudDrizzle {...props} />
+  if (code <= 67) return <CloudRain {...props} />
+  if (code <= 77) return <CloudSnow {...props} />
+  if (code <= 82) return <CloudRain {...props} />
+  return <CloudLightning {...props} />
+}
+
 export default function DayColumn({
   date, isToday, isPast,
   events, rawEvents, overrides, weather, tasks, users, userEmail,
@@ -354,7 +367,7 @@ export default function DayColumn({
           </div>
           {weather && (
             <div className="text-right shrink-0">
-              <div className="text-base leading-none">{wmoToIcon(weather.weatherCode)}</div>
+              <div className="flex justify-end leading-none"><WeatherIcon code={weather.weatherCode} /></div>
               <div className="text-[11px] text-hb-fg-muted leading-tight mt-0.5 tabular-nums">
                 {weather.tempMin}–{weather.tempMax}°F
               </div>
