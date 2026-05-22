@@ -105,6 +105,23 @@ export default function DashboardPage({ session }: Props) {
     return applyOverrides(merged, overrides)
   }, [rawEvents, homebaseEvents, overrides])
 
+  // TEMP DIAGNOSTIC — investigating Sun May 24 missing 24Hr call
+  useEffect(() => {
+    if (rawEvents.length === 0) return
+    const targetDate = '2026-05-24'
+    const rawForDay = rawEvents.filter(e => e.start.startsWith(targetDate))
+    const eventsForDay = events.filter(e => e.start.startsWith(targetDate))
+    const ovForDay = overrides.filter(o => o.event_date === targetDate)
+
+    console.log('[DEBUG May 24] rawEvents:', rawForDay)
+
+    console.log('[DEBUG May 24] overrides:', ovForDay)
+
+    console.log('[DEBUG May 24] events (post-override):', eventsForDay)
+
+    console.log('[DEBUG May 24] all rawEvents (count, first start):', rawEvents.length, rawEvents[0]?.start, '... last:', rawEvents[rawEvents.length - 1]?.start)
+  }, [rawEvents, events, overrides])
+
   // ── Gus care (computed from overridden events) ────────────────────────────
   // Always compute for every weekday in the visible week, so days with no events
   // still get a Gus care entry (defaulting to Caitie when she's free).
