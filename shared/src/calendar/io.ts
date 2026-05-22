@@ -31,12 +31,20 @@ export async function fetchCalendarEvents(
   // Snap to the most recent Sunday so the week is always Sun–Sat
   now.setDate(now.getDate() - now.getDay())
   const timeMin = new Date(now)
-  timeMin.setDate(timeMin.getDate() + weekOffset * 7)
+  // Pull timeMin back one day to dodge an empirical Google Calendar API quirk:
+  // when timeMin lands exactly on a UTC-calendar all-day event's start (e.g. our
+  // Sunday request lining up with an AMION "Call: NC-X" all-day on that Sunday),
+  // the event is silently dropped even though docs say timeMin filters on end.
+  // The earlier timezone fix (passing timeZone=America/New_York) only helped
+  // when timeMin was before the target day. Day-cell rendering naturally
+  // discards pre-Sunday events; the extra day costs nothing.
+  timeMin.setDate(timeMin.getDate() + weekOffset * 7 - 1)
   // timeMax is EXCLUSIVE in Google's API. With the default 7-day window,
   // that's the start of NEXT Sunday — covering all of Saturday. Callers that
-  // also display the trailing Sunday peek pass daysAhead=8.
+  // also display the trailing Sunday peek pass daysAhead=8. We add the 1 day
+  // back here so the total span past the visible Sunday isn't shortened.
   const timeMax = new Date(timeMin)
-  timeMax.setDate(timeMax.getDate() + daysAhead)
+  timeMax.setDate(timeMax.getDate() + daysAhead + 1)
 
   let listResp = await fetch(
     'https://www.googleapis.com/calendar/v3/users/me/calendarList',
