@@ -47,12 +47,14 @@ export default function DashboardPage({ session }: Props) {
   // ── Home-base events (Supabase-stored, not in Google Calendar) ────────────
   const [homebaseEvents, setHomebaseEvents] = useState<HomebaseEvent[]>([])
 
+  // 8-day window matches the dashboard's Sun + next-Sun peek so overrides and
+  // homebase events on the trailing Sunday are included.
   const weekRange = useCallback((offset: number) => {
     const now = new Date()
     now.setHours(0, 0, 0, 0)
     now.setDate(now.getDate() - now.getDay() + offset * 7)
     const start = format(now, 'yyyy-MM-dd')
-    const end = format(addDays(now, 6), 'yyyy-MM-dd')
+    const end = format(addDays(now, 7), 'yyyy-MM-dd')
     return { start, end }
   }, [])
 

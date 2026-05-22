@@ -11,6 +11,8 @@ export type OnTokenRejected = () => void
  * Returns parsed CalendarEvents with AMION shifts already processed.
  *
  * weekOffset: 0 = this week (most recent Sunday → +7d), 1 = next, -1 = last.
+ * daysAhead: number of days from the Sunday anchor to include (default 7,
+ *   i.e. Sun–Sat). The dashboard passes 8 to cover its trailing-Sunday peek.
  *
  * Pass an `onTokenRejected` callback to invalidate any external token cache
  * when a 401 is observed mid-request — the function then retries once with
@@ -20,6 +22,7 @@ export async function fetchCalendarEvents(
   getAccessToken: GetAccessToken,
   weekOffset = 0,
   onTokenRejected?: OnTokenRejected,
+  daysAhead = 7,
 ): Promise<CalendarEvent[]> {
   let token = await getAccessToken()
 
@@ -29,10 +32,11 @@ export async function fetchCalendarEvents(
   now.setDate(now.getDate() - now.getDay())
   const timeMin = new Date(now)
   timeMin.setDate(timeMin.getDate() + weekOffset * 7)
-  // timeMax is EXCLUSIVE in Google's API, so use start of NEXT Sunday (+7 days)
-  // to include all of Saturday
+  // timeMax is EXCLUSIVE in Google's API. With the default 7-day window,
+  // that's the start of NEXT Sunday — covering all of Saturday. Callers that
+  // also display the trailing Sunday peek pass daysAhead=8.
   const timeMax = new Date(timeMin)
-  timeMax.setDate(timeMax.getDate() + 7)
+  timeMax.setDate(timeMax.getDate() + daysAhead)
 
   let listResp = await fetch(
     'https://www.googleapis.com/calendar/v3/users/me/calendarList',

@@ -120,8 +120,11 @@ async function getProviderToken(): Promise<string> {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+// Dashboard renders an 8-day grid (Sun + next-Sun peek per WeekDashboard).
+// Fetch 8 days so the trailing Sunday's events (e.g. an AMION 24hr call) aren't
+// dropped at Google's exclusive timeMax boundary.
 export function fetchCalendarEvents(weekOffset = 0) {
-  return sharedFetchCalendarEvents(getProviderToken, weekOffset, resetProviderTokenCache)
+  return sharedFetchCalendarEvents(getProviderToken, weekOffset, resetProviderTokenCache, 8)
 }
 
 export function syncGusCareInvites(gusCare: GusResponsibility[]) {
