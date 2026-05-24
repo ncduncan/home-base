@@ -1,5 +1,17 @@
-import type { BriefingData, DayEntry, EventRow, TodoEntry } from './briefing-data.ts'
+import type { BriefingData, DayEntry, EventRow, Owner, TodoEntry } from './briefing-data.ts'
+import type { GusResponsibility } from '@home-base/shared'
 import type { Narrative } from './narrative.ts'
+
+export type GusTag = 'drop' | 'pick'
+
+/** Which Gus tags belong in `owner`'s column for a day. Order: drop then pick. */
+export function gusTagsForOwner(owner: Owner, gus: GusResponsibility | null): GusTag[] {
+  if (!gus) return []
+  const tags: GusTag[] = []
+  if (gus.dropoff === owner) tags.push('drop')
+  if (gus.pickup === owner) tags.push('pick')
+  return tags
+}
 
 export function renderEmailHtml(data: BriefingData, narrative: Narrative): string {
   return /* html */ `<!DOCTYPE html>
