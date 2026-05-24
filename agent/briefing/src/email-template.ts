@@ -13,6 +13,38 @@ export function gusTagsForOwner(owner: Owner, gus: GusResponsibility | null): Gu
   return tags
 }
 
+const OWNER_COLORS: Record<Owner, { accent: string; fade: string }> = {
+  nat: { accent: '#6c87a6', fade: '#f1f5f8' },
+  caitie: { accent: '#e8c66e', fade: '#fdf9ee' },
+}
+
+function renderGusTag(tag: GusTag, owner: Owner): string {
+  const c = OWNER_COLORS[owner]
+  const arrow = tag === 'drop' ? '↓' : '↑'
+  const label = tag === 'drop' ? 'Gus drop' : 'Gus pick'
+  return `
+    <div style="margin-top: 4px;">
+      <span style="display: inline-block; font-size: 11px; line-height: 1.4; padding: 1px 8px; border-radius: 10px; background: ${c.fade}; border: 1px solid ${c.accent}; color: #1a1a1a;">${arrow} ${label}</span>
+    </div>`
+}
+
+function renderEventItems(events: EventRow[]): string {
+  return events.map(e => `
+    <div style="margin-bottom: 4px;">
+      <span style="color: #666; font-size: 12px;">${escapeHtml(e.time)}</span>
+      <span style="margin-left: 6px;">${escapeHtml(e.text)}</span>
+    </div>`).join('')
+}
+
+/** A single owner's grid cell: their events plus their Gus tags for the day. */
+export function renderOwnerCell(events: EventRow[], owner: Owner, gus: GusResponsibility | null): string {
+  const tags = gusTagsForOwner(owner, gus)
+  if (events.length === 0 && tags.length === 0) {
+    return '<span style="color: #ccc;">—</span>'
+  }
+  return renderEventItems(events) + tags.map(t => renderGusTag(t, owner)).join('')
+}
+
 export function renderEmailHtml(data: BriefingData, narrative: Narrative): string {
   return /* html */ `<!DOCTYPE html>
 <html>
@@ -33,9 +65,7 @@ export function renderEmailHtml(data: BriefingData, narrative: Narrative): strin
 
   <h2 style="font-size: 16px; margin: 28px 0 12px 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px;">The week ahead</h2>
   ${renderWeekGrid(data.days)}
-
-  <h2 style="font-size: 16px; margin: 28px 0 12px 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px;">Gus pickup &amp; dropoff</h2>
-  ${renderGusTable(data)}
+  <div style="color: #999; font-size: 12px; margin-top: 8px;">Gus: ↓ drop 7am · ↑ pick 5pm</div>
 
   <h2 style="font-size: 16px; margin: 28px 0 12px 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px;">Tasks this week</h2>
   ${renderTodos(data.todos)}
@@ -78,43 +108,9 @@ function renderDayRow(day: DayEntry): string {
   return `
     <tr style="background: ${dayBg};">
       <td style="padding: 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top; color: #333; font-weight: 600;">${escapeHtml(day.label)}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top;">${renderEventList(day.natEvents)}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top;">${renderEventList(day.caitieEvents)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top;">${renderOwnerCell(day.natEvents, 'nat', day.gus)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top;">${renderOwnerCell(day.caitieEvents, 'caitie', day.gus)}</td>
     </tr>`
-}
-
-function renderEventList(events: EventRow[]): string {
-  if (events.length === 0) return '<span style="color: #ccc;">—</span>'
-  return events.map(e => `
-    <div style="margin-bottom: 4px;">
-      <span style="color: #666; font-size: 12px;">${escapeHtml(e.time)}</span>
-      <span style="margin-left: 6px;">${escapeHtml(e.text)}</span>
-    </div>`).join('')
-}
-
-function renderGusTable(data: BriefingData): string {
-  const weekdayDays = data.days.filter(d => !d.isWeekend && d.gus)
-  if (weekdayDays.length === 0) return '<p style="color: #999;">No weekday Gus care needed.</p>'
-  return `
-  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-    <thead>
-      <tr style="background: #fafafa; text-align: left;">
-        <th style="padding: 8px; border-bottom: 1px solid #e0e0e0; width: 110px;">Day</th>
-        <th style="padding: 8px; border-bottom: 1px solid #e0e0e0; width: 100px;">Dropoff (7am)</th>
-        <th style="padding: 8px; border-bottom: 1px solid #e0e0e0; width: 100px;">Pickup (5pm)</th>
-        <th style="padding: 8px; border-bottom: 1px solid #e0e0e0;">Reason</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${weekdayDays.map(d => `
-        <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${escapeHtml(d.label)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #f0f0f0; text-transform: capitalize;">${escapeHtml(d.gus!.dropoff)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #f0f0f0; text-transform: capitalize;">${escapeHtml(d.gus!.pickup)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #f0f0f0; color: #666; font-size: 13px;">${escapeHtml(d.gus!.reason)}</td>
-        </tr>`).join('')}
-    </tbody>
-  </table>`
 }
 
 function renderTodos(todos: TodoEntry[]): string {
