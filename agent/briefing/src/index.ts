@@ -25,6 +25,12 @@ import { generateNarrative } from './narrative.ts'
 import { renderEmailHtml } from './email-template.ts'
 import { sendEmail, htmlToPlainText } from './gmail-send.ts'
 
+// All of the agent's date logic assumes wall-clock = US Eastern (it was written
+// and tested on an ET machine). CI runs under UTC, which would otherwise render
+// regular event times in the wrong zone. Set it before any Date is constructed.
+// The workflow also sets TZ in its env; this ??= covers local runs where it's unset.
+process.env.TZ ??= 'America/New_York'
+
 async function main(): Promise<void> {
   const t0 = Date.now()
   log('briefing start')
