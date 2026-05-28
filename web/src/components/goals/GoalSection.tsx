@@ -36,18 +36,18 @@ export default function GoalSection({
 
   return (
     <article className="flex flex-col rounded-md border border-hb-border-soft bg-hb-card overflow-hidden">
-      <header className="px-3 py-2 border-b border-hb-border-rule flex items-baseline justify-between gap-2">
-        <h2 className="text-[11px] font-medium uppercase tracking-[.08em] text-hb-fg-secondary">
+      <header className="px-2 py-2 border-b border-hb-border-rule flex items-baseline justify-between gap-2">
+        <h2 className="text-[10px] font-medium uppercase tracking-[.08em] text-hb-fg-secondary">
           {label}
         </h2>
-        {goals.length > 0 && (
-          <span className="text-[10px] tabular-nums text-hb-fg-faint">
+        {achievedCount > 0 && (
+          <span className="text-[9px] tabular-nums text-hb-fg-faint">
             {achievedCount}/{goals.length}
           </span>
         )}
       </header>
 
-      <ul className="px-1.5 py-1">
+      <ul className="px-1 py-1">
         {goals.map(g => (
           <GoalRow
             key={g.id}
@@ -74,9 +74,9 @@ export default function GoalSection({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="flex items-center gap-1 px-3 py-1.5 text-[11px] text-hb-fg-muted hover:text-hb-fg-secondary hover:bg-black/[.02] transition-colors border-t border-hb-border-rule text-left"
+          className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] text-hb-fg-muted hover:text-hb-fg-secondary hover:bg-black/[.02] transition-colors border-t border-hb-border-rule text-left"
         >
-          <Plus size={11} />
+          <Plus size={10} />
           Add goal
         </button>
       )}

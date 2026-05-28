@@ -42,13 +42,9 @@ export default function AddGoalInline({ category, owner, createdBy, onCreate, on
     }
   }
 
-  const ownerEdge = owner === 'nat'
-    ? 'border-l-hb-nat-accent'
-    : 'border-l-hb-cai-accent'
-
   return (
-    <li className={`flex items-start gap-2 px-1.5 py-1 border-l-2 ${ownerEdge}`}>
-      <span className="mt-0.5 shrink-0 h-4 w-4 rounded-[4px] border border-hb-border-soft" />
+    <li className="flex items-start gap-2 px-2 py-1">
+      <span className="mt-[3px] shrink-0 h-3.5 w-3.5 rounded-[3px] border border-hb-border-soft" />
       <textarea
         ref={taRef}
         autoFocus
@@ -62,7 +58,7 @@ export default function AddGoalInline({ category, owner, createdBy, onCreate, on
           if (e.key === 'Escape') { e.preventDefault(); onClose() }
         }}
         placeholder="New goal…"
-        className="flex-1 min-w-0 text-[13px] bg-transparent text-hb-fg border-b border-hb-fg-faint outline-none resize-none py-0 leading-5 placeholder:text-hb-fg-faint"
+        className="flex-1 min-w-0 text-[11px] bg-transparent text-hb-fg border-b border-hb-fg-faint outline-none resize-none py-0 leading-tight placeholder:text-hb-fg-faint"
       />
     </li>
   )

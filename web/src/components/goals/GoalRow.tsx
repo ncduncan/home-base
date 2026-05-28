@@ -45,23 +45,19 @@ export default function GoalRow({
     setEditing(false)
   }
 
-  const ownerEdge = goal.owner === 'nat'
-    ? 'border-l-hb-nat-accent'
-    : 'border-l-hb-cai-accent'
-
   return (
-    <li className={`group/goal flex items-start gap-2 px-1.5 py-1 border-l-2 ${ownerEdge} hover:bg-black/[.02] transition-colors rounded-sm`}>
+    <li className="group/goal flex items-start gap-2 px-2 py-1 hover:bg-black/[.02] transition-colors rounded-sm">
       <button
         type="button"
         onClick={() => onToggleAchieved(goal.id, !goal.achieved)}
         aria-label={goal.achieved ? 'Mark not achieved' : 'Mark achieved'}
-        className={`mt-0.5 shrink-0 h-4 w-4 rounded-[4px] border flex items-center justify-center transition-colors ${
+        className={`mt-[3px] shrink-0 h-3.5 w-3.5 rounded-[3px] border flex items-center justify-center transition-colors ${
           goal.achieved
-            ? 'bg-hb-fg border-hb-fg text-white'
+            ? 'bg-hb-fg-muted border-hb-fg-muted text-white'
             : 'bg-transparent border-hb-border-soft hover:border-hb-fg-faint'
         }`}
       >
-        {goal.achieved && <Check size={11} strokeWidth={3} />}
+        {goal.achieved && <Check size={9} strokeWidth={3.5} />}
       </button>
 
       {editing ? (
@@ -76,13 +72,13 @@ export default function GoalRow({
             if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
           }}
           rows={1}
-          className="flex-1 min-w-0 text-[13px] bg-transparent text-hb-fg border-b border-hb-fg-faint outline-none resize-none py-0 leading-5"
+          className="flex-1 min-w-0 text-[11px] bg-transparent text-hb-fg border-b border-hb-fg-faint outline-none resize-none py-0 leading-tight"
         />
       ) : (
         <span
           onClick={() => setEditing(true)}
-          className={`flex-1 min-w-0 text-[13px] leading-5 cursor-text break-words ${
-            goal.achieved ? 'line-through text-hb-fg-muted' : 'text-hb-fg'
+          className={`flex-1 min-w-0 text-[11px] leading-tight cursor-text break-words ${
+            goal.achieved ? 'text-hb-fg-faint' : 'text-hb-fg'
           }`}
         >
           {goal.text}
@@ -91,8 +87,8 @@ export default function GoalRow({
 
       {goal.visibility === 'private' && (
         <Lock
-          size={10}
-          className="mt-1 shrink-0 text-hb-fg-faint"
+          size={9}
+          className="mt-1 shrink-0 text-hb-fg-faint opacity-50"
           aria-label="Private"
         />
       )}
@@ -108,7 +104,7 @@ export default function GoalRow({
             className="mt-0.5 shrink-0 text-hb-fg-faint hover:text-hb-fg-secondary opacity-0 group-hover/goal:opacity-100 transition-opacity"
             aria-label="More actions"
           >
-            <MoreHorizontal size={12} />
+            <MoreHorizontal size={11} />
           </button>
         }
       />
