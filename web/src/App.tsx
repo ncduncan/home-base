@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import GoalsPage from './pages/GoalsPage'
 import { ALLOWED_EMAILS } from './lib/owners'
 import type { Session } from '@supabase/supabase-js'
+import type { AppTab } from './components/Header'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [unauthorized, setUnauthorized] = useState(false)
+  const [tab, setTab] = useState<AppTab>('home')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -48,6 +51,10 @@ export default function App() {
     )
   }
 
-  if (session) return <DashboardPage session={session} />
+  if (session) {
+    return tab === 'home'
+      ? <DashboardPage session={session} tab={tab} onTabChange={setTab} />
+      : <GoalsPage session={session} tab={tab} onTabChange={setTab} />
+  }
   return <LoginPage unauthorized={unauthorized} />
 }

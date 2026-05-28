@@ -52,3 +52,7 @@ preview-week-grid.html
 
 # Accidental nested repo snapshot (local-only)
 /home-base/
+
+# Private seed data — personal goals/notes that shouldn't enter public history.
+# Apply locally via `supabase db query --linked --file <file>`.
+supabase/*_private.sql

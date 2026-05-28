@@ -14,6 +14,7 @@
     "./gus-care": "./src/gus-care.ts",
     "./overrides": "./src/overrides.ts",
     "./homebase-events": "./src/homebase-events.ts",
+    "./goals": "./src/goals.ts",
     "./asana": "./src/asana.ts",
     "./owner-config": "./src/owner-config.ts"
   },
