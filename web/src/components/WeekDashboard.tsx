@@ -4,6 +4,7 @@ import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { fetchWorkspaceUsers } from '../lib/asana'
+import { ALLOWED_EMAILS, OWNER_EMAILS } from '../lib/owners'
 import DayColumn from './DayColumn'
 import CompletedRow from './tasks/CompletedRow'
 import AddTaskForm from './tasks/AddTaskForm'
@@ -64,11 +65,14 @@ export default function WeekDashboard({
 
   useEffect(() => {
     fetchWorkspaceUsers().then(all => {
-      setUsers(all)
-      const self = all.find(u => u.email === userEmail)
-      if (self) setSelfGid(self.gid)
+      // Only show Nat and Caitie as assignee options — filter out other workspace members.
+      const allowed = all.filter(u => ALLOWED_EMAILS.includes(u.email.toLowerCase()))
+      setUsers(allowed)
+      // Default new tasks to Nat regardless of who's logged in.
+      const nat = allowed.find(u => u.email.toLowerCase() === OWNER_EMAILS.nat.toLowerCase())
+      if (nat) setSelfGid(nat.gid)
     }).catch(() => {/* non-critical */})
-  }, [userEmail])
+  }, [])
 
   // When Google calendar auth expires, just sign the user out so they land on
   // the login page and can re-auth with one click — no stale-banner step.

@@ -9,6 +9,7 @@ interface Props {
 
 export default function DueDateChip({ due_on, completed, onSave }: Props) {
   const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(due_on ?? '')
   const today = format(new Date(), 'yyyy-MM-dd')
   const isOverdue = !completed && due_on && due_on < today
   const isDueToday = !completed && due_on && isToday(parseISO(due_on))
@@ -21,14 +22,31 @@ export default function DueDateChip({ due_on, completed, onSave }: Props) {
         ? 'text-gray-500 bg-gray-100 hover:bg-gray-200'
         : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'
 
+  // Commit on blur or Enter — never on each keystroke, which would fire
+  // mid-typing (e.g. user typing "31" gets committed at "3").
+  const commit = () => {
+    const next = draft || null
+    if (next !== (due_on ?? null)) onSave(next)
+    setEditing(false)
+  }
+
+  const cancel = () => {
+    setDraft(due_on ?? '')
+    setEditing(false)
+  }
+
   if (editing) {
     return (
       <input
         autoFocus
         type="date"
-        defaultValue={due_on ?? ''}
-        onChange={e => { onSave(e.target.value || null); setEditing(false) }}
-        onBlur={() => setEditing(false)}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape') cancel()
+        }}
         className="text-[10px] border border-gray-200 rounded px-1 py-0.5 w-24 outline-none shrink-0"
       />
     )
@@ -36,7 +54,7 @@ export default function DueDateChip({ due_on, completed, onSave }: Props) {
 
   return (
     <button
-      onClick={() => setEditing(true)}
+      onClick={() => { setDraft(due_on ?? ''); setEditing(true) }}
       className={`text-[10px] px-1.5 py-0.5 rounded transition-colors shrink-0 ${chipClass}`}
     >
       {due_on ? format(parseISO(due_on), 'MMM d') : '—'}
