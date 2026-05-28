@@ -4,7 +4,7 @@ import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { fetchWorkspaceUsers } from '../lib/asana'
-import { ALLOWED_EMAILS, OWNER_EMAILS } from '../lib/owners'
+import { ALLOWED_EMAILS, OWNER_EMAILS, NAT_WORK_EMAIL, CAITIE_WORK_EMAIL } from '../lib/owners'
 import DayColumn from './DayColumn'
 import CompletedRow from './tasks/CompletedRow'
 import AddTaskForm from './tasks/AddTaskForm'
@@ -65,11 +65,19 @@ export default function WeekDashboard({
 
   useEffect(() => {
     fetchWorkspaceUsers().then(all => {
-      // Only show Nat and Caitie as assignee options — filter out other workspace members.
-      const allowed = all.filter(u => ALLOWED_EMAILS.includes(u.email.toLowerCase()))
+      // Only show Nat and Caitie as assignee options. Match against both personal
+      // AND work emails — Asana accounts may be registered under either, and the
+      // briefing-recipient ALLOWED_EMAILS only contains personal addresses.
+      const assigneeAllowed = new Set(
+        [...ALLOWED_EMAILS, NAT_WORK_EMAIL, CAITIE_WORK_EMAIL]
+          .filter(Boolean)
+          .map(e => e.toLowerCase()),
+      )
+      const allowed = all.filter(u => assigneeAllowed.has(u.email.toLowerCase()))
       setUsers(allowed)
       // Default new tasks to Nat regardless of who's logged in.
-      const nat = allowed.find(u => u.email.toLowerCase() === OWNER_EMAILS.nat.toLowerCase())
+      const natEmails = [OWNER_EMAILS.nat, NAT_WORK_EMAIL].filter(Boolean).map(e => e.toLowerCase())
+      const nat = allowed.find(u => natEmails.includes(u.email.toLowerCase()))
       if (nat) setSelfGid(nat.gid)
     }).catch(() => {/* non-critical */})
   }, [])

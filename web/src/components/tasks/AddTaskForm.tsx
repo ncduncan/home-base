@@ -74,7 +74,7 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
       />
 
       <div className="flex items-center gap-2 flex-wrap">
-        {users.length > 1 && (
+        {users.length > 0 && (
           <select
             value={assigneeGid}
             onChange={e => setAssigneeGid(e.target.value)}
