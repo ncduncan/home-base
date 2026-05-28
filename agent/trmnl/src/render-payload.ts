@@ -11,7 +11,9 @@ import type { DayPayload, OwnerSection } from './build-day.ts'
 const MAX_BANNERS = 3
 const MAX_ITEMS_PER_OWNER = 8
 const MAX_TASKS_PER_OWNER = 4
-const MAX_TITLE_CHARS = 34
+// Wrapping handles visual overflow now, so the title cap only exists to bound
+// payload size and guard against pathological titles taking 4+ lines.
+const MAX_TITLE_CHARS = 60
 const MAX_BYTES = 1900
 
 function truncate(s: string, max = MAX_TITLE_CHARS): string {

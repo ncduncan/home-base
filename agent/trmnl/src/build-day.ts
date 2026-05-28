@@ -47,7 +47,6 @@ export type Banner = {
 }
 
 export type DayPayload = {
-  app_title: string
   date_label: string
   generated_at: string
   weather: WeatherToday | null
@@ -302,7 +301,6 @@ export function buildDayPayload(input: {
   const natPickup = gusToday?.pickup === 'nat'
 
   return {
-    app_title: 'HOME BASE',
     date_label: dateLabel(today),
     generated_at: generatedAtLabel(now),
     weather,

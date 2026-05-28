@@ -22,23 +22,30 @@
 
 export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background:#fff;color:#000;font-family:sans-serif;width:800px;height:480px;box-sizing:border-box;display:flex;flex-direction:column;">
 
-  <!-- Header strip: app title (left), date (center), weather (right). 2px solid top+bottom. -->
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-top:2px solid #000;border-bottom:2px solid #000;height:44px;box-sizing:border-box;">
-    <div style="font-size:22px;font-weight:800;letter-spacing:.04em;">{{ app_title }}</div>
-    <div style="font-size:22px;font-weight:800;letter-spacing:.05em;">{{ date_label }}</div>
-    <div style="font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
-      {% if weather %}{{ weather.glyph }} {{ weather.high }}/{{ weather.low }} F{% endif %}
+  <!-- Header strip: date (left), three time-of-day forecasts (right). 2px solid top+bottom. -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-top:2px solid #000;border-bottom:2px solid #000;height:46px;box-sizing:border-box;">
+    <div style="font-size:20px;font-weight:800;letter-spacing:.05em;">{{ date_label }}</div>
+    {% if weather %}
+    <div style="display:flex;gap:14px;align-items:center;">
+      {% for slot in weather.slots %}
+      <div style="text-align:center;line-height:1.05;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.06em;">{{ slot.label }}</div>
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;">{{ slot.glyph }}</div>
+        <div style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;">{{ slot.temp }}°</div>
+      </div>
+      {% endfor %}
     </div>
+    {% endif %}
   </div>
 
   <!-- Family banner list. Plain disc prefix + bold title + chevron when the event spans past today. -->
   {% if banners.size > 0 %}
   <div style="padding:4px 12px;border-bottom:1.5px solid #000;">
     {% for b in banners %}
-    <div style="display:flex;align-items:center;font-size:16px;font-weight:700;height:26px;line-height:26px;">
-      <span style="display:inline-block;width:6px;height:6px;background:#000;border-radius:50%;margin-right:8px;flex-shrink:0;"></span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ b.title }}</span>
-      {% if b.continues %}<span style="margin-left:8px;font-size:18px;font-weight:800;">&gt;</span>{% endif %}
+    <div style="display:flex;align-items:flex-start;font-size:15px;font-weight:700;line-height:1.25;padding:2px 0;">
+      <span style="display:inline-block;width:6px;height:6px;background:#000;border-radius:50%;margin:5px 8px 0 0;flex-shrink:0;"></span>
+      <span style="flex:1;word-wrap:break-word;overflow-wrap:break-word;">{{ b.title }}</span>
+      {% if b.continues %}<span style="margin-left:8px;font-size:16px;font-weight:800;">&gt;</span>{% endif %}
     </div>
     {% endfor %}
   </div>
@@ -50,40 +57,37 @@ export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background
     <!-- ── CAITIE (left) — inverted header + 4px left edge bar ─────────── -->
     <div style="flex:1;border-left:4px solid #000;display:flex;flex-direction:column;overflow:hidden;">
 
-      <div style="background:#000;color:#fff;padding:5px 10px;font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;height:30px;box-sizing:border-box;">CAITIE</div>
+      <div style="background:#000;color:#fff;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;height:28px;box-sizing:border-box;">CAITIE</div>
 
       {% if caitie.gus_dropoff or caitie.gus_pickup %}
-      <div style="padding:6px 10px 0;display:flex;gap:6px;height:30px;box-sizing:border-box;">
-        {% if caitie.gus_dropoff %}<span style="display:inline-block;background:#000;color:#fff;border-radius:4px;padding:3px 8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;">v DROP 7a</span>{% endif %}
-        {% if caitie.gus_pickup %}<span style="display:inline-block;background:#000;color:#fff;border-radius:4px;padding:3px 8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;">^ PICK 5p</span>{% endif %}
+      <div style="padding:6px 10px 0;display:flex;gap:6px;flex-wrap:wrap;">
+        {% if caitie.gus_dropoff %}<span style="display:inline-block;background:#000;color:#fff;border-radius:4px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">GUS DROP 7A</span>{% endif %}
+        {% if caitie.gus_pickup %}<span style="display:inline-block;background:#000;color:#fff;border-radius:4px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">GUS PICK 5P</span>{% endif %}
       </div>
       {% endif %}
 
       <div style="padding:4px 10px;">
         {% for item in caitie.items %}
-        <div style="display:flex;align-items:center;height:28px;font-size:16px;font-weight:700;">
-          {% if item.glyph %}<span style="display:inline-block;border:1.5px solid #000;padding:0 4px;font-size:12px;font-weight:800;line-height:18px;min-width:14px;text-align:center;margin-right:8px;flex-shrink:0;">{{ item.glyph }}</span>{% endif %}
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ item.title }}</span>
-          <span style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;margin-left:8px;flex-shrink:0;">{{ item.time }}</span>
+        <div style="display:flex;align-items:flex-start;padding:3px 0;font-size:14px;font-weight:700;line-height:1.25;">
+          {% if item.glyph %}<span style="display:inline-block;border:1.5px solid #000;padding:0 4px;font-size:11px;font-weight:800;line-height:16px;min-width:14px;text-align:center;margin:1px 8px 0 0;flex-shrink:0;">{{ item.glyph }}</span>{% endif %}
+          <span style="font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;margin:1px 8px 0 0;flex-shrink:0;min-width:54px;">{{ item.time }}</span>
+          <span style="flex:1;word-wrap:break-word;overflow-wrap:break-word;">{{ item.title }}</span>
         </div>
         {% endfor %}
       </div>
 
       {% if caitie.tasks.size > 0 %}
-      <div style="margin:4px 10px 0;border-top:1.5px solid #000;padding-top:4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">TASKS</div>
+      <div style="margin:4px 10px 0;border-top:1.5px solid #000;padding-top:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">TASKS</div>
       <div style="padding:2px 10px;">
         {% for task in caitie.tasks %}
-        {% if task.is_overdue %}
-        <div style="display:flex;align-items:center;height:26px;background:#000;color:#fff;font-size:15px;font-weight:700;padding:0 6px;margin-bottom:2px;">
-          <span style="display:inline-block;border:1.5px solid #fff;padding:0 4px;font-size:11px;font-weight:800;line-height:14px;margin-right:6px;flex-shrink:0;">!</span>
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ task.name }}</span>
+        <div style="display:flex;align-items:flex-start;padding:3px 0;font-size:14px;font-weight:700;line-height:1.25;">
+          {% if task.is_overdue %}
+          <span style="display:inline-block;border:1.5px solid #000;padding:0 4px;font-size:11px;font-weight:800;line-height:14px;min-width:10px;text-align:center;margin:1px 8px 0 0;flex-shrink:0;">!</span>
+          {% else %}
+          <span style="display:inline-block;border:1.5px solid #000;width:10px;height:10px;margin:3px 8px 0 0;flex-shrink:0;"></span>
+          {% endif %}
+          <span style="flex:1;word-wrap:break-word;overflow-wrap:break-word;">{{ task.name }}</span>
         </div>
-        {% else %}
-        <div style="display:flex;align-items:center;height:26px;font-size:15px;font-weight:700;">
-          <span style="display:inline-block;border:1.5px solid #000;width:10px;height:10px;margin-right:8px;flex-shrink:0;"></span>
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ task.name }}</span>
-        </div>
-        {% endif %}
         {% endfor %}
       </div>
       {% endif %}
@@ -96,40 +100,37 @@ export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background
     <!-- ── NAT (right) — double-rule header + 4px right edge bar ────────── -->
     <div style="flex:1;border-right:4px solid #000;display:flex;flex-direction:column;overflow:hidden;">
 
-      <div style="background:#fff;color:#000;padding:5px 10px;font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;border-bottom:1.5px solid #000;box-shadow:inset 0 -5px 0 #fff, inset 0 -6.5px 0 #000;height:30px;box-sizing:border-box;">NAT</div>
+      <div style="background:#fff;color:#000;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;border-bottom:1.5px solid #000;box-shadow:inset 0 -5px 0 #fff, inset 0 -6.5px 0 #000;height:28px;box-sizing:border-box;">NAT</div>
 
       {% if nat.gus_dropoff or nat.gus_pickup %}
-      <div style="padding:6px 10px 0;display:flex;gap:6px;height:30px;box-sizing:border-box;">
-        {% if nat.gus_dropoff %}<span style="display:inline-block;background:#000;color:#fff;border-radius:4px;padding:3px 8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;">v DROP 7a</span>{% endif %}
-        {% if nat.gus_pickup %}<span style="display:inline-block;background:#000;color:#fff;border-radius:4px;padding:3px 8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;">^ PICK 5p</span>{% endif %}
+      <div style="padding:6px 10px 0;display:flex;gap:6px;flex-wrap:wrap;">
+        {% if nat.gus_dropoff %}<span style="display:inline-block;background:#000;color:#fff;border-radius:4px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">GUS DROP 7A</span>{% endif %}
+        {% if nat.gus_pickup %}<span style="display:inline-block;background:#000;color:#fff;border-radius:4px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">GUS PICK 5P</span>{% endif %}
       </div>
       {% endif %}
 
       <div style="padding:4px 10px;">
         {% for item in nat.items %}
-        <div style="display:flex;align-items:center;height:28px;font-size:16px;font-weight:700;">
-          {% if item.glyph %}<span style="display:inline-block;border:1.5px solid #000;padding:0 4px;font-size:12px;font-weight:800;line-height:18px;min-width:14px;text-align:center;margin-right:8px;flex-shrink:0;">{{ item.glyph }}</span>{% endif %}
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ item.title }}</span>
-          <span style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;margin-left:8px;flex-shrink:0;">{{ item.time }}</span>
+        <div style="display:flex;align-items:flex-start;padding:3px 0;font-size:14px;font-weight:700;line-height:1.25;">
+          {% if item.glyph %}<span style="display:inline-block;border:1.5px solid #000;padding:0 4px;font-size:11px;font-weight:800;line-height:16px;min-width:14px;text-align:center;margin:1px 8px 0 0;flex-shrink:0;">{{ item.glyph }}</span>{% endif %}
+          <span style="font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;margin:1px 8px 0 0;flex-shrink:0;min-width:54px;">{{ item.time }}</span>
+          <span style="flex:1;word-wrap:break-word;overflow-wrap:break-word;">{{ item.title }}</span>
         </div>
         {% endfor %}
       </div>
 
       {% if nat.tasks.size > 0 %}
-      <div style="margin:4px 10px 0;border-top:1.5px solid #000;padding-top:4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">TASKS</div>
+      <div style="margin:4px 10px 0;border-top:1.5px solid #000;padding-top:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">TASKS</div>
       <div style="padding:2px 10px;">
         {% for task in nat.tasks %}
-        {% if task.is_overdue %}
-        <div style="display:flex;align-items:center;height:26px;background:#000;color:#fff;font-size:15px;font-weight:700;padding:0 6px;margin-bottom:2px;">
-          <span style="display:inline-block;border:1.5px solid #fff;padding:0 4px;font-size:11px;font-weight:800;line-height:14px;margin-right:6px;flex-shrink:0;">!</span>
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ task.name }}</span>
+        <div style="display:flex;align-items:flex-start;padding:3px 0;font-size:14px;font-weight:700;line-height:1.25;">
+          {% if task.is_overdue %}
+          <span style="display:inline-block;border:1.5px solid #000;padding:0 4px;font-size:11px;font-weight:800;line-height:14px;min-width:10px;text-align:center;margin:1px 8px 0 0;flex-shrink:0;">!</span>
+          {% else %}
+          <span style="display:inline-block;border:1.5px solid #000;width:10px;height:10px;margin:3px 8px 0 0;flex-shrink:0;"></span>
+          {% endif %}
+          <span style="flex:1;word-wrap:break-word;overflow-wrap:break-word;">{{ task.name }}</span>
         </div>
-        {% else %}
-        <div style="display:flex;align-items:center;height:26px;font-size:15px;font-weight:700;">
-          <span style="display:inline-block;border:1.5px solid #000;width:10px;height:10px;margin-right:8px;flex-shrink:0;"></span>
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ task.name }}</span>
-        </div>
-        {% endif %}
         {% endfor %}
       </div>
       {% endif %}
@@ -139,6 +140,6 @@ export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background
   </div>
 
   <!-- Footer: thin solid top rule + "updated <time>" -->
-  <div style="border-top:2px solid #000;padding:3px 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">updated {{ generated_at }}</div>
+  <div style="border-top:2px solid #000;padding:3px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">updated {{ generated_at }}</div>
 
 </div>`
