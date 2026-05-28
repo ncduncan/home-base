@@ -35,19 +35,19 @@ export default function GoalSection({
   const achievedCount = goals.filter(g => g.achieved).length
 
   return (
-    <section className="space-y-1">
-      <header className="flex items-baseline gap-2 mb-1">
-        <h2 className="text-xs uppercase tracking-wider font-medium text-hb-fg-muted">
+    <article className="flex flex-col rounded-md border border-hb-border-soft bg-hb-card overflow-hidden">
+      <header className="px-3 py-2 border-b border-hb-border-rule flex items-baseline justify-between gap-2">
+        <h2 className="text-[11px] font-medium uppercase tracking-[.08em] text-hb-fg-secondary">
           {label}
         </h2>
         {goals.length > 0 && (
-          <span className="text-[10px] text-hb-fg-faint tabular-nums">
+          <span className="text-[10px] tabular-nums text-hb-fg-faint">
             {achievedCount}/{goals.length}
           </span>
         )}
       </header>
 
-      <ul className="space-y-0">
+      <ul className="px-1.5 py-1">
         {goals.map(g => (
           <GoalRow
             key={g.id}
@@ -74,12 +74,12 @@ export default function GoalSection({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="flex items-center gap-1.5 ml-8 mt-1 text-xs text-hb-fg-muted hover:text-hb-fg-secondary"
+          className="flex items-center gap-1 px-3 py-1.5 text-[11px] text-hb-fg-muted hover:text-hb-fg-secondary hover:bg-black/[.02] transition-colors border-t border-hb-border-rule text-left"
         >
-          <Plus size={12} />
+          <Plus size={11} />
           Add goal
         </button>
       )}
-    </section>
+    </article>
   )
 }

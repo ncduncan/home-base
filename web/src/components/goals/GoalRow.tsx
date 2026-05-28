@@ -26,7 +26,6 @@ export default function GoalRow({
 
   useEffect(() => { setDraft(goal.text) }, [goal.text])
 
-  // Auto-grow the textarea to fit content while editing
   useEffect(() => {
     if (editing && taRef.current) {
       taRef.current.style.height = 'auto'
@@ -46,27 +45,25 @@ export default function GoalRow({
     setEditing(false)
   }
 
-  const ownerDot = goal.owner === 'nat'
-    ? 'bg-hb-nat-accent'
-    : 'bg-hb-cai-accent'
+  const ownerEdge = goal.owner === 'nat'
+    ? 'border-l-hb-nat-accent'
+    : 'border-l-hb-cai-accent'
 
   return (
-    <li className="group flex items-start gap-3 py-1.5">
-      {/* Amber circular checkbox — matches the reference image */}
+    <li className={`group/goal flex items-start gap-2 px-1.5 py-1 border-l-2 ${ownerEdge} hover:bg-black/[.02] transition-colors rounded-sm`}>
       <button
         type="button"
         onClick={() => onToggleAchieved(goal.id, !goal.achieved)}
         aria-label={goal.achieved ? 'Mark not achieved' : 'Mark achieved'}
-        className={`mt-0.5 shrink-0 h-5 w-5 rounded-full border flex items-center justify-center transition-colors ${
+        className={`mt-0.5 shrink-0 h-4 w-4 rounded-[4px] border flex items-center justify-center transition-colors ${
           goal.achieved
-            ? 'bg-hb-cai-accent border-hb-cai-accent text-white'
-            : 'bg-transparent border-hb-fg-faint hover:border-hb-fg-muted'
+            ? 'bg-hb-fg border-hb-fg text-white'
+            : 'bg-transparent border-hb-border-soft hover:border-hb-fg-faint'
         }`}
       >
-        {goal.achieved && <Check size={13} strokeWidth={3} />}
+        {goal.achieved && <Check size={11} strokeWidth={3} />}
       </button>
 
-      {/* Text — click to inline-edit */}
       {editing ? (
         <textarea
           ref={taRef}
@@ -79,35 +76,27 @@ export default function GoalRow({
             if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
           }}
           rows={1}
-          className="flex-1 min-w-0 text-sm bg-transparent text-hb-fg border-b border-hb-fg-faint outline-none resize-none py-0 leading-6"
+          className="flex-1 min-w-0 text-[13px] bg-transparent text-hb-fg border-b border-hb-fg-faint outline-none resize-none py-0 leading-5"
         />
       ) : (
         <span
           onClick={() => setEditing(true)}
-          className={`flex-1 min-w-0 text-sm leading-6 cursor-text break-words ${
-            goal.achieved ? 'font-semibold text-hb-fg' : 'text-hb-fg'
+          className={`flex-1 min-w-0 text-[13px] leading-5 cursor-text break-words ${
+            goal.achieved ? 'line-through text-hb-fg-muted' : 'text-hb-fg'
           }`}
         >
           {goal.text}
         </span>
       )}
 
-      {/* Owner color dot */}
-      <span
-        title={goal.owner === 'nat' ? 'Added by Nat' : 'Added by Caitie'}
-        className={`mt-2 shrink-0 h-1.5 w-1.5 rounded-full ${ownerDot}`}
-      />
-
-      {/* Private lock icon (only when private) */}
       {goal.visibility === 'private' && (
         <Lock
-          size={12}
-          className="mt-1.5 shrink-0 text-hb-fg-muted"
+          size={10}
+          className="mt-1 shrink-0 text-hb-fg-faint"
           aria-label="Private"
         />
       )}
 
-      {/* Overflow menu */}
       <GoalActionsMenu
         goal={goal}
         onChangeVisibility={onChangeVisibility}
@@ -116,10 +105,10 @@ export default function GoalRow({
         trigger={
           <button
             type="button"
-            className="mt-0.5 shrink-0 text-hb-fg-faint hover:text-hb-fg-secondary opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+            className="mt-0.5 shrink-0 text-hb-fg-faint hover:text-hb-fg-secondary opacity-0 group-hover/goal:opacity-100 transition-opacity"
             aria-label="More actions"
           >
-            <MoreHorizontal size={14} />
+            <MoreHorizontal size={12} />
           </button>
         }
       />

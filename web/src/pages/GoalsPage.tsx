@@ -74,7 +74,7 @@ export default function GoalsPage({ session, tab, onTabChange }: Props) {
   return (
     <div className="min-h-screen bg-hb-page">
       <Header session={session} tab={tab} onTabChange={onTabChange} />
-      <main className="px-6 py-8">
+      <main className="px-6 py-6">
         <GoalsBoard
           goals={goals}
           owner={owner}

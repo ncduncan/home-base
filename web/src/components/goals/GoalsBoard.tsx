@@ -39,11 +39,11 @@ export default function GoalsBoard({
   }, [goals])
 
   if (loading) {
-    return <div className="text-sm text-hb-fg-faint">Loading goals…</div>
+    return <div className="text-xs text-hb-fg-faint">Loading goals…</div>
   }
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 items-start">
       {CATEGORIES.map(c => (
         <GoalSection
           key={c.key}
