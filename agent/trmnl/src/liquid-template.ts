@@ -13,8 +13,9 @@
  *   • Strokes thinner than 1.5px disappear on the e-ink refresh.
  *
  * Column distinction (no color available):
- *   • CAITIE = inverted header strip (black bg, white text) + 4px left edge bar.
- *   • NAT    = white header strip with a double-rule underline + 4px right edge bar.
+ *   • Both columns use the same white header with a double-rule underline;
+ *     the 4px outer edge bar (left for Caitie, right for Nat) and the label
+ *     itself are how the reader tells them apart.
  *
  * Run `npm --workspace agent/trmnl run print-template` to dump this string to
  * stdout for copy-paste.
@@ -54,10 +55,10 @@ export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background
   <!-- Owner split. 50/50 with an 8px center gutter; each side gets a 4px edge bar. -->
   <div style="display:flex;flex:1;padding:0;overflow:hidden;">
 
-    <!-- ── CAITIE (left) — inverted header + 4px left edge bar ─────────── -->
+    <!-- ── CAITIE (left) — double-rule header + 4px left edge bar ──────── -->
     <div style="flex:1;border-left:4px solid #000;display:flex;flex-direction:column;overflow:hidden;">
 
-      <div style="background:#000;color:#fff;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;height:28px;box-sizing:border-box;">CAITIE</div>
+      <div style="background:#fff;color:#000;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;border-bottom:1.5px solid #000;box-shadow:inset 0 -5px 0 #fff, inset 0 -6.5px 0 #000;height:28px;box-sizing:border-box;">CAITIE</div>
 
       {% if caitie.gus_dropoff or caitie.gus_pickup %}
       <div style="padding:6px 10px 0;display:flex;gap:6px;flex-wrap:wrap;">
