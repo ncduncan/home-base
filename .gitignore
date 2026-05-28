@@ -56,3 +56,6 @@ preview-week-grid.html
 # Private seed data — personal goals/notes that shouldn't enter public history.
 # Apply locally via `supabase db query --linked --file <file>`.
 supabase/*_private.sql
+
+# Supabase CLI version-check cache — bumps every CLI run, no value in tracking.
+supabase/.temp/cli-latest
