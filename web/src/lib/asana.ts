@@ -7,6 +7,7 @@ const client = createAsanaClient({
 
 export const fetchTasks = client.fetchTasks
 export const fetchWorkspaceUsers = client.fetchWorkspaceUsers
+export const fetchMe = client.fetchMe
 export const createTask = client.createTask
 export const updateTask = client.updateTask
 export const deleteTask = client.deleteTask

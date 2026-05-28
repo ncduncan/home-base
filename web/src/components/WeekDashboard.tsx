@@ -3,7 +3,7 @@ import { format, addDays, startOfToday, startOfDay, parseISO, isSameDay } from '
 import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
-import { fetchWorkspaceUsers } from '../lib/asana'
+import { fetchWorkspaceUsers, fetchMe } from '../lib/asana'
 import { ALLOWED_EMAILS, OWNER_EMAILS, NAT_WORK_EMAIL, CAITIE_WORK_EMAIL } from '../lib/owners'
 import DayColumn from './DayColumn'
 import CompletedRow from './tasks/CompletedRow'
@@ -64,20 +64,25 @@ export default function WeekDashboard({
   const [addMode, setAddMode] = useState<'event' | 'task' | null>(null)
 
   useEffect(() => {
-    fetchWorkspaceUsers().then(all => {
-      // Only show Nat and Caitie as assignee options. Match against both personal
-      // AND work emails — Asana accounts may be registered under either, and the
-      // briefing-recipient ALLOWED_EMAILS only contains personal addresses.
-      const assigneeAllowed = new Set(
-        [...ALLOWED_EMAILS, NAT_WORK_EMAIL, CAITIE_WORK_EMAIL]
-          .filter(Boolean)
-          .map(e => e.toLowerCase()),
-      )
-      const allowed = all.filter(u => assigneeAllowed.has(u.email.toLowerCase()))
-      setUsers(allowed)
+    // Two-source merge so Drew is filtered out but Nat (the PAT owner) is
+    // always included — workspace user listings can omit the email field for
+    // the authenticated account, which would otherwise drop him.
+    const assigneeAllowed = new Set(
+      [...ALLOWED_EMAILS, NAT_WORK_EMAIL, CAITIE_WORK_EMAIL]
+        .filter(Boolean)
+        .map(e => e.toLowerCase()),
+    )
+    Promise.all([fetchWorkspaceUsers(), fetchMe().catch(() => null)]).then(([all, me]) => {
+      const byGid = new Map<string, AsanaUser>()
+      for (const u of all) {
+        if (assigneeAllowed.has(u.email.toLowerCase())) byGid.set(u.gid, u)
+      }
+      if (me) byGid.set(me.gid, me) // PAT owner (Nat) — always include
+      const merged = [...byGid.values()]
+      setUsers(merged)
       // Default new tasks to Nat regardless of who's logged in.
       const natEmails = [OWNER_EMAILS.nat, NAT_WORK_EMAIL].filter(Boolean).map(e => e.toLowerCase())
-      const nat = allowed.find(u => natEmails.includes(u.email.toLowerCase()))
+      const nat = merged.find(u => natEmails.includes(u.email.toLowerCase())) ?? me ?? null
       if (nat) setSelfGid(nat.gid)
     }).catch(() => {/* non-critical */})
   }, [])

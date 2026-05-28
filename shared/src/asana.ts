@@ -11,6 +11,7 @@ export type AsanaConfig = {
 export type AsanaClient = {
   fetchTasks: () => Promise<AsanaTask[]>
   fetchWorkspaceUsers: () => Promise<AsanaUser[]>
+  fetchMe: () => Promise<AsanaUser>
   createTask: (fields: { name: string; due_on?: string; assignee?: string; notes?: string }) => Promise<AsanaTask>
   updateTask: (
     gid: string,
@@ -210,6 +211,16 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
     return users
   }
 
+  async function fetchMe(): Promise<AsanaUser> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const me = await asanaGet('/users/me?opt_fields=gid,name,email') as any
+    return {
+      gid: me.data.gid as string,
+      name: me.data.name as string,
+      email: (me.data.email as string | undefined) ?? '',
+    }
+  }
+
   async function createTask(fields: {
     name: string
     due_on?: string
@@ -238,6 +249,7 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
   return {
     fetchTasks,
     fetchWorkspaceUsers,
+    fetchMe,
     createTask,
     updateTask,
     deleteTask,
