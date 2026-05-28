@@ -46,3 +46,9 @@ briefing_eink.json
 
 # Local UI mockups (never commit)
 preview-week-grid.html
+
+# Playwright MCP browser session logs (local-only)
+.playwright-mcp/
+
+# Accidental nested repo snapshot (local-only)
+/home-base/

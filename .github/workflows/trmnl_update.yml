@@ -1,52 +1,48 @@
 name: TRMNL Display Update
 
 on:
-  # push:
-  #   branches: [main]
-  # schedule:
-  #   # 6am, 12pm, 6pm Eastern Time (EDT = UTC-4)
-  #   - cron: '0 10 * * *'
-  #   - cron: '0 16 * * *'
-  #   - cron: '0 22 * * *'
+  schedule:
+    # 8:00 UTC daily = 4am EDT / 3am EST — once-a-day before-wake refresh.
+    # No single cron hits 4am ET year-round (DST); we prefer the always-ready-
+    # by-4am choice over the always-at-4am-or-later one.
+    - cron: '0 8 * * *'
   workflow_dispatch:
+    # Manual trigger for testing
+
+# Public repo: keep run logs clean of personal content. The agent enforces
+# this in code (counts and step transitions only).
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   update:
-    name: Push data to TRMNL display
+    name: Push today's screen to TRMNL display
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.11'
-          cache: pip
+          node-version: '22'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pip install -e .
+        run: npm ci
 
-      - name: Write Google OAuth token
-        run: |
-          python3 -c "import os; open('/tmp/google_token.json','w').write(os.environ['GOOGLE_OAUTH_TOKEN'])"
+      - name: Push to TRMNL
+        working-directory: agent/trmnl
         env:
           GOOGLE_OAUTH_TOKEN: ${{ secrets.GOOGLE_OAUTH_TOKEN }}
-
-      - name: Push briefing to TRMNL
-        env:
-          GOOGLE_TOKEN_PATH: /tmp/google_token.json
-
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ASANA_PAT: ${{ secrets.ASANA_PAT }}
           ASANA_WORKSPACE_GID: ${{ secrets.ASANA_WORKSPACE_GID }}
-
-          OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}
-
           TRMNL_WEBHOOK_URL: ${{ secrets.TRMNL_WEBHOOK_URL }}
-
-        run: python -m agent.trmnl_update
+        run: npm start
