@@ -53,7 +53,7 @@ export default function GoalRow({
         aria-label={goal.achieved ? 'Mark not achieved' : 'Mark achieved'}
         className={`mt-[3px] shrink-0 h-3.5 w-3.5 rounded-[3px] border flex items-center justify-center transition-colors ${
           goal.achieved
-            ? 'bg-hb-fg-muted border-hb-fg-muted text-white'
+            ? 'bg-hb-fam-fade border-hb-fam-accent text-hb-fam-accent'
             : 'bg-transparent border-hb-border-soft hover:border-hb-fg-faint'
         }`}
       >
