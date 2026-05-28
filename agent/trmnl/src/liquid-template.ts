@@ -58,7 +58,7 @@ export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background
     <!-- ── CAITIE (left) — double-rule header + 4px left edge bar ──────── -->
     <div style="flex:1;border-left:4px solid #000;display:flex;flex-direction:column;overflow:hidden;">
 
-      <div style="background:#fff;color:#000;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;border-bottom:1.5px solid #000;box-shadow:inset 0 -5px 0 #fff, inset 0 -6.5px 0 #000;height:28px;box-sizing:border-box;">CAITIE</div>
+      <div style="background:#fff;color:#000;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;box-shadow:inset 0 -5px 0 #fff, inset 0 -6.5px 0 #000;height:28px;box-sizing:border-box;">CAITIE</div>
 
       {% if caitie.gus_dropoff or caitie.gus_pickup %}
       <div style="padding:6px 10px 0;display:flex;gap:6px;flex-wrap:wrap;">
@@ -101,7 +101,7 @@ export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background
     <!-- ── NAT (right) — double-rule header + 4px right edge bar ────────── -->
     <div style="flex:1;border-right:4px solid #000;display:flex;flex-direction:column;overflow:hidden;">
 
-      <div style="background:#fff;color:#000;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;border-bottom:1.5px solid #000;box-shadow:inset 0 -5px 0 #fff, inset 0 -6.5px 0 #000;height:28px;box-sizing:border-box;">NAT</div>
+      <div style="background:#fff;color:#000;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;box-shadow:inset 0 -5px 0 #fff, inset 0 -6.5px 0 #000;height:28px;box-sizing:border-box;">NAT</div>
 
       {% if nat.gus_dropoff or nat.gus_pickup %}
       <div style="padding:6px 10px 0;display:flex;gap:6px;flex-wrap:wrap;">
