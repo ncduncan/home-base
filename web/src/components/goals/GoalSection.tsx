@@ -40,7 +40,7 @@ export default function GoalSection({
         <h2 className="text-[10px] font-medium uppercase tracking-[.08em] text-hb-fg-secondary">
           {label}
         </h2>
-        {achievedCount > 0 && (
+        {goals.length > 0 && (
           <span className="text-[9px] tabular-nums text-hb-fg-faint">
             {achievedCount}/{goals.length}
           </span>
