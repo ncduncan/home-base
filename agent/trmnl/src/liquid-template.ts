@@ -13,9 +13,9 @@
  *   • Strokes thinner than 1.5px disappear on the e-ink refresh.
  *
  * Column distinction (no color available):
- *   • Both columns use the same white header with a double-rule underline;
- *     the 4px outer edge bar (left for Caitie, right for Nat) and the label
- *     itself are how the reader tells them apart.
+ *   • Both columns share the same white header with a double-rule underline.
+ *     The label (CAITIE/NAT) and the column position carry the distinction —
+ *     no edge bars or inverted blocks.
  *
  * Run `npm --workspace agent/trmnl run print-template` to dump this string to
  * stdout for copy-paste.
@@ -52,8 +52,9 @@ export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background
   </div>
   {% endif %}
 
-  <!-- Owner split. 50/50 with an 8px center gutter; each side gets a 4px edge bar. -->
-  <div style="display:flex;flex:1;padding:0;overflow:hidden;">
+  <!-- Owner split. 50/50 with an 8px center gutter; horizontal padding matches
+       the 12px the header + footer use, so the whole UI reads centered. -->
+  <div style="display:flex;flex:1;padding:0 12px;overflow:hidden;">
 
     <!-- ── CAITIE (left) — double-rule header (no edge bar) ────────────── -->
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
@@ -98,8 +99,8 @@ export const LIQUID_TEMPLATE = `<div class="screen screen--og" style="background
     <!-- 8px gutter -->
     <div style="width:8px;"></div>
 
-    <!-- ── NAT (right) — double-rule header + 4px right edge bar ────────── -->
-    <div style="flex:1;border-right:4px solid #000;display:flex;flex-direction:column;overflow:hidden;">
+    <!-- ── NAT (right) — double-rule header (no edge bar) ──────────────── -->
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 
       <div style="background:#fff;color:#000;padding:5px 10px;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;box-shadow:inset 0 -5px 0 #fff, inset 0 -6.5px 0 #000;height:28px;box-sizing:border-box;">NAT</div>
 
