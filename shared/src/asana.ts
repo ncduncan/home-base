@@ -10,6 +10,7 @@ export type AsanaConfig = {
 
 export type AsanaClient = {
   fetchTasks: () => Promise<AsanaTask[]>
+  fetchAllOpenTasks: () => Promise<AsanaTask[]>
   fetchWorkspaceUsers: () => Promise<AsanaUser[]>
   fetchMe: () => Promise<AsanaUser>
   createTask: (fields: { name: string; due_on?: string; assignee?: string; notes?: string }) => Promise<AsanaTask>
@@ -206,6 +207,38 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
     )
   }
 
+  /**
+   * Fetches every incomplete task assigned to any allowed user in the workspace,
+   * regardless of due date. Used by dashboard search to surface tasks outside the
+   * normal "due ≤ today+7" rendering window.
+   *
+   * Asana's `/tasks` endpoint requires `completed_since` whenever you query by
+   * assignee, so we pass epoch 0 and filter `completed === false` on the way out.
+   */
+  async function fetchAllOpenTasks(): Promise<AsanaTask[]> {
+    const { workspaceGid: resolvedGid, users: allUsers } = await resolveWorkspace()
+
+    const userGids = allUsers.map(u => u.gid)
+    if (userGids.length === 0) userGids.push('me')
+
+    const epoch = new Date(0).toISOString()
+
+    const seen = new Set<string>()
+    const all: AsanaTask[] = []
+
+    for (const gid of userGids) {
+      const tasks = await fetchTasksForUser(gid, resolvedGid, epoch)
+      for (const t of tasks) {
+        if (!seen.has(t.gid) && !t.completed) {
+          seen.add(t.gid)
+          all.push(t)
+        }
+      }
+    }
+
+    return all
+  }
+
   async function fetchWorkspaceUsers(): Promise<AsanaUser[]> {
     const { users } = await resolveWorkspace()
     return users
@@ -248,6 +281,7 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
 
   return {
     fetchTasks,
+    fetchAllOpenTasks,
     fetchWorkspaceUsers,
     fetchMe,
     createTask,

@@ -24,8 +24,6 @@ export async function fetchCalendarEvents(
   onTokenRejected?: OnTokenRejected,
   daysAhead = 7,
 ): Promise<CalendarEvent[]> {
-  let token = await getAccessToken()
-
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   // Snap to the most recent Sunday so the week is always Sun–Sat
@@ -45,6 +43,36 @@ export async function fetchCalendarEvents(
   // back here so the total span past the visible Sunday isn't shortened.
   const timeMax = new Date(timeMin)
   timeMax.setDate(timeMax.getDate() + daysAhead + 1)
+
+  return fetchEventsInWindow(getAccessToken, timeMin, timeMax, onTokenRejected)
+}
+
+/**
+ * Fetch calendar events within an arbitrary date range. Both bounds are
+ * inclusive-start / exclusive-end at midnight local time.
+ *
+ * Use this for broader queries (e.g. ±3 months) where week-relative anchoring
+ * isn't appropriate. The week-relative `fetchCalendarEvents` retains its
+ * Sunday-snap and -1 day quirk for the dashboard's Sun→Sat layout.
+ */
+export async function fetchCalendarEventsRange(
+  getAccessToken: GetAccessToken,
+  startDateISO: string,
+  endDateISO: string,
+  onTokenRejected?: OnTokenRejected,
+): Promise<CalendarEvent[]> {
+  const timeMin = new Date(`${startDateISO}T00:00:00`)
+  const timeMax = new Date(`${endDateISO}T00:00:00`)
+  return fetchEventsInWindow(getAccessToken, timeMin, timeMax, onTokenRejected)
+}
+
+async function fetchEventsInWindow(
+  getAccessToken: GetAccessToken,
+  timeMin: Date,
+  timeMax: Date,
+  onTokenRejected?: OnTokenRejected,
+): Promise<CalendarEvent[]> {
+  let token = await getAccessToken()
 
   let listResp = await fetch(
     'https://www.googleapis.com/calendar/v3/users/me/calendarList',

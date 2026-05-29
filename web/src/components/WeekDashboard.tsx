@@ -9,6 +9,7 @@ import DayColumn from './DayColumn'
 import CompletedRow from './tasks/CompletedRow'
 import AddTaskForm from './tasks/AddTaskForm'
 import AddEventForm from './AddEventForm'
+import DashboardSearch from './search/DashboardSearch'
 import { useTaskMutations } from './tasks/useTaskMutations'
 import type { HomebaseEvent } from '../lib/homebase-events'
 import type {
@@ -38,6 +39,10 @@ interface Props {
   setTasks: React.Dispatch<React.SetStateAction<AsanaTask[]>>
   tasksLoading: boolean
   userEmail: string
+  searchableEvents: CalendarEvent[]
+  searchableTasks: AsanaTask[]
+  extendedLoading: boolean
+  onJumpToResult: (id: string, targetOffset: number) => void
 }
 
 function weekLabel(weekOffset: number): string {
@@ -57,6 +62,7 @@ export default function WeekDashboard({
   onCreateHomebaseEvent, onDeleteHomebaseEvent,
   weekOffset, onWeekChange,
   tasks, setTasks, tasksLoading, userEmail,
+  searchableEvents, searchableTasks, extendedLoading, onJumpToResult,
 }: Props) {
   const [refreshing, setRefreshing] = useState(false)
   const [users, setUsers] = useState<AsanaUser[]>([])
@@ -204,9 +210,18 @@ export default function WeekDashboard({
         </button>
       </div>
 
-      <h2 className="text-sm font-semibold text-hb-fg-secondary uppercase tracking-[.16em]">
-        {weekLabel(weekOffset)}
-      </h2>
+      <div className="flex items-center gap-3 flex-1 min-w-0 justify-center">
+        <h2 className="text-sm font-semibold text-hb-fg-secondary uppercase tracking-[.16em] whitespace-nowrap">
+          {weekLabel(weekOffset)}
+        </h2>
+        <DashboardSearch
+          events={searchableEvents}
+          tasks={searchableTasks}
+          loadingMore={extendedLoading}
+          onSelectEvent={(e, offset) => onJumpToResult(`event-${e.id}`, offset)}
+          onSelectTask={(t, offset) => onJumpToResult(`task-${t.gid}`, offset)}
+        />
+      </div>
 
       <div className="flex items-center gap-2 w-32 justify-end">
         <button

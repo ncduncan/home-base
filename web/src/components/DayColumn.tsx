@@ -13,6 +13,7 @@ import {
   isHomebaseEventId,
   homebaseIdFromCalendarEventId,
 } from '../lib/homebase-events'
+import { shiftLabel } from '../lib/shiftLabels'
 import type {
   AsanaTask,
   AsanaUser,
@@ -39,18 +40,6 @@ interface Props {
   onDeleteTask: (gid: string) => void
   onUpdateTask: (gid: string, patch: TaskUpdatePatch) => Promise<void>
   todayDate: Date
-}
-
-const SHIFT_LABELS: Record<string, string> = {
-  training: 'Training',
-  day:      'Day Shift',
-  night:    'Night Shift',
-  '24hr':   '24Hr',
-  backup:   'Backup',
-}
-
-function shiftLabel(kind: CalendarEvent['amion_kind']) {
-  return SHIFT_LABELS[kind ?? ''] ?? 'Shift'
 }
 
 function isGusEvent(event: CalendarEvent): boolean {
@@ -235,7 +224,11 @@ function OwnerSection({
             )
 
             return (
-              <li key={event.id} className="group/event relative">
+              <li
+                key={event.id}
+                data-search-id={`event-${event.id}`}
+                className="group/event relative"
+              >
                 {isHomebase ? (
                   <>
                     {triggerButton}
@@ -281,15 +274,20 @@ function OwnerSection({
       {tasks.length > 0 && (
         <ul className="mt-auto pt-1">
           {tasks.map(task => (
-            <TaskRow
+            <div
               key={task.gid}
-              task={task}
-              users={users}
-              onToggle={onToggleTask}
-              onDelete={onDeleteTask}
-              onUpdate={onUpdateTask}
-              compact
-            />
+              data-search-id={`task-${task.gid}`}
+              style={{ display: 'contents' }}
+            >
+              <TaskRow
+                task={task}
+                users={users}
+                onToggle={onToggleTask}
+                onDelete={onDeleteTask}
+                onUpdate={onUpdateTask}
+                compact
+              />
+            </div>
           ))}
         </ul>
       )}

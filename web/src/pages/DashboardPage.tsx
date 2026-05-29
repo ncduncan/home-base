@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { format, addDays } from 'date-fns'
-import { fetchCalendarEvents, CalendarAuthError, syncGusCareInvites } from '../lib/calendar'
+import { fetchCalendarEvents, fetchCalendarEventsRange, CalendarAuthError, syncGusCareInvites } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
-import { fetchTasks } from '../lib/asana'
+import { fetchTasks, fetchAllOpenTasks } from '../lib/asana'
 import { fetchOverrides, upsertOverride, deleteOverride, applyOverrides } from '../lib/overrides'
 import {
   fetchHomebaseEvents,
@@ -197,6 +197,100 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     fetchWeatherForecast().then(setWeather).catch(() => {/* non-critical */})
   }, [])
 
+  // ── Extended search index (±90 days, lazy-loaded) ─────────────────────────
+  // Loaded ~500ms after mount so the critical-path week fetch + weather + Gus
+  // sync get the foreground. Keeps the dashboard search bar useful for events
+  // and open tasks outside the currently-rendered week.
+  const [extendedEvents, setExtendedEvents] = useState<CalendarEvent[]>([])
+  const [extendedTasks, setExtendedTasks] = useState<AsanaTask[]>([])
+  const [extendedLoading, setExtendedLoading] = useState(false)
+  const extendedSeqRef = useRef(0)
+
+  const loadExtended = useCallback(async () => {
+    const seq = ++extendedSeqRef.current
+    setExtendedLoading(true)
+    const today = new Date()
+    const start = format(addDays(today, -90), 'yyyy-MM-dd')
+    const end = format(addDays(today, 90), 'yyyy-MM-dd')
+    try {
+      const [cal, openTasks, hb] = await Promise.all([
+        fetchCalendarEventsRange(start, end).catch(() => [] as CalendarEvent[]),
+        fetchAllOpenTasks().catch(() => [] as AsanaTask[]),
+        fetchHomebaseEvents(start, end).catch(() => [] as HomebaseEvent[]),
+      ])
+      if (seq !== extendedSeqRef.current) return
+      setExtendedEvents([...cal, ...hb.map(homebaseToCalendarEvent)])
+      setExtendedTasks(openTasks)
+    } finally {
+      if (seq === extendedSeqRef.current) setExtendedLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => { void loadExtended() }, 500)
+    return () => clearTimeout(t)
+  }, [loadExtended])
+
+  // Merged searchable lists — current-week wins on collisions because it has
+  // overrides applied via the existing applyOverrides pipeline.
+  const searchableEvents = useMemo(() => {
+    const byId = new Map<string, CalendarEvent>()
+    for (const e of extendedEvents) byId.set(e.id, e)
+    for (const e of events) byId.set(e.id, e)
+    return [...byId.values()]
+  }, [events, extendedEvents])
+
+  const searchableTasks = useMemo(() => {
+    const byGid = new Map<string, AsanaTask>()
+    for (const t of extendedTasks) byGid.set(t.gid, t)
+    for (const t of tasks) byGid.set(t.gid, t)
+    return [...byGid.values()]
+  }, [tasks, extendedTasks])
+
+  // ── Search result navigation ──────────────────────────────────────────────
+  // Cross-week selection waits for the destination week's fetch to settle
+  // before scrolling to the DOM node (which only mounts after re-render).
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const [pendingHighlight, setPendingHighlight] = useState<{ id: string; offset: number } | null>(null)
+
+  const handleJumpToResult = useCallback((id: string, targetOffset: number) => {
+    if (targetOffset === weekOffset) {
+      setHighlightedId(id)
+    } else {
+      setPendingHighlight({ id, offset: targetOffset })
+      setWeekOffset(targetOffset)
+    }
+  }, [weekOffset])
+
+  useEffect(() => {
+    if (!pendingHighlight) return
+    if (pendingHighlight.offset !== weekOffset) return
+    if (eventsLoading) return
+    const raf = requestAnimationFrame(() => {
+      setHighlightedId(pendingHighlight.id)
+      setPendingHighlight(null)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [pendingHighlight, weekOffset, eventsLoading])
+
+  useEffect(() => {
+    if (!highlightedId) return
+    const el = document.querySelector(`[data-search-id="${highlightedId}"]`)
+    if (!el) {
+      // DOM node didn't render (e.g. task due outside the visible week).
+      // Defer the clear so the effect doesn't synchronously trigger a re-render.
+      const id = setTimeout(() => setHighlightedId(null), 0)
+      return () => clearTimeout(id)
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('hb-search-flash')
+    const t = setTimeout(() => {
+      el.classList.remove('hb-search-flash')
+      setHighlightedId(null)
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [highlightedId])
+
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-hb-page">
@@ -221,6 +315,10 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
           setTasks={setTasks}
           tasksLoading={tasksLoading}
           userEmail={session.user.email ?? ''}
+          searchableEvents={searchableEvents}
+          searchableTasks={searchableTasks}
+          extendedLoading={extendedLoading}
+          onJumpToResult={handleJumpToResult}
         />
       </main>
     </div>

@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import { OWNER_EMAILS, NAT_WORK_EMAIL, CAITIE_WORK_EMAIL } from './owners'
 import {
   fetchCalendarEvents as sharedFetchCalendarEvents,
+  fetchCalendarEventsRange as sharedFetchCalendarEventsRange,
   syncGusCareInvites as sharedSyncGusCareInvites,
   createOwnedEvent as sharedCreateOwnedEvent,
   patchOwnedEvent as sharedPatchOwnedEvent,
@@ -148,6 +149,10 @@ async function getProviderToken(): Promise<string> {
 // dropped at Google's exclusive timeMax boundary.
 export function fetchCalendarEvents(weekOffset = 0) {
   return sharedFetchCalendarEvents(getProviderToken, weekOffset, resetProviderTokenCache, 8)
+}
+
+export function fetchCalendarEventsRange(startISO: string, endISO: string) {
+  return sharedFetchCalendarEventsRange(getProviderToken, startISO, endISO, resetProviderTokenCache)
 }
 
 export function syncGusCareInvites(gusCare: GusResponsibility[]) {
