@@ -73,27 +73,51 @@ export async function fetchCalendarEvents(
   const userTimeZone = typeof Intl !== 'undefined'
     ? Intl.DateTimeFormat().resolvedOptions().timeZone
     : 'America/New_York'
-  const sources: RawCalendarSource[] = await Promise.all(
+
+  // 401 here means our cached token expired mid-batch. Reset once per batch
+  // (subsequent 401s reuse the freshly minted token) and retry the failing
+  // calendar's fetch one time. Tracked via a shared boolean to coalesce the
+  // refresh across parallel fan-outs.
+  let tokenRefreshedThisBatch = false
+  const fetchEvents = async (cal: { id: string; summary: string; summaryOverride?: string }): Promise<RawCalendarSource> => {
+    const params = new URLSearchParams({
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      timeZone: userTimeZone,
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: '250',
+    })
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`
+    let resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (resp.status === 401) {
+      if (!tokenRefreshedThisBatch) {
+        tokenRefreshedThisBatch = true
+        onTokenRejected?.()
+        token = await getAccessToken()
+      }
+      resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    }
+    if (!resp.ok) return { cal, items: [] as Array<Record<string, unknown>> }
+    const { items = [] } = await resp.json() as { items: Array<Record<string, unknown>> }
+    return { cal, items }
+  }
+
+  const results = await Promise.allSettled(
     calendars
       .filter(cal => cal.selected !== false)
-      .map(async cal => {
-        const params = new URLSearchParams({
-          timeMin: timeMin.toISOString(),
-          timeMax: timeMax.toISOString(),
-          timeZone: userTimeZone,
-          singleEvents: 'true',
-          orderBy: 'startTime',
-          maxResults: '250',
-        })
-        const resp = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
-        if (!resp.ok) return { cal, items: [] as Array<Record<string, unknown>> }
-        const { items = [] } = await resp.json() as { items: Array<Record<string, unknown>> }
-        return { cal, items }
-      })
+      .map(fetchEvents)
   )
+  const sources: RawCalendarSource[] = []
+  let rejectedCount = 0
+  for (const r of results) {
+    if (r.status === 'fulfilled') sources.push(r.value)
+    else rejectedCount++
+  }
+  if (rejectedCount > 0) {
+    // Count-only log: contents stay out of public-repo CI streams.
+    console.warn(`[calendar] ${rejectedCount} calendar source(s) failed to fetch`)
+  }
 
   return parseCalendarSources(sources)
 }

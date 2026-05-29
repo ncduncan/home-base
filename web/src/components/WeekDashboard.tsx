@@ -87,12 +87,34 @@ export default function WeekDashboard({
     }).catch(() => {/* non-critical */})
   }, [])
 
-  // When Google calendar auth expires, just sign the user out so they land on
-  // the login page and can re-auth with one click — no stale-banner step.
+  // When Google calendar auth genuinely fails (refresh token revoked or similar),
+  // skip the login screen entirely and kick the user straight to Google's OAuth
+  // consent — zero taps inside the app, and prompt=consent guarantees Google
+  // re-issues a refresh_token even if the previous one was revoked.
+  //
+  // Loop guard: if we already triggered recovery in the last 30s and the error
+  // fired again, fall back to signOut() so the user lands on the login screen
+  // rather than redirect-looping through Google. Should never trigger if the
+  // refresh path (calendar.ts + io.ts) is working.
   useEffect(() => {
-    if (eventsAuthError) {
+    if (!eventsAuthError) return
+    const RECOVERY_KEY = 'hb_auth_recovery_at'
+    const now = Date.now()
+    const last = Number(sessionStorage.getItem(RECOVERY_KEY) ?? '0')
+    if (last > 0 && now - last < 30_000) {
+      sessionStorage.removeItem(RECOVERY_KEY)
       void supabase.auth.signOut()
+      return
     }
+    sessionStorage.setItem(RECOVERY_KEY, String(now))
+    void supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + import.meta.env.BASE_URL,
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+      },
+    })
   }, [eventsAuthError])
 
   const mutations = useTaskMutations(tasks, setTasks, users)

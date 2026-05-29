@@ -11,4 +11,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split rarely-changing vendors into their own chunks so the browser
+        // can keep them cached across deploys — only the app chunk changes.
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          supabase: ['@supabase/supabase-js'],
+          date: ['date-fns'],
+        },
+      },
+    },
+  },
 })

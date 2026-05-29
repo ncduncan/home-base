@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
-import GoalsPage from './pages/GoalsPage'
+const GoalsPage = lazy(() => import('./pages/GoalsPage'))
 import { ALLOWED_EMAILS } from './lib/owners'
 import type { Session } from '@supabase/supabase-js'
 import type { AppTab } from './components/Header'
@@ -27,8 +27,13 @@ export default function App() {
       setUnauthorized(false)
       setSession(newSession)
 
-      // Store Google refresh token so the edge function can mint new access tokens
-      if (event === 'SIGNED_IN' && newSession?.provider_refresh_token) {
+      // Store Google refresh token so the edge function can mint new access tokens.
+      // Also persist on TOKEN_REFRESHED in case Supabase rotates the provider
+      // refresh token during a silent refresh — losing it would force a re-auth.
+      if (
+        (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') &&
+        newSession?.provider_refresh_token
+      ) {
         void supabase.from('google_tokens').upsert(
           {
             user_id: newSession.user.id,
@@ -52,9 +57,18 @@ export default function App() {
   }
 
   if (session) {
-    return tab === 'home'
-      ? <DashboardPage session={session} tab={tab} onTabChange={setTab} />
-      : <GoalsPage session={session} tab={tab} onTabChange={setTab} />
+    if (tab === 'home') {
+      return <DashboardPage session={session} tab={tab} onTabChange={setTab} />
+    }
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-hb-page">
+          <div className="text-hb-fg-faint text-sm">Loading...</div>
+        </div>
+      }>
+        <GoalsPage session={session} tab={tab} onTabChange={setTab} />
+      </Suspense>
+    )
   }
   return <LoginPage unauthorized={unauthorized} />
 }
