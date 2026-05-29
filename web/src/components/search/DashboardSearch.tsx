@@ -159,7 +159,7 @@ export default function DashboardSearch({
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           placeholder="Search events and tasks…"
-          className="pl-7 h-8 text-xs"
+          className="pl-7 h-8 text-xs bg-hb-card"
           aria-label="Search events and tasks"
         />
       </div>
