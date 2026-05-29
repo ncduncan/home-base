@@ -14,7 +14,7 @@ export default function CompletedRow({ task, onUncomplete, onDelete }: Props) {
   return (
     <li className="group flex items-center gap-2 px-4 py-2 hover:bg-black/[.02] border-b border-hb-border-rule last:border-0 opacity-60">
       <Checkbox checked onCheckedChange={onUncomplete} className="shrink-0" />
-      <span className="flex-1 text-[13px] line-through text-hb-fg-muted truncate">{task.name}</span>
+      <span className="flex-1 text-[11px] line-through text-hb-fg-muted truncate">{task.name}</span>
       {task.completed_at && (
         <span className="text-xs text-hb-fg-faint shrink-0">
           {formatDistanceToNow(new Date(task.completed_at), { addSuffix: true })}
