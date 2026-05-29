@@ -146,7 +146,7 @@ export default function DashboardSearch({
   const noResults = showDropdown && !hasResults && !loadingMore
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-sm">
+    <div ref={containerRef} className="relative w-full">
       <div className="relative">
         <Search
           size={14}

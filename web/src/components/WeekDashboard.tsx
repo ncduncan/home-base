@@ -177,75 +177,80 @@ export default function WeekDashboard({
 
   // ── Header ────────────────────────────────────────────────────────────────
   const header = (
-    <div className="flex items-center justify-between mb-4 gap-4">
-      <div className="flex items-center gap-1 w-44">
-        <button
-          onClick={() => onWeekChange(-1)}
-          className="text-hb-fg-muted hover:text-hb-fg transition-colors p-1"
-          aria-label="Previous week"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="text-hb-fg-faint hover:text-hb-fg-secondary transition-colors disabled:opacity-40 p-1"
-          aria-label="Refresh"
-        >
-          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-        </button>
-        <button
-          onClick={() => onWeekChange(1)}
-          className="text-hb-fg-muted hover:text-hb-fg transition-colors p-1"
-          aria-label="Next week"
-        >
-          <ChevronRight size={18} />
-        </button>
-        <button
-          onClick={() => onWeekChange(-weekOffset)}
-          disabled={weekOffset === 0}
-          className="ml-1 text-xs h-7 px-2.5 rounded-md border bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint transition-colors disabled:opacity-40 disabled:cursor-default"
-        >
-          This week
-        </button>
-      </div>
+    <div className="mb-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => onWeekChange(-1)}
+            className="text-hb-fg-muted hover:text-hb-fg transition-colors p-1"
+            aria-label="Previous week"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="text-hb-fg-faint hover:text-hb-fg-secondary transition-colors disabled:opacity-40 p-1"
+            aria-label="Refresh"
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={() => onWeekChange(1)}
+            className="text-hb-fg-muted hover:text-hb-fg transition-colors p-1"
+            aria-label="Next week"
+          >
+            <ChevronRight size={18} />
+          </button>
+          <button
+            onClick={() => onWeekChange(-weekOffset)}
+            disabled={weekOffset === 0}
+            className="ml-1 text-xs h-7 px-2.5 rounded-md border bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint transition-colors disabled:opacity-40 disabled:cursor-default whitespace-nowrap shrink-0"
+          >
+            This week
+          </button>
+        </div>
 
-      <div className="flex items-center gap-3 flex-1 min-w-0 justify-center">
-        <h2 className="text-sm font-semibold text-hb-fg-secondary uppercase tracking-[.16em] whitespace-nowrap">
+        <h2 className="text-sm font-semibold text-hb-fg-secondary uppercase tracking-[.16em] whitespace-nowrap text-center hidden sm:block">
           {weekLabel(weekOffset)}
         </h2>
-        <DashboardSearch
-          events={searchableEvents}
-          tasks={searchableTasks}
-          loadingMore={extendedLoading}
-          onSelectEvent={(e, offset) => onJumpToResult(`event-${e.id}`, offset)}
-          onSelectTask={(t, offset) => onJumpToResult(`task-${t.gid}`, offset)}
-        />
+
+        <div className="flex items-center gap-2 shrink-0 justify-end">
+          <button
+            onClick={() => setAddMode(addMode === 'event' ? null : 'event')}
+            className={`flex items-center gap-1 text-xs h-7 px-2.5 rounded-md border transition-colors whitespace-nowrap ${
+              addMode === 'event'
+                ? 'bg-hb-fg text-white border-hb-fg'
+                : 'bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint'
+            }`}
+          >
+            <CalendarPlus size={12} />
+            Event
+          </button>
+          <button
+            onClick={() => setAddMode(addMode === 'task' ? null : 'task')}
+            className={`flex items-center gap-1 text-xs h-7 px-2.5 rounded-md border transition-colors whitespace-nowrap ${
+              addMode === 'task'
+                ? 'bg-hb-fg text-white border-hb-fg'
+                : 'bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint'
+            }`}
+          >
+            <Plus size={12} />
+            Task
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 w-32 justify-end">
-        <button
-          onClick={() => setAddMode(addMode === 'event' ? null : 'event')}
-          className={`flex items-center gap-1 text-xs h-7 px-2.5 rounded-md border transition-colors ${
-            addMode === 'event'
-              ? 'bg-hb-fg text-white border-hb-fg'
-              : 'bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint'
-          }`}
-        >
-          <CalendarPlus size={12} />
-          Event
-        </button>
-        <button
-          onClick={() => setAddMode(addMode === 'task' ? null : 'task')}
-          className={`flex items-center gap-1 text-xs h-7 px-2.5 rounded-md border transition-colors ${
-            addMode === 'task'
-              ? 'bg-hb-fg text-white border-hb-fg'
-              : 'bg-hb-card text-hb-fg-secondary border-hb-border-soft hover:border-hb-fg-faint'
-          }`}
-        >
-          <Plus size={12} />
-          Task
-        </button>
+      <div className="mt-3 flex justify-center">
+        <div className="w-full sm:max-w-md">
+          <DashboardSearch
+            events={searchableEvents}
+            tasks={searchableTasks}
+            loadingMore={extendedLoading}
+            onSelectEvent={(e, offset) => onJumpToResult(`event-${e.id}`, offset)}
+            onSelectTask={(t, offset) => onJumpToResult(`task-${t.gid}`, offset)}
+          />
+        </div>
       </div>
     </div>
   )
