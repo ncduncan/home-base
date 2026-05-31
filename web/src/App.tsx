@@ -43,6 +43,12 @@ export default function App() {
           { onConflict: 'user_id' }
         )
       }
+
+      // Remember the signed-in email so LoginPage can pass it as login_hint
+      // and Google can skip the account picker on the rare re-auth.
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && newSession?.user.email) {
+        try { localStorage.setItem('hb_last_email', newSession.user.email) } catch { /* private mode */ }
+      }
     })
 
     return () => subscription.unsubscribe()

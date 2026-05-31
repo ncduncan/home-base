@@ -24,12 +24,6 @@ export class CalendarAuthError extends Error {
 let cachedToken: string | null = null
 let cachedTokenExpiry = 0 // epoch ms
 
-// Tracks when the Google provider_token in the current Supabase session was
-// freshly issued (i.e. via SIGNED_IN). Supabase exposes no provider-token
-// expiry, so we record SIGNED_IN time and only trust session.provider_token
-// while we're inside the Google OAuth 1hr window from that moment.
-let providerTokenIssuedAt = 0 // epoch ms; 0 = unknown/untrusted
-
 export function resetProviderTokenCache(): void {
   cachedToken = null
   cachedTokenExpiry = 0
@@ -37,24 +31,11 @@ export function resetProviderTokenCache(): void {
 
 // Reset the cache whenever Supabase emits a new session — keeps us from
 // holding a stale Google access_token after a silent refresh or re-login.
-// SIGNED_IN: provider_token in the session is fresh; record issuance time.
-// TOKEN_REFRESHED: Supabase rotated its own JWT but provider_token may still be
-// the old Google one (Supabase does not refresh provider tokens). Untrust the
-// session copy so we route through the Edge Function instead of caching stale.
 supabase.auth.onAuthStateChange((event) => {
   if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
     resetProviderTokenCache()
   }
-  if (event === 'SIGNED_IN') {
-    providerTokenIssuedAt = Date.now()
-  } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
-    providerTokenIssuedAt = 0
-  }
 })
-
-// Google access tokens live 1 hour. Trust session.provider_token only when we
-// know it was issued less than 55 minutes ago (5-min safety buffer).
-const SESSION_TOKEN_TRUSTED_WINDOW_MS = 55 * 60_000
 
 async function getProviderToken(): Promise<string> {
   // 1. Use cached token if still valid (5-min buffer)
@@ -62,17 +43,19 @@ async function getProviderToken(): Promise<string> {
     return cachedToken
   }
 
-  // 2. Try the session's provider_token — but only if SIGNED_IN happened
-  // recently enough that Google hasn't expired it yet. Otherwise it may be
-  // a stale token Supabase carried through its own JWT refresh.
-  if (providerTokenIssuedAt > 0 && Date.now() - providerTokenIssuedAt < SESSION_TOKEN_TRUSTED_WINDOW_MS) {
-    const { data } = await supabase.auth.getSession()
-    const sessionToken = data.session?.provider_token
-    if (sessionToken) {
-      cachedToken = sessionToken
-      cachedTokenExpiry = providerTokenIssuedAt + 55 * 60_000
-      return sessionToken
-    }
+  // 2. Try the session's provider_token (available right after OAuth login
+  // and persisted in localStorage across reloads). May be stale on cold
+  // reopens after >1hr — the 401 retry path in shared/calendar/io.ts catches
+  // that and forces an Edge Function refresh, so we don't need to be defensive
+  // here. Going straight to the Edge Function on every reopen makes the
+  // Edge Function a critical path for cold start; better to try the cheaper
+  // path first.
+  const { data } = await supabase.auth.getSession()
+  const sessionToken = data.session?.provider_token
+  if (sessionToken) {
+    cachedToken = sessionToken
+    cachedTokenExpiry = Date.now() + 55 * 60_000 // assume ~1hr lifetime
+    return sessionToken
   }
 
   // 3. Exchange refresh token via edge function

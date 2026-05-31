@@ -16,12 +16,21 @@ export default function LoginPage({ unauthorized }: Props) {
     //
     // `access_type: 'offline'` still ensures Google issues a refresh_token
     // on the very first authorization for a given scope set.
+    //
+    // `login_hint` (when we know the user's last email) tells Google to skip
+    // the account picker — Google goes straight to the silent-SSO confirm.
+    const lastEmail = (() => {
+      try { return localStorage.getItem('hb_last_email') } catch { return null }
+    })()
     void supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin + import.meta.env.BASE_URL,
         scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-        queryParams: { access_type: 'offline' },
+        queryParams: {
+          access_type: 'offline',
+          ...(lastEmail ? { login_hint: lastEmail } : {}),
+        },
       },
     })
   }
