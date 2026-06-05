@@ -11,6 +11,11 @@ function classifyAmionTitle(title: string): AmionType {
   if (title.startsWith('PM:')) return 'pm'
   if (/^Call:\s*NC-/i.test(title)) return 'nc-call'  // before SC check — NC-call titles may contain 'SC'
   if (/^NC-/i.test(title)) return 'nc-pool'           // before SC check — same reason
+  // "Call: Chief" is a passive role: Caitie covers chief phone calls but is
+  // otherwise NOT working that day. It appears every single day in the AMION
+  // feed, so it must never emit a Day Shift (rule 6) — treat it as backup so it
+  // shows as passive on-call and is suppressed whenever a real shift exists.
+  if (/^Call:\s*Chief\b/i.test(title)) return 'backup'
   if (title.includes('SC')) return 'backup'
   if (title.startsWith('Call:')) return 'call'
   return 'rotation'

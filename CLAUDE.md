@@ -116,6 +116,7 @@ Frontend categorization is owner-based, so both feeds bucket under Caitie automa
 | `PM: <text>`         | Afternoon training, 1pm–5pm → `training` shift           |
 | `NC-XXX` (alone)     | **Block marker only — Caitie is NOT working that day**   |
 | `Call: NC-XXX`       | Actual night-call working shift (see Night Call rules)   |
+| `Call: Chief`        | Passive phone-call role — Caitie covers chief calls but is otherwise NOT working. Appears every day in the feed → `backup` shift, all-day (suppressed when a real shift exists) |
 | `Call: <other>`      | Standalone call → day shift (8am–6pm)                    |
 | `<text>` (e.g. `CICU`, `BWH ICU`) | Regular rotation — weekday day shift, weekend off |
 | Contains `SC`        | Backup on-call (passive) — `backup` shift, all-day       |
