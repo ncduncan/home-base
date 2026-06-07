@@ -37,7 +37,12 @@ export async function generateNarrative(
   const userPrompt = buildUserPrompt(data)
 
   try {
-    const client = new Anthropic({ apiKey })
+    // Fail fast to the deterministic fallback rather than grinding through a
+    // long retry storm on a bad-API morning. On 2026-06-07 a transient 500
+    // burned ~4 min of backoff (3 reasoning attempts) before degrading — which
+    // also delays the email. One retry + a 90s/attempt cap keeps the worst case
+    // to a few minutes while still riding out a single blip.
+    const client = new Anthropic({ apiKey, maxRetries: 1, timeout: 90_000 })
 
     const response = await client.messages.create({
       model: MODEL,
