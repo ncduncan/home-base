@@ -213,10 +213,20 @@ revoked in Google account security).
 | `ALLOWED_EMAILS` | deploy.yml (browser-bundled), weekly_briefing.yml | Comma-separated recipient list |
 | `ANTHROPIC_API_KEY` | weekly_briefing.yml | Claude Opus 4.7 narrative pass |
 | `ASANA_PAT` | deploy.yml (browser-bundled ⚠), trmnl_update.yml, weekly_briefing.yml | See security note below |
-| `ASANA_WORKSPACE_GID` | deploy.yml, trmnl_update.yml, weekly_briefing.yml | |
+| `ASANA_WORKSPACE_GID` | deploy.yml, trmnl_update.yml, weekly_briefing.yml | Must be the small **personal** workspace, NOT a large employer org (which 400s on user listing). `deploy.yml` derives `VITE_ASANA_WORKSPACE_GID` from this same secret. See gotcha below. |
 | `OPENWEATHERMAP_API_KEY` | trmnl_update.yml | Not used by the briefing agent |
 | `FRED_API_KEY` | trmnl_finance_update.yml | |
 | `TRMNL_WEBHOOK_URL` | trmnl_update.yml, trmnl_finance_update.yml | |
+
+### Gotcha: Asana workspace GID must be the personal workspace
+The Asana account belongs to several workspaces — a small personal one (where the
+household tasks and both spouses live) plus large employer/org workspaces. The
+configured `ASANA_WORKSPACE_GID` must be the **personal** one. A large org's
+`/workspaces/{gid}/users` endpoint returns `400 "result is too large"` (it doesn't
+paginate), so it can never be enumerated. `resolveWorkspace()` in
+`shared/src/asana.ts` tries the configured workspace first and falls back to discovery
+only if it fails — so a wrong GID degrades silently to noisy console 400s +
+PAT-owner-only tasks rather than an outright error.
 
 ### Security note: Asana PAT in browser bundle
 `deploy.yml` embeds `VITE_ASANA_PAT` and `VITE_ASANA_WORKSPACE_GID` into the GH Pages bundle.

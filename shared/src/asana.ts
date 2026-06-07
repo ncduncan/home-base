@@ -64,6 +64,9 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
 
   // Cached after first successful resolveWorkspace() call — used by createTask
   let _resolvedWorkspaceGid: string | null = null
+  // Full resolution cache — resolveWorkspace() is called by fetchTasks,
+  // fetchAllOpenTasks and fetchWorkspaceUsers, so memoize to run it once.
+  let _resolved: { workspaceGid: string; users: AsanaUser[] } | null = null
 
   function headers() {
     return {
@@ -104,40 +107,65 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
   }
 
   /**
-   * Finds the first workspace where user listing succeeds.
-   * Tries the configured workspace first, then discovers others via /workspaces.
+   * Lists the members of a single workspace.
    *
-   * Critical: the returned workspaceGid MUST be used for task fetching — user GIDs
-   * are workspace-scoped, so mixing workspaces causes 404 on the tasks endpoint.
+   * NOTE: `/workspaces/{gid}/users` does NOT paginate. For a large org (e.g. an
+   * employer's enterprise workspace) Asana rejects the whole request with
+   * 400 "The result is too large." That's the signal that `gid` is the wrong
+   * workspace — the configured one should be a small personal workspace, not a
+   * 50k-user org. The caller treats any failure here as "skip this workspace."
+   */
+  async function listWorkspaceUsers(gid: string): Promise<AsanaUser[]> {
+    return parseUsers(await asanaGet(`/workspaces/${gid}/users?opt_fields=gid,name,email`))
+  }
+
+  /**
+   * Resolves the workspace whose users + tasks we fetch, memoized for the
+   * client's lifetime.
+   *
+   * Happy path: the configured workspace listing succeeds, and we return without
+   * ever calling `/workspaces` discovery or touching any other workspace the
+   * account belongs to (which may be a huge org that 400s on user listing).
+   * Only if the configured workspace is unusable do we discover + probe others,
+   * then fall back to the PAT owner alone.
+   *
+   * Critical: the returned workspaceGid MUST be used for task fetching — user
+   * GIDs are workspace-scoped, so mixing workspaces causes 404 on /tasks.
    */
   async function resolveWorkspace(): Promise<{ workspaceGid: string; users: AsanaUser[] }> {
-    const candidates: string[] = [workspaceGid]
+    if (_resolved) return _resolved
 
+    // 1. Configured workspace first — the expected happy path.
+    try {
+      const users = await listWorkspaceUsers(workspaceGid)
+      _resolvedWorkspaceGid = workspaceGid
+      _resolved = { workspaceGid, users }
+      return _resolved
+    } catch { /* unusable (wrong/too-large) — fall through to discovery */ }
+
+    // 2. Discover other workspaces and probe each; skip any that fail.
+    let discovered: string[] = []
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ws = await asanaGet('/workspaces?opt_fields=gid') as any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const w of (ws.data as any[])) {
-        if (!candidates.includes(w.gid as string)) candidates.push(w.gid as string)
-      }
+      discovered = (ws.data as any[]).map(w => w.gid as string).filter(g => g !== workspaceGid)
     } catch { /* ignore */ }
 
-    for (const gid of candidates) {
+    for (const gid of discovered) {
       try {
-        // Use the path-scoped endpoint (`/workspaces/{gid}/users`) — the
-        // legacy query-param form (`/users?workspace=GID`) returns 400 for
-        // some PATs even when the workspace is otherwise accessible.
-        const json = await asanaGet(`/workspaces/${gid}/users?opt_fields=gid,name,email`)
+        const users = await listWorkspaceUsers(gid)
         _resolvedWorkspaceGid = gid
-        return { workspaceGid: gid, users: parseUsers(json) }
+        _resolved = { workspaceGid: gid, users }
+        return _resolved
       } catch { continue }
     }
 
-    // Final fallback: just the PAT owner; use configured workspace for task fetching
+    // 3. Final fallback: just the PAT owner; use configured workspace for tasks.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const me = await asanaGet('/users/me?opt_fields=gid,name,email') as any
     _resolvedWorkspaceGid = workspaceGid
-    return {
+    _resolved = {
       workspaceGid,
       users: [{
         gid: me.data.gid as string,
@@ -145,6 +173,7 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
         email: (me.data.email as string | undefined) ?? '',
       }],
     }
+    return _resolved
   }
 
   async function fetchTasksForUser(userGid: string, wsGid: string, completedSince: string): Promise<AsanaTask[]> {
