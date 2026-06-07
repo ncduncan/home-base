@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { BriefingData } from './briefing-data.ts'
 
 export type Narrative = {
-  /** Short friendly intro paragraph (1-3 sentences) */
+  /** Directional summary paragraph (2-4 sentences) — sets expectations for the week */
   intro: string
   /** Action items — things to decide / heads-up this week */
   actionItems: string[]
@@ -18,7 +18,7 @@ const SYSTEM_PROMPT = `You are writing the intro of a weekly briefing email for 
 
 Given the structured data for the upcoming week, produce JSON with two fields:
 
-1. "intro": a friendly 1-3 sentence paragraph greeting the week. Call out the shape of the week (busy/light, who has the bigger load, any standout days). Warm, plainspoken, no exclamation points unless something genuinely warrants it.
+1. "intro": a 2-4 sentence summary that gives a directional sense of the week — what to expect at a glance, not a recap of every event. The grid below the summary already lists the details, so DON'T enumerate individual events, times, or todos. Instead convey the shape of the week: is it busy or light, who's carrying the heavier load, where the pressure points are (e.g. Caitie's overnight stretches, days both are stretched thin, Gus-pickup crunches), and how it trends from start to finish. Warm and plainspoken. No exclamation points unless something genuinely warrants it. If the week is genuinely quiet, say so plainly rather than inventing drama.
 
 2. "actionItems": a short list (0-5) of things to actually decide or watch for this week. Be specific and actionable. Good examples:
    - "Find a sitter for Gus pickup Wednesday — both have evening events"
@@ -117,12 +117,60 @@ function buildUserPrompt(data: BriefingData): string {
   return `Here is the structured data for the week of ${data.week.startDate} to ${data.week.endDate}:\n\n${JSON.stringify(summary, null, 2)}`
 }
 
+/**
+ * Deterministic, directional fallback used when the Claude pass is unavailable.
+ * Reads the same signals the model would key on — overall load, who's busier,
+ * Caitie's overnight stretches, and Gus-pickup crunches — and stitches them
+ * into 2-4 plain sentences. No LLM, so it always sends.
+ */
 function fallbackNarrative(data: BriefingData): Narrative {
-  const totalEvents = data.days.reduce(
-    (sum, d) => sum + d.natEvents.length + d.caitieEvents.length,
-    0,
+  const sentences: string[] = []
+
+  const natCount = data.days.reduce((s, d) => s + d.natEvents.length, 0)
+  const caitieCount = data.days.reduce((s, d) => s + d.caitieEvents.length, 0)
+  const totalEvents = natCount + caitieCount
+
+  // Caitie's overnight stretches (night / 24hr AMION shifts).
+  const overnightDays = data.days.filter(d =>
+    d.caitieEvents.some(e => e.amionKind === 'night' || e.amionKind === '24hr'),
   )
-  const intro = `Here's a look at the week of ${data.week.startDate}. ${totalEvents} events on the schedule.`
+
+  // Days both are stretched (a detected conflict — typ. both have evening events).
+  const conflictDays = data.conflicts.length
+
+  // ── Opening: overall shape + who's carrying more ──────────────────────────
+  if (totalEvents === 0) {
+    sentences.push(`A quiet week ahead — nothing on the calendar for either of you yet.`)
+  } else {
+    const weight =
+      totalEvents >= 24 ? 'a busy week' : totalEvents >= 12 ? 'a moderate week' : 'a light week'
+    let lean = ''
+    if (caitieCount > natCount * 1.5) lean = ', with Caitie carrying most of the load'
+    else if (natCount > caitieCount * 1.5) lean = ', with Nat carrying most of the load'
+    else lean = ', fairly balanced between the two of you'
+    sentences.push(`Looks like ${weight} (${totalEvents} events on the schedule)${lean}.`)
+  }
+
+  // ── Caitie's overnights ───────────────────────────────────────────────────
+  if (overnightDays.length === 1) {
+    sentences.push(`Caitie has an overnight on ${overnightDays[0].label}, so Nat covers Gus around it.`)
+  } else if (overnightDays.length > 1) {
+    const first = overnightDays[0].label
+    const last = overnightDays[overnightDays.length - 1].label
+    sentences.push(
+      `Caitie is on overnights across ${overnightDays.length} days (${first} through ${last}), so the Gus mornings fall to Nat.`,
+    )
+  }
+
+  // ── Pressure points ───────────────────────────────────────────────────────
+  if (conflictDays === 1) {
+    sentences.push(`One day this week has both of you committed in the evening — keep an eye on Gus pickup.`)
+  } else if (conflictDays > 1) {
+    sentences.push(`There are ${conflictDays} days where you're both committed in the evening, so Gus pickup may need a hand.`)
+  }
+
+  // Keep it to at most 4 sentences.
+  const intro = sentences.slice(0, 4).join(' ')
   const actionItems = data.conflicts.map(c => c.description)
   return { intro, actionItems }
 }
