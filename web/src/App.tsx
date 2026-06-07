@@ -44,6 +44,14 @@ export default function App() {
         )
       }
 
+      // Record when a fresh Google provider_token was minted. Only on SIGNED_IN —
+      // Supabase never refreshes provider_token, so its value (and age) is
+      // unchanged on TOKEN_REFRESHED. calendar.ts reads this to stop trusting a
+      // stale (>~55min) session token and route to the Edge Function instead.
+      if (event === 'SIGNED_IN' && newSession?.provider_token) {
+        try { localStorage.setItem('hb_provider_token_at', String(Date.now())) } catch { /* private mode */ }
+      }
+
       // Remember the signed-in email so LoginPage can pass it as login_hint
       // and Google can skip the account picker on the rare re-auth.
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && newSession?.user.email) {

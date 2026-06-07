@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { format, addDays } from 'date-fns'
-import { fetchCalendarEvents, fetchCalendarEventsRange, CalendarAuthError, syncGusCareInvites } from '../lib/calendar'
+import { fetchCalendarEvents, fetchCalendarEventsRange, CalendarAuthError, CalendarReauthRequired, syncGusCareInvites } from '../lib/calendar'
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks, fetchAllOpenTasks } from '../lib/asana'
 import { fetchOverrides, upsertOverride, deleteOverride, applyOverrides } from '../lib/overrides'
@@ -41,6 +41,7 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
   const [eventsLoading, setEventsLoading] = useState(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
   const [eventsAuthError, setEventsAuthError] = useState(false)
+  const [reauthRequired, setReauthRequired] = useState(false)
   const [weekOffset, setWeekOffset] = useState(0)
 
   // ── Overrides ──────────────────────────────────────────────────────────────
@@ -81,6 +82,7 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     setEventsLoading(true)
     setEventsError(null)
     setEventsAuthError(false)
+    setReauthRequired(false)
     loadOverrides(offset)
     loadHomebaseEvents(offset)
     fetchCalendarEvents(offset)
@@ -90,7 +92,8 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
       })
       .catch((e: unknown) => {
         if (seq !== fetchSeqRef.current) return
-        if (e instanceof CalendarAuthError) setEventsAuthError(true)
+        if (e instanceof CalendarReauthRequired) setReauthRequired(true)
+        else if (e instanceof CalendarAuthError) setEventsAuthError(true)
         else setEventsError(e instanceof Error ? e.message : 'Failed to load calendar')
       })
       .finally(() => {
@@ -302,6 +305,7 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
           eventsLoading={eventsLoading}
           eventsError={eventsError}
           eventsAuthError={eventsAuthError}
+          reauthRequired={reauthRequired}
           onRefreshEvents={() => fetchEvents(weekOffset)}
           weather={weather}
           overrides={overrides}
