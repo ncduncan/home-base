@@ -29,7 +29,7 @@ export default function AddGoalInline({ category, owner, createdBy, onCreate, on
       await onCreate({
         text: trimmed,
         category,
-        achieved: false,
+        status: 'open',
         visibility: 'shared',
         owner,
         created_by: createdBy,

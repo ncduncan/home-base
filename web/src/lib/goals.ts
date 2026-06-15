@@ -4,12 +4,15 @@ import {
   createGoal as sharedCreateGoal,
   updateGoal as sharedUpdateGoal,
   deleteGoal as sharedDeleteGoal,
+  reorderGoals as sharedReorderGoals,
   type Goal,
   type GoalCategory,
+  type GoalStatus,
   type GoalVisibility,
 } from '@home-base/shared/goals'
 
-export type { Goal, GoalCategory, GoalVisibility }
+export type { Goal, GoalCategory, GoalStatus, GoalVisibility }
+export { nextGoalStatus } from '@home-base/shared/goals'
 
 export function fetchGoals() {
   return sharedFetchGoals(supabase)
@@ -28,4 +31,10 @@ export function updateGoal(
 
 export function deleteGoal(id: string) {
   return sharedDeleteGoal(supabase, id)
+}
+
+export function reorderGoals(
+  updates: { id: string; category: GoalCategory; position: number }[],
+) {
+  return sharedReorderGoals(supabase, updates)
 }

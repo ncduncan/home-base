@@ -142,6 +142,9 @@ body {
 
   --color-hb-fam-accent: #8a5a7a;
   --color-hb-fam-fade: #f5eef2;
+
+  --color-hb-grow-accent: #6f8f6a;  /* soft sage — goal on track / compounding */
+  --color-hb-grow-fade: #eef3ec;    /* sage track for the filling arc */
 }
 
 @layer base {

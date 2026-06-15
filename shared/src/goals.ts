@@ -9,16 +9,23 @@ export type GoalCategory =
 
 export type GoalVisibility = 'shared' | 'private'
 
+export type GoalStatus = 'open' | 'on_track' | 'achieved'
+
 export interface Goal {
   id: string
   text: string
   category: GoalCategory
-  achieved: boolean
+  status: GoalStatus
   visibility: GoalVisibility
   owner: 'nat' | 'caitie'
   created_by: string
   notes: string | null
   position: number
+}
+
+/** Click-cycle order for the goal checkbox: open → on_track → achieved → open. */
+export function nextGoalStatus(s: GoalStatus): GoalStatus {
+  return s === 'open' ? 'on_track' : s === 'on_track' ? 'achieved' : 'open'
 }
 
 export async function fetchGoals(supabase: SupabaseClient): Promise<Goal[]> {
@@ -80,4 +87,25 @@ export async function updateGoal(
 export async function deleteGoal(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from('goals').delete().eq('id', id)
   if (error) throw new Error(`Failed to delete goal: ${error.message}`)
+}
+
+/**
+ * Persist a manual reordering. Each entry sets a goal's category + position
+ * (drag-and-drop can move a goal both within and across categories). Goal
+ * counts are tiny, so a parallel set of single-row updates is plenty.
+ */
+export async function reorderGoals(
+  supabase: SupabaseClient,
+  updates: { id: string; category: GoalCategory; position: number }[],
+): Promise<void> {
+  const results = await Promise.all(
+    updates.map(u =>
+      supabase
+        .from('goals')
+        .update({ category: u.category, position: u.position, updated_at: new Date().toISOString() })
+        .eq('id', u.id),
+    ),
+  )
+  const failed = results.find(r => r.error)
+  if (failed?.error) throw new Error(`Failed to reorder goals: ${failed.error.message}`)
 }

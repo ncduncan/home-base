@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import type { Goal, GoalCategory, GoalVisibility } from '../../lib/goals'
+import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import type { Goal, GoalCategory, GoalStatus, GoalVisibility } from '../../lib/goals'
 import GoalRow from './GoalRow'
 import AddGoalInline from './AddGoalInline'
 
@@ -11,7 +13,7 @@ interface Props {
   owner: 'nat' | 'caitie'
   createdBy: string
   onCreate: (fields: Omit<Goal, 'id' | 'position'>) => Promise<void>
-  onToggleAchieved: (id: string, achieved: boolean) => void
+  onCycleStatus: (id: string, current: GoalStatus) => void
   onUpdateText: (id: string, text: string) => void
   onChangeVisibility: (id: string, visibility: GoalVisibility) => void
   onMoveCategory: (id: string, category: GoalCategory) => void
@@ -25,14 +27,16 @@ export default function GoalSection({
   owner,
   createdBy,
   onCreate,
-  onToggleAchieved,
+  onCycleStatus,
   onUpdateText,
   onChangeVisibility,
   onMoveCategory,
   onDelete,
 }: Props) {
   const [adding, setAdding] = useState(false)
-  const achievedCount = goals.filter(g => g.achieved).length
+  const achievedCount = goals.filter(g => g.status === 'achieved').length
+  // Droppable keyed by category so a goal can be dropped into an empty column.
+  const { setNodeRef, isOver } = useDroppable({ id: category, data: { category } })
 
   return (
     <article className="flex flex-col rounded-md border border-hb-border-soft bg-hb-card overflow-hidden">
@@ -47,28 +51,33 @@ export default function GoalSection({
         )}
       </header>
 
-      <ul className="px-1 py-1">
-        {goals.map(g => (
-          <GoalRow
-            key={g.id}
-            goal={g}
-            onToggleAchieved={onToggleAchieved}
-            onUpdateText={onUpdateText}
-            onChangeVisibility={onChangeVisibility}
-            onMoveCategory={onMoveCategory}
-            onDelete={onDelete}
-          />
-        ))}
-        {adding && (
-          <AddGoalInline
-            category={category}
-            owner={owner}
-            createdBy={createdBy}
-            onCreate={onCreate}
-            onClose={() => setAdding(false)}
-          />
-        )}
-      </ul>
+      <SortableContext items={goals.map(g => g.id)} strategy={verticalListSortingStrategy}>
+        <ul
+          ref={setNodeRef}
+          className={`px-1 py-1 min-h-[2.25rem] transition-colors ${isOver ? 'bg-hb-grow-fade/40' : ''}`}
+        >
+          {goals.map(g => (
+            <GoalRow
+              key={g.id}
+              goal={g}
+              onCycleStatus={onCycleStatus}
+              onUpdateText={onUpdateText}
+              onChangeVisibility={onChangeVisibility}
+              onMoveCategory={onMoveCategory}
+              onDelete={onDelete}
+            />
+          ))}
+          {adding && (
+            <AddGoalInline
+              category={category}
+              owner={owner}
+              createdBy={createdBy}
+              onCreate={onCreate}
+              onClose={() => setAdding(false)}
+            />
+          )}
+        </ul>
+      </SortableContext>
 
       {!adding && (
         <button

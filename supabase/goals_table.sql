@@ -12,7 +12,8 @@ CREATE TABLE goals (
   id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   text         TEXT NOT NULL,
   category     TEXT NOT NULL,                    -- 'meaningful_work' | 'family_friends' | 'health' | 'fun' | 'financial'
-  achieved     BOOLEAN NOT NULL DEFAULT false,
+  achieved     BOOLEAN NOT NULL DEFAULT false,   -- DEPRECATED — superseded by `status` (kept for backfill history)
+  status       TEXT NOT NULL DEFAULT 'open',     -- 'open' | 'on_track' | 'achieved'
   visibility   TEXT NOT NULL DEFAULT 'shared',   -- 'shared' | 'private'
   owner        TEXT NOT NULL,                    -- 'nat' | 'caitie'
   created_by   TEXT NOT NULL,                    -- email of creator
@@ -23,6 +24,16 @@ CREATE TABLE goals (
 );
 
 CREATE INDEX goals_category_position_idx ON goals(category, position);
+
+-- ---------------------------------------------------------------------------
+-- Migration (run once on an existing table that predates the `status` column).
+-- The checkbox is now tri-state: open → on_track → achieved. `achieved` is left
+-- in place (non-destructive) but is no longer read or written by the app.
+-- Paste into the Supabase SQL editor:
+--
+--   ALTER TABLE goals ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+--   UPDATE goals SET status = 'achieved' WHERE achieved = true;
+-- ---------------------------------------------------------------------------
 
 ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
 

@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import Header from '../components/Header'
-import GoalsBoard from '../components/goals/GoalsBoard'
+import GoalsBoard, { type ReorderUpdate } from '../components/goals/GoalsBoard'
 import {
   fetchGoals,
   createGoal,
   updateGoal,
   deleteGoal,
+  reorderGoals,
+  nextGoalStatus,
   type Goal,
   type GoalCategory,
+  type GoalStatus,
   type GoalVisibility,
 } from '../lib/goals'
 import { OWNER_EMAILS } from '../lib/owners'
@@ -38,16 +41,17 @@ export default function GoalsPage({ session, tab, onTabChange }: Props) {
     setGoals(prev => [...prev, created])
   }, [])
 
-  const handleToggleAchieved = useCallback(async (id: string, achieved: boolean) => {
+  const handleCycleStatus = useCallback(async (id: string, current: GoalStatus) => {
+    const next = nextGoalStatus(current)
     // Optimistic update for instant feedback on click
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, achieved } : g))
+    setGoals(prev => prev.map(g => g.id === id ? { ...g, status: next } : g))
     try {
-      const updated = await updateGoal(id, { achieved })
+      const updated = await updateGoal(id, { status: next })
       setGoals(prev => prev.map(g => g.id === id ? updated : g))
     } catch (e) {
-      console.error('Failed to toggle goal achieved:', e)
+      console.error('Failed to cycle goal status:', e)
       // Roll back on failure
-      setGoals(prev => prev.map(g => g.id === id ? { ...g, achieved: !achieved } : g))
+      setGoals(prev => prev.map(g => g.id === id ? { ...g, status: current } : g))
     }
   }, [])
 
@@ -66,6 +70,28 @@ export default function GoalsPage({ session, tab, onTabChange }: Props) {
     setGoals(prev => prev.map(g => g.id === id ? updated : g))
   }, [])
 
+  const handleReorder = useCallback(async (updates: ReorderUpdate[]) => {
+    const byId = new Map(updates.map(u => [u.id, u]))
+    const snapshot = goals
+    // Optimistic: apply new category/position so fetchGoals' sort order is reflected.
+    setGoals(prev => {
+      const applied = prev.map(g => {
+        const u = byId.get(g.id)
+        return u ? { ...g, category: u.category, position: u.position } : g
+      })
+      return [...applied].sort(
+        (a, b) =>
+          a.category.localeCompare(b.category) || a.position - b.position,
+      )
+    })
+    try {
+      await reorderGoals(updates)
+    } catch (e) {
+      console.error('Failed to reorder goals:', e)
+      setGoals(snapshot) // roll back to the pre-drag layout
+    }
+  }, [goals])
+
   const handleDelete = useCallback(async (id: string) => {
     await deleteGoal(id)
     setGoals(prev => prev.filter(g => g.id !== id))
@@ -81,10 +107,11 @@ export default function GoalsPage({ session, tab, onTabChange }: Props) {
           createdBy={session.user.email ?? ''}
           loading={loading}
           onCreate={handleCreate}
-          onToggleAchieved={handleToggleAchieved}
+          onCycleStatus={handleCycleStatus}
           onUpdateText={handleUpdateText}
           onChangeVisibility={handleChangeVisibility}
           onMoveCategory={handleMoveCategory}
+          onReorder={handleReorder}
           onDelete={handleDelete}
         />
       </main>
