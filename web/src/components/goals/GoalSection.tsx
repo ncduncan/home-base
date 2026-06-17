@@ -35,11 +35,11 @@ export default function GoalSection({
 }: Props) {
   const [adding, setAdding] = useState(false)
   // In-progress (on_track) counts toward the goal alongside achieved. The health
-  // dot is proportional: green ≥ 2/3 covered, amber ≥ 1/3, red below that.
+  // dot is proportional: green > 2/3 covered, amber > 1/3, red at or below that.
   const covered = goals.filter(g => g.status === 'on_track' || g.status === 'achieved').length
   const ratio = goals.length === 0 ? 0 : covered / goals.length
   const health: 'good' | 'warn' | 'behind' | null =
-    goals.length === 0 ? null : ratio >= 2 / 3 ? 'good' : ratio >= 1 / 3 ? 'warn' : 'behind'
+    goals.length === 0 ? null : ratio > 2 / 3 ? 'good' : ratio > 1 / 3 ? 'warn' : 'behind'
   const healthDot =
     health === 'good'
       ? 'bg-hb-track-good'
