@@ -94,7 +94,7 @@ export default function GoalRow({
         {...attributes}
         {...listeners}
         aria-label="Drag to reorder"
-        className="mt-[3px] shrink-0 cursor-grab touch-none text-hb-fg-faint hover:text-hb-fg-muted opacity-0 group-hover/goal:opacity-100 transition-opacity"
+        className="h-3.5 shrink-0 flex items-center justify-center cursor-grab touch-none text-hb-fg-faint hover:text-hb-fg-muted opacity-0 group-hover/goal:opacity-100 transition-opacity"
       >
         <GripVertical size={11} />
       </button>
@@ -103,7 +103,7 @@ export default function GoalRow({
         type="button"
         onClick={() => onCycleStatus(goal.id, goal.status)}
         aria-label={CYCLE_LABEL[goal.status]}
-        className={`mt-[3px] shrink-0 h-3.5 w-3.5 rounded-[3px] border flex items-center justify-center transition-colors ${
+        className={`shrink-0 h-3.5 w-3.5 rounded-[3px] border flex items-center justify-center transition-colors ${
           goal.status === 'achieved'
             ? 'bg-hb-fam-fade border-hb-fam-accent text-hb-fam-accent'
             : goal.status === 'on_track'
@@ -127,12 +127,12 @@ export default function GoalRow({
             if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
           }}
           rows={1}
-          className="flex-1 min-w-0 text-[11px] bg-transparent text-hb-fg border-b border-hb-fg-faint outline-none resize-none py-0 leading-tight"
+          className="flex-1 min-w-0 text-[11px] bg-transparent text-hb-fg border-b border-hb-fg-faint outline-none resize-none py-0 leading-[14px]"
         />
       ) : (
         <span
           onClick={() => setEditing(true)}
-          className={`flex-1 min-w-0 text-[11px] leading-tight cursor-text break-words ${
+          className={`flex-1 min-w-0 text-[11px] leading-[14px] cursor-text break-words ${
             goal.status === 'achieved' ? 'text-hb-fg-faint' : 'text-hb-fg'
           }`}
         >
@@ -141,11 +141,13 @@ export default function GoalRow({
       )}
 
       {goal.visibility === 'private' && (
-        <Lock
-          size={9}
-          className="mt-1 shrink-0 text-hb-fg-faint opacity-50"
-          aria-label="Private"
-        />
+        <span className="h-3.5 shrink-0 flex items-center">
+          <Lock
+            size={9}
+            className="text-hb-fg-faint opacity-50"
+            aria-label="Private"
+          />
+        </span>
       )}
 
       <GoalActionsMenu
@@ -156,7 +158,7 @@ export default function GoalRow({
         trigger={
           <button
             type="button"
-            className="mt-0.5 shrink-0 text-hb-fg-faint hover:text-hb-fg-secondary opacity-0 group-hover/goal:opacity-100 transition-opacity"
+            className="h-3.5 shrink-0 flex items-center text-hb-fg-faint hover:text-hb-fg-secondary opacity-0 group-hover/goal:opacity-100 transition-opacity"
             aria-label="More actions"
           >
             <MoreHorizontal size={11} />

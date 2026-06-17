@@ -34,20 +34,33 @@ export default function GoalSection({
   onDelete,
 }: Props) {
   const [adding, setAdding] = useState(false)
-  const achievedCount = goals.filter(g => g.status === 'achieved').length
+  // In-progress (on_track) counts toward the goal alongside achieved — a category
+  // only reads as "behind" if nothing has been started yet.
+  const covered = goals.filter(g => g.status === 'on_track' || g.status === 'achieved').length
+  const health: 'good' | 'warn' | 'behind' | null =
+    goals.length === 0 ? null : covered === goals.length ? 'good' : covered === 0 ? 'behind' : 'warn'
+  const healthDot =
+    health === 'good'
+      ? 'bg-hb-track-good'
+      : health === 'warn'
+        ? 'bg-hb-track-warn'
+        : 'bg-hb-track-behind'
   // Droppable keyed by category so a goal can be dropped into an empty column.
   const { setNodeRef, isOver } = useDroppable({ id: category, data: { category } })
 
   return (
     <article className="flex flex-col rounded-md border border-hb-border-soft bg-hb-card overflow-hidden">
-      <header className="px-2 py-2 border-b border-hb-border-rule flex items-baseline justify-between gap-2">
+      <header className="px-2 py-2 border-b border-hb-border-rule flex items-center justify-between gap-2">
         <h2 className="text-[10px] font-medium uppercase tracking-[.08em] text-hb-fg-secondary">
           {label}
         </h2>
-        {goals.length > 0 && (
-          <span className="text-[9px] tabular-nums text-hb-fg-faint">
-            {achievedCount}/{goals.length}
-          </span>
+        {health && (
+          <span
+            className={`h-2.5 w-2.5 shrink-0 rounded-full ${healthDot}`}
+            role="img"
+            aria-label={`${covered} of ${goals.length} on track or achieved`}
+            title={`${covered}/${goals.length} on track or achieved`}
+          />
         )}
       </header>
 

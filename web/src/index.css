@@ -145,6 +145,11 @@ body {
 
   --color-hb-grow-accent: #6f8f6a;  /* soft sage — goal on track / compounding */
   --color-hb-grow-fade: #eef3ec;    /* sage track for the filling arc */
+
+  /* Category health dot — muted traffic light tuned to the dusty palette */
+  --color-hb-track-good: #6f8f6a;   /* sage green — every goal on track or achieved */
+  --color-hb-track-warn: #c9a14a;   /* dusty amber — some still not started */
+  --color-hb-track-behind: #b0635c; /* dusty terracotta — nothing started yet */
 }
 
 @layer base {
