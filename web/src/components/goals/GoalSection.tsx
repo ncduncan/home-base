@@ -34,10 +34,13 @@ export default function GoalSection({
   onDelete,
 }: Props) {
   const [adding, setAdding] = useState(false)
-  // In-progress (on_track) counts toward the goal alongside achieved. The health
-  // dot is proportional: green > 2/3 covered, amber > 1/3, red at or below that.
-  const covered = goals.filter(g => g.status === 'on_track' || g.status === 'achieved').length
-  const ratio = goals.length === 0 ? 0 : covered / goals.length
+  // Weighted score toward the goal: achieved = 1, on_track = 0.8 (in progress but
+  // not finished), open = 0. The health dot is proportional: green > 2/3, amber
+  // > 1/3, red at or below that.
+  const done = goals.filter(g => g.status === 'achieved').length
+  const onTrack = goals.filter(g => g.status === 'on_track').length
+  const score = done + onTrack * 0.8
+  const ratio = goals.length === 0 ? 0 : score / goals.length
   const health: 'good' | 'warn' | 'behind' | null =
     goals.length === 0 ? null : ratio > 2 / 3 ? 'good' : ratio > 1 / 3 ? 'warn' : 'behind'
   const healthDot =
@@ -59,8 +62,8 @@ export default function GoalSection({
           <span
             className={`h-2.5 w-2.5 shrink-0 rounded-full ${healthDot}`}
             role="img"
-            aria-label={`${covered} of ${goals.length} on track or achieved`}
-            title={`${covered}/${goals.length} on track or achieved`}
+            aria-label={`${Math.round(ratio * 100)}% to goal — ${done} done, ${onTrack} on track of ${goals.length}`}
+            title={`${Math.round(ratio * 100)}% to goal · ${done} done · ${onTrack} on track · ${goals.length} total`}
           />
         )}
       </header>
