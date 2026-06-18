@@ -105,7 +105,7 @@ export default function GoalRow({
         aria-label={CYCLE_LABEL[goal.status]}
         className={`shrink-0 h-3.5 w-3.5 rounded-[3px] border flex items-center justify-center transition-colors ${
           goal.status === 'achieved'
-            ? 'bg-hb-fam-fade border-hb-fam-accent text-hb-fam-accent'
+            ? 'bg-hb-grow-fade border-hb-grow-accent text-hb-grow-accent'
             : goal.status === 'on_track'
               ? 'bg-transparent border-transparent'
               : 'bg-transparent border-hb-border-soft hover:border-hb-fg-faint'
@@ -133,7 +133,7 @@ export default function GoalRow({
         <span
           onClick={() => setEditing(true)}
           className={`flex-1 min-w-0 text-[11px] leading-[14px] cursor-text break-words ${
-            goal.status === 'achieved' ? 'text-hb-fg-faint' : 'text-hb-fg'
+            goal.status === 'achieved' ? 'text-hb-grow-accent' : 'text-hb-fg'
           }`}
         >
           {goal.text}
