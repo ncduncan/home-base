@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
 
@@ -6,48 +7,82 @@ interface Props {
 }
 
 export default function LoginPage({ unauthorized }: Props) {
-  const handleSignIn = () => {
-    // We deliberately do NOT pass `prompt: 'consent'` here. Google forces
-    // the consent screen every time when that flag is set, which is
-    // unnecessary friction — the edge function already has a stored
-    // refresh_token, and the silent-refresh path in WeekDashboard's
-    // Reconnect button handles the rare case where it's been revoked
-    // (and that path DOES pass prompt=consent to recover).
-    //
-    // `access_type: 'offline'` still ensures Google issues a refresh_token
-    // on the very first authorization for a given scope set.
-    //
-    // `login_hint` (when we know the user's last email) tells Google to skip
-    // the account picker — Google goes straight to the silent-SSO confirm.
-    const lastEmail = (() => {
-      try { return localStorage.getItem('hb_last_email') } catch { return null }
-    })()
-    void supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin + import.meta.env.BASE_URL,
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-        queryParams: {
-          access_type: 'offline',
-          ...(lastEmail ? { login_hint: lastEmail } : {}),
-        },
-      },
+  const [email, setEmail] = useState<string>(() => {
+    try { return localStorage.getItem('hb_last_email') ?? '' } catch { return '' }
+  })
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (submitting) return
+    setSubmitting(true)
+    setError(null)
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
     })
+    if (signInError) {
+      setError(signInError.message)
+      setSubmitting(false)
+      return
+    }
+    try { localStorage.setItem('hb_last_email', email.trim().toLowerCase()) } catch { /* private mode */ }
+    // App.tsx's onAuthStateChange takes over from here.
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-hb-page">
-      <div className="bg-hb-card rounded-md border border-hb-border-soft shadow-sm p-10 w-full max-w-sm text-center">
-        <h1 className="text-2xl font-semibold text-hb-fg mb-8 tracking-tight">Home-Base</h1>
+      <form
+        onSubmit={handleSubmit}
+        className="bg-hb-card rounded-md border border-hb-border-soft shadow-sm p-10 w-full max-w-sm text-center space-y-4"
+      >
+        <h1 className="text-2xl font-semibold text-hb-fg mb-6 tracking-tight">Home-Base</h1>
+
         {unauthorized && (
-          <p className="text-[#a14040] text-sm mb-4 bg-[#fcf0f0] border border-[#f1d8d8] rounded-lg p-3">
-            This Google account is not authorized.
+          <p className="text-[#a14040] text-sm bg-[#fcf0f0] border border-[#f1d8d8] rounded-lg p-3 text-left">
+            This account isn't authorized.
           </p>
         )}
-        <Button className="w-full" onClick={handleSignIn}>
-          Sign in with Google
+        {error && (
+          <p className="text-[#a14040] text-sm bg-[#fcf0f0] border border-[#f1d8d8] rounded-lg p-3 text-left">
+            {error}
+          </p>
+        )}
+
+        <div className="space-y-3 text-left">
+          <label className="block text-xs font-medium text-hb-fg-secondary">
+            Email
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="mt-1 w-full px-3 py-2 text-sm border border-hb-border-soft rounded-md bg-white focus:outline-none focus:border-hb-fg-secondary"
+            />
+          </label>
+          <label className="block text-xs font-medium text-hb-fg-secondary">
+            Password
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="mt-1 w-full px-3 py-2 text-sm border border-hb-border-soft rounded-md bg-white focus:outline-none focus:border-hb-fg-secondary"
+            />
+          </label>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={submitting || !email || !password}>
+          {submitting ? 'Signing in…' : 'Sign in'}
         </Button>
-      </div>
+      </form>
     </div>
   )
 }
