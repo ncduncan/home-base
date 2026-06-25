@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { format, addDays, startOfToday, startOfDay, parseISO, isSameDay } from 'date-fns'
 import { RefreshCw, ChevronLeft, ChevronRight, CalendarPlus, Plus } from 'lucide-react'
-import { supabase } from '../lib/supabase'
 import { Button } from '@/components/ui/button'
 import { fetchWorkspaceUsers, fetchMe } from '../lib/asana'
 import { ALLOWED_EMAILS, OWNER_EMAILS, NAT_WORK_EMAIL, CAITIE_WORK_EMAIL } from '../lib/owners'
@@ -25,8 +24,6 @@ interface Props {
   rawEvents: CalendarEvent[]
   eventsLoading: boolean
   eventsError: string | null
-  eventsAuthError: boolean
-  reauthRequired: boolean
   onRefreshEvents: () => void
   weather: WeatherDay[]
   overrides: CalendarOverride[]
@@ -58,7 +55,7 @@ function weekLabel(weekOffset: number): string {
 }
 
 export default function WeekDashboard({
-  events, rawEvents, eventsLoading, eventsError, eventsAuthError, reauthRequired, onRefreshEvents,
+  events, rawEvents, eventsLoading, eventsError, onRefreshEvents,
   weather, overrides, onSaveOverride, onDeleteOverride,
   onCreateHomebaseEvent, onDeleteHomebaseEvent,
   weekOffset, onWeekChange,
@@ -93,50 +90,6 @@ export default function WeekDashboard({
       if (nat) setSelfGid(nat.gid)
     }).catch(() => {/* non-critical */})
   }, [])
-
-  // When Google calendar auth expires, just sign the user out so they land on
-  // the login page and can re-auth with one tap — Google does silent SSO for
-  // returning users on the LoginPage button (no `prompt: 'consent'`), avoiding
-  // the unverified-app warning. The refresh path in calendar.ts + io.ts (401
-  // retry) handles silent recovery for the common stale-token case, so this
-  // only fires when refresh genuinely fails (revoked, etc).
-  useEffect(() => {
-    if (eventsAuthError) {
-      void supabase.auth.signOut()
-    }
-  }, [eventsAuthError])
-
-  // When the Edge Function reports no stored Google refresh token (the
-  // CalendarReauthRequired signal), a plain re-login can't fix it — silent SSO
-  // won't make Google re-issue a refresh token for an already-authorized
-  // account. Run a single `prompt: 'consent'` flow to (re)capture one; App.tsx
-  // then stores it and persistence resumes silently forever. Guarded to fire at
-  // most once per browser session so a pathological no-token state can't loop
-  // through Google; if it somehow recurs, fall back to signOut() → login page.
-  useEffect(() => {
-    if (!reauthRequired) return
-    const GUARD_KEY = 'hb_consent_recovery_done'
-    if (sessionStorage.getItem(GUARD_KEY)) {
-      void supabase.auth.signOut()
-      return
-    }
-    try { sessionStorage.setItem(GUARD_KEY, '1') } catch { /* private mode */ }
-    const lastEmail = (() => {
-      try { return localStorage.getItem('hb_last_email') } catch { return null }
-    })()
-    void supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin + import.meta.env.BASE_URL,
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-          ...(lastEmail ? { login_hint: lastEmail } : {}),
-        },
-      },
-    })
-  }, [reauthRequired])
 
   const mutations = useTaskMutations(tasks, setTasks, users)
 

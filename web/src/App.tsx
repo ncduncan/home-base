@@ -17,7 +17,7 @@ export default function App() {
       setSession(data.session)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (newSession && !ALLOWED_EMAILS.includes((newSession.user.email ?? '').toLowerCase())) {
         void supabase.auth.signOut()
         setUnauthorized(true)
@@ -26,37 +26,6 @@ export default function App() {
       }
       setUnauthorized(false)
       setSession(newSession)
-
-      // Store Google refresh token so the edge function can mint new access tokens.
-      // Also persist on TOKEN_REFRESHED in case Supabase rotates the provider
-      // refresh token during a silent refresh — losing it would force a re-auth.
-      if (
-        (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') &&
-        newSession?.provider_refresh_token
-      ) {
-        void supabase.from('google_tokens').upsert(
-          {
-            user_id: newSession.user.id,
-            refresh_token: newSession.provider_refresh_token,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }
-        )
-      }
-
-      // Record when a fresh Google provider_token was minted. Only on SIGNED_IN —
-      // Supabase never refreshes provider_token, so its value (and age) is
-      // unchanged on TOKEN_REFRESHED. calendar.ts reads this to stop trusting a
-      // stale (>~55min) session token and route to the Edge Function instead.
-      if (event === 'SIGNED_IN' && newSession?.provider_token) {
-        try { localStorage.setItem('hb_provider_token_at', String(Date.now())) } catch { /* private mode */ }
-      }
-
-      // Remember the signed-in email so LoginPage can pass it as login_hint
-      // and Google can skip the account picker on the rare re-auth.
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && newSession?.user.email) {
-        try { localStorage.setItem('hb_last_email', newSession.user.email) } catch { /* private mode */ }
-      }
     })
 
     return () => subscription.unsubscribe()
