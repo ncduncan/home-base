@@ -6,69 +6,60 @@
 -- deleted (commit 78954dd), leaving the live posture undocumented and
 -- drift-prone. This restores a single, reviewable, idempotent source of truth.
 --
--- SAFE TO RE-RUN. It does NOT create/alter table columns — it only enables RLS
--- (a no-op if already enabled) and (re)creates policies via DROP ... IF EXISTS.
--- Apply by pasting into the Supabase SQL editor, or `supabase db push`.
+-- SAFE TO RE-RUN and SAFE IF A TABLE IS MISSING. It only enables RLS (a no-op if
+-- already enabled) and (re)creates policies, and it SKIPS any table that doesn't
+-- exist (raising a NOTICE) instead of aborting. Not every table below exists in
+-- every environment (e.g. calendar_cache/todos back the currently-dormant TRMNL
+-- endpoint). Apply by pasting into the Supabase SQL editor, or `supabase db push`.
 --
--- After applying, verify:
---   SELECT relname, relrowsecurity FROM pg_class
---   WHERE relname IN ('homebase_events','calendar_overrides','calendar_cache',
---                     'todos','goals','google_tokens');
--- Every relrowsecurity must be `t`. Then confirm an anonymous read is empty:
---   curl "$VITE_SUPABASE_URL/rest/v1/homebase_events?select=*" -H "apikey: $ANON"
--- should return [] or 401 — never rows.
+-- After applying, run the verify query at the bottom: every listed table must
+-- show relrowsecurity = t.
 
--- ── Household-shared tables: both allow-listed users may read/write ───────────
--- homebase_events + calendar_overrides are reached by the browser (anon key)
--- via shared/src/{homebase-events,overrides}.ts. calendar_cache + todos are
--- service-role-only today (Python TRMNL pipeline + trmnl edge function), which
--- bypasses RLS; the allow-list policy is defence-in-depth if a browser path is
--- ever added, and denies the anon key regardless.
+DO $$
+DECLARE
+  t text;
+  -- Household-shared tables: both allow-listed users may read/write.
+  -- homebase_events + calendar_overrides are reached by the browser (anon key);
+  -- calendar_cache + todos are service-role-only today (bypasses RLS) — the
+  -- allow-list policy is defence-in-depth and denies the anon key regardless.
+  shared_tables text[] := ARRAY['homebase_events', 'calendar_overrides', 'calendar_cache', 'todos'];
+BEGIN
+  FOREACH t IN ARRAY shared_tables LOOP
+    IF to_regclass('public.' || t) IS NULL THEN
+      RAISE NOTICE 'skip %  (table does not exist)', t;
+      CONTINUE;
+    END IF;
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'household allow-list', t);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL '
+      || 'USING (auth.jwt()->>''email'' IN (''ncduncan@gmail.com'', ''caitante@gmail.com'')) '
+      || 'WITH CHECK (auth.jwt()->>''email'' IN (''ncduncan@gmail.com'', ''caitante@gmail.com''))',
+      'household allow-list', t
+    );
+    RAISE NOTICE 'RLS enabled + policy set on %', t;
+  END LOOP;
 
-ALTER TABLE homebase_events    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE calendar_overrides ENABLE ROW LEVEL SECURITY;
-ALTER TABLE calendar_cache     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE todos              ENABLE ROW LEVEL SECURITY;
+  -- google_tokens: per-user refresh tokens. RLS on, NO SELECT policy, so only the
+  -- service_role (which bypasses RLS) can ever read a refresh token. Users may
+  -- only insert/update their OWN row.
+  IF to_regclass('public.google_tokens') IS NULL THEN
+    RAISE NOTICE 'skip google_tokens  (table does not exist)';
+  ELSE
+    EXECUTE 'ALTER TABLE public.google_tokens ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS "users insert own" ON public.google_tokens';
+    EXECUTE 'CREATE POLICY "users insert own" ON public.google_tokens FOR INSERT WITH CHECK (auth.uid() = user_id)';
+    EXECUTE 'DROP POLICY IF EXISTS "users update own" ON public.google_tokens';
+    EXECUTE 'CREATE POLICY "users update own" ON public.google_tokens FOR UPDATE USING (auth.uid() = user_id)';
+    RAISE NOTICE 'RLS enabled + policies set on google_tokens';
+  END IF;
+END $$;
 
-DROP POLICY IF EXISTS "household allow-list" ON homebase_events;
-CREATE POLICY "household allow-list" ON homebase_events
-  FOR ALL
-  USING      (auth.jwt()->>'email' IN ('ncduncan@gmail.com', 'caitante@gmail.com'))
-  WITH CHECK (auth.jwt()->>'email' IN ('ncduncan@gmail.com', 'caitante@gmail.com'));
+-- Note: `goals` RLS is defined in supabase/goals_table.sql and already applied;
+-- it is intentionally not duplicated here.
 
-DROP POLICY IF EXISTS "household allow-list" ON calendar_overrides;
-CREATE POLICY "household allow-list" ON calendar_overrides
-  FOR ALL
-  USING      (auth.jwt()->>'email' IN ('ncduncan@gmail.com', 'caitante@gmail.com'))
-  WITH CHECK (auth.jwt()->>'email' IN ('ncduncan@gmail.com', 'caitante@gmail.com'));
-
-DROP POLICY IF EXISTS "household allow-list" ON calendar_cache;
-CREATE POLICY "household allow-list" ON calendar_cache
-  FOR ALL
-  USING      (auth.jwt()->>'email' IN ('ncduncan@gmail.com', 'caitante@gmail.com'))
-  WITH CHECK (auth.jwt()->>'email' IN ('ncduncan@gmail.com', 'caitante@gmail.com'));
-
-DROP POLICY IF EXISTS "household allow-list" ON todos;
-CREATE POLICY "household allow-list" ON todos
-  FOR ALL
-  USING      (auth.jwt()->>'email' IN ('ncduncan@gmail.com', 'caitante@gmail.com'))
-  WITH CHECK (auth.jwt()->>'email' IN ('ncduncan@gmail.com', 'caitante@gmail.com'));
-
--- ── google_tokens: per-user refresh tokens (restored from deleted migration) ──
--- Never readable by anyone via the API: RLS is enabled and there is NO SELECT
--- policy, so only the service_role (which bypasses RLS) can read refresh tokens.
--- Users may only insert/update their OWN row. Kept for compatibility even though
--- the active calendar path (calendar-ops) no longer uses this table.
-
-ALTER TABLE google_tokens ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "users insert own" ON google_tokens;
-CREATE POLICY "users insert own" ON google_tokens
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "users update own" ON google_tokens;
-CREATE POLICY "users update own" ON google_tokens
-  FOR UPDATE USING (auth.uid() = user_id);
-
--- Note: `goals` RLS is defined in supabase/goals_table.sql and is already
--- applied; it is intentionally not duplicated here.
+-- ── Verify (run separately; every row must show relrowsecurity = t) ────────────
+-- SELECT relname, relrowsecurity FROM pg_class
+-- WHERE relname IN ('homebase_events','calendar_overrides','calendar_cache',
+--                   'todos','goals','google_tokens')
+-- ORDER BY relname;
