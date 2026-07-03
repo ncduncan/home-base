@@ -1,0 +1,22 @@
+# Supabase project config. Committed so the per-function gateway auth posture
+# (verify_jwt) is version-controlled and reviewable rather than relying on the
+# CLI default. `supabase functions deploy` reads these sections.
+
+project_id = "ohwzvtnpekirbpskcuvn"
+
+# Requires a valid Supabase JWT at the gateway before the function runs. The
+# function additionally re-validates the JWT and the ALLOWED_EMAILS allow-list
+# (defence in depth). The web app sends the signed-in user's access token.
+[functions.calendar-ops]
+verify_jwt = true
+
+# Same gate as calendar-ops. Holds the Asana PAT server-side so it never reaches
+# the public browser bundle.
+[functions.asana-ops]
+verify_jwt = true
+
+# The TRMNL e-ink device polls this with a GET and only a `?token=` query param
+# (no Supabase JWT), so gateway JWT verification MUST be off — the function does
+# its own TRMNL_SECRET_TOKEN check. See supabase/functions/trmnl/index.ts.
+[functions.trmnl]
+verify_jwt = false

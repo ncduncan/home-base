@@ -37,15 +37,13 @@ ok "token.json present"
 echo ""
 
 # ── Google OAuth token ───────────────────────────────────────────────────────
-echo "Encoding Google OAuth token..."
-# Cross-platform base64 (macOS vs Linux differ on line-wrap flag)
-if base64 --version 2>&1 | grep -q GNU; then
-    TOKEN_B64=$(base64 -w 0 token.json)
-else
-    TOKEN_B64=$(base64 -i token.json | tr -d '\n')
-fi
-gh secret set GOOGLE_OAUTH_TOKEN --body "$TOKEN_B64" --repo "$REPO"
-ok "GOOGLE_OAUTH_TOKEN set"
+# Store the RAW token.json contents (NOT base64). Every consumer
+# (agent/briefing/src/google-token.ts, supabase/functions/calendar-ops) calls
+# JSON.parse() on this value directly — a base64-encoded body would fail to
+# parse at startup.
+echo "Setting Google OAuth token..."
+gh secret set GOOGLE_OAUTH_TOKEN < token.json --repo "$REPO"
+ok "GOOGLE_OAUTH_TOKEN set (raw JSON)"
 
 echo ""
 

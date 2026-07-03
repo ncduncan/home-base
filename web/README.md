@@ -43,8 +43,9 @@ npm run dev                  # http://localhost:5173
 | `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
 | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
 | `VITE_ALLOWED_EMAILS` | Comma-separated Google emails allowed to log in |
-| `VITE_ASANA_PAT` | https://app.asana.com/0/my-apps → Personal Access Token |
-| `VITE_ASANA_WORKSPACE_GID` | Your Asana workspace GID |
+
+Asana no longer uses a browser variable — the PAT is held server-side by the
+`asana-ops` Edge Function (`ASANA_PAT` / `ASANA_WORKSPACE_GID` Supabase secrets).
 
 `.env.local` is gitignored — never commit real credentials.
 

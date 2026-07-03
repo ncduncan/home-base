@@ -31,8 +31,20 @@ interface CachedEvent {
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url)
 
-  // Validate secret token
-  if (url.searchParams.get('token') !== TRMNL_TOKEN) {
+  // Validate secret token. Preferred: `Authorization: Bearer <token>` header,
+  // which (unlike a query string) is not captured in proxy/CDN access logs,
+  // referrers, or browser history. Configure the TRMNL device's polling plugin
+  // to send this header, then rotate TRMNL_SECRET_TOKEN.
+  //
+  // TEMPORARY fallback: the `?token=` query param is still accepted so the
+  // device keeps working until its config is migrated. REMOVE this fallback once
+  // the device sends the header (tracked in the security review).
+  const authHeader = req.headers.get('Authorization') ?? ''
+  const bearer = authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7).trim()
+    : null
+  const presentedToken = bearer ?? url.searchParams.get('token')
+  if (presentedToken !== TRMNL_TOKEN) {
     return new Response('Unauthorized', { status: 401 })
   }
 

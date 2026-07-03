@@ -19,6 +19,12 @@ export type SendEmailParams = {
 export async function sendEmail(params: SendEmailParams): Promise<void> {
   const { accessToken, to, subject, html, text } = params
 
+  // Header values are operator-controlled today (recipients from ALLOWED_EMAILS,
+  // subject from a formatted date), but validate anyway so a CR/LF can never
+  // smuggle extra headers if a future caller passes dynamic data. Fail loud.
+  for (const addr of to) assertNoCRLF(addr, 'recipient')
+  assertNoCRLF(subject, 'subject')
+
   const boundary = `=====bound_${Date.now()}_${Math.random().toString(36).slice(2)}=====`
   const headers = [
     `To: ${to.join(', ')}`,
@@ -71,6 +77,13 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     // Body is Gmail's error response (no user content), safe to log.
     const detail = await resp.text().catch(() => '')
     throw new Error(`Gmail send failed: ${resp.status} ${detail.slice(0, 500)}`)
+  }
+}
+
+/** Reject CR/LF (and lone CR/LF) in a header value to prevent header injection. */
+function assertNoCRLF(value: string, label: string): void {
+  if (/[\r\n]/.test(value)) {
+    throw new Error(`Refusing to send: ${label} contains a newline (possible header injection)`)
   }
 }
 

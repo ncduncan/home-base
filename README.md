@@ -86,7 +86,7 @@ Pushes to `main` that touch `web/**` auto-deploy to GitHub Pages.
 
 | Secret | Where to get it |
 |---|---|
-| `GOOGLE_OAUTH_TOKEN` | Run `python scripts/generate_token.py`, then `base64 -w 0 token.json` |
+| `GOOGLE_OAUTH_TOKEN` | Run `python scripts/generate_token.py`, then store the **raw** `token.json` contents (NOT base64 — consumers `JSON.parse` it directly) |
 | `ASANA_PAT` | https://app.asana.com/0/my-apps |
 | `ASANA_WORKSPACE_GID` | `curl -H "Authorization: Bearer YOUR_PAT" https://app.asana.com/api/1.0/workspaces` |
 | `OPENWEATHERMAP_API_KEY` | https://openweathermap.org/api (free tier) |

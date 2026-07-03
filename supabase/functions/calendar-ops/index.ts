@@ -28,11 +28,28 @@ const ALLOWED_EMAILS = (Deno.env.get('ALLOWED_EMAILS') ?? '')
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+// Origin allowlist for CORS. Defaults to the GitHub Pages deploy + local dev;
+// override via the ALLOWED_ORIGINS secret (comma-separated) if the site moves.
+// We echo the caller's Origin only when it's on the list rather than '*', so a
+// random site can't drive this function even if it somehow obtained a JWT.
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ??
+  'https://ncduncan.github.io,http://localhost:5173')
+  .split(',').map(o => o.trim()).filter(Boolean)
+
+function corsHeaders(origin: string | null): Record<string, string> {
+  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Vary': 'Origin',
+    'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  }
 }
+
+// Calendars this function is permitted to mutate through the shared credential.
+// patchEvent takes a caller-supplied calendarId; without this gate an allowed
+// user could patch any event on any calendar the shared account can reach.
+const WRITABLE_CALENDAR_IDS = new Set(['primary'])
 
 // ── Google token refresh (shared credential, module-scoped cache) ─────────────
 
@@ -290,7 +307,16 @@ async function syncGusEventsBySpec(token: string, desired: Map<string, DesiredGu
     const matchesAttendee = canonical.attendeeEmail?.toLowerCase() === want.attendeeEmail.toLowerCase()
     const matchesOwner = canonical.homebaseOwner === want.owner
     const matchesKey = canonical.gusKey === expectedKey
-    if (!matchesAttendee || !matchesOwner || !matchesKey) {
+    if (!matchesAttendee || !matchesOwner) {
+      // Owner changed. PATCHing the attendee list doesn't reliably cancel the
+      // removed attendee's copy cross-system (Google → GE/Outlook), so DELETE
+      // the canonical (sendUpdates=all → real cancellation to the old attendee)
+      // and CREATE fresh for the new owner. Keep in sync with the shared copy
+      // in shared/src/calendar/io.ts.
+      ops.push(deleteGusEvent(token, canonical.eventId, spec.summary, dateStr))
+      ops.push(createGusEvent(token, spec, dateStr, want))
+    } else if (!matchesKey) {
+      // Same owner — legacy event missing the stable key; stamp it, no churn.
       ops.push(patchGusEvent(token, canonical.eventId, spec, dateStr, want))
     }
   }
@@ -406,6 +432,9 @@ async function patchEvent(
   calendarId: string,
   fields: { summary?: string; start?: string; end?: string },
 ): Promise<{ ok: true }> {
+  if (!WRITABLE_CALENDAR_IDS.has(calendarId)) {
+    throw new Error(`patchEvent: calendarId "${calendarId}" is not writable`)
+  }
   const token = await getGoogleAccessToken()
 
   const body: Record<string, unknown> = {}
@@ -431,33 +460,37 @@ async function patchEvent(
 // ── HTTP entry point ──────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  const cors = corsHeaders(req.headers.get('Origin'))
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: CORS_HEADERS })
+    return new Response(null, { headers: cors })
   }
   if (req.method !== 'POST') {
-    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: CORS_HEADERS })
+    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: cors })
   }
 
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) {
-    return Response.json({ error: 'Missing authorization header' }, { status: 401, headers: CORS_HEADERS })
+    return Response.json({ error: 'Missing authorization header' }, { status: 401, headers: cors })
   }
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(
     authHeader.replace('Bearer ', '')
   )
   if (authError || !user) {
-    return Response.json({ error: 'Invalid token' }, { status: 401, headers: CORS_HEADERS })
+    return Response.json({ error: 'Invalid token' }, { status: 401, headers: cors })
   }
   const callerEmail = (user.email ?? '').toLowerCase()
-  if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(callerEmail)) {
-    return Response.json({ error: 'Not authorized' }, { status: 403, headers: CORS_HEADERS })
+  // Fail closed: an empty/unset ALLOWED_EMAILS must deny everyone, not skip the
+  // check. Otherwise a misconfigured secret opens the shared Google credential
+  // to any user who can mint a valid Supabase JWT.
+  if (ALLOWED_EMAILS.length === 0 || !ALLOWED_EMAILS.includes(callerEmail)) {
+    return Response.json({ error: 'Not authorized' }, { status: 403, headers: cors })
   }
 
   let body: { op?: string } & Record<string, unknown>
   try {
     body = await req.json()
   } catch {
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: CORS_HEADERS })
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: cors })
   }
 
   try {
@@ -504,12 +537,12 @@ Deno.serve(async (req) => {
         break
       }
       default:
-        return Response.json({ error: `Unknown op: ${body.op}` }, { status: 400, headers: CORS_HEADERS })
+        return Response.json({ error: `Unknown op: ${body.op}` }, { status: 400, headers: cors })
     }
-    return Response.json(result, { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })
+    return Response.json(result, { headers: { ...cors, 'Content-Type': 'application/json' } })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[calendar-ops] op=${body.op} failed:`, message)
-    return Response.json({ error: message }, { status: 500, headers: CORS_HEADERS })
+    return Response.json({ error: message }, { status: 500, headers: cors })
   }
 })

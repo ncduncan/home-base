@@ -25,16 +25,16 @@ jobs:
       # Same project the web app and briefing agent target.
       PROJECT_REF: ohwzvtnpekirbpskcuvn
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1
         with:
           version: latest
 
-      # Deploys every function under supabase/functions (calendar-ops,
-      # google-token-refresh, trmnl). No config.toml is present, so verify_jwt
-      # stays at the CLI default (true) — which matches the current deployed
-      # state for all three. Function secrets are managed separately in Supabase
-      # and are untouched by a deploy.
+      # Deploys every function under supabase/functions (calendar-ops, trmnl).
+      # Per-function verify_jwt is pinned in supabase/config.toml (calendar-ops
+      # true, trmnl false) so the gateway auth posture is source-controlled, not
+      # left to the shifting CLI default. Function secrets are managed separately
+      # in Supabase and are untouched by a deploy.
       - name: Deploy Edge Functions
         run: supabase functions deploy --project-ref "$PROJECT_REF"
