@@ -5,6 +5,21 @@ import type { GusResponsibility, CalendarEvent } from '@home-base/shared/types'
 
 export { eventOwner, processAmionEvents, parseCalendarSources } from '@home-base/shared/calendar/process'
 
+/**
+ * Thrown when the caller's Supabase session can't authenticate to the
+ * calendar-ops Edge Function — either there's no session at all, or the JWT was
+ * rejected (401) and a forced refresh still failed. Distinct from a generic
+ * op-failure so the dashboard can respond by signing the user out (→ LoginPage)
+ * instead of silently rendering an empty calendar. Re-adds the safety net that
+ * the Edge-Function migration removed.
+ */
+export class CalendarAuthError extends Error {
+  constructor(message = 'Your session expired — please sign in again') {
+    super(message)
+    this.name = 'CalendarAuthError'
+  }
+}
+
 // All Google Calendar reads/writes go through the calendar-ops Edge Function,
 // which uses a single shared server-side credential. The browser never holds a
 // Google access_token, so there are no provider-token expiries, refresh
@@ -35,7 +50,7 @@ async function callOp<T = unknown>(body: CalendarOpsBody): Promise<T> {
   }
 
   let jwt = await getJwt()
-  if (!jwt) throw new Error('Not signed in')
+  if (!jwt) throw new CalendarAuthError()
   let resp = await send(jwt)
 
   // 401 = Supabase JWT was rejected. Force-refresh and retry once before giving up.
@@ -45,6 +60,10 @@ async function callOp<T = unknown>(body: CalendarOpsBody): Promise<T> {
       jwt = refreshed
       resp = await send(jwt)
     }
+    // Still unauthorized after a forced refresh → the session is dead and can't
+    // be recovered silently. Signal the dashboard to force a re-login rather
+    // than fall through to a generic error + empty calendar.
+    if (resp.status === 401) throw new CalendarAuthError()
   }
 
   if (!resp.ok) {

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { format, addDays } from 'date-fns'
-import { fetchCalendarEvents, fetchCalendarEventsRange, syncGusCareInvites } from '../lib/calendar'
+import { fetchCalendarEvents, fetchCalendarEventsRange, syncGusCareInvites, CalendarAuthError } from '../lib/calendar'
+import { supabase } from '../lib/supabase'
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks, fetchAllOpenTasks } from '../lib/asana'
 import { fetchOverrides, upsertOverride, deleteOverride, applyOverrides } from '../lib/overrides'
@@ -88,6 +89,14 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
       })
       .catch((e: unknown) => {
         if (seq !== fetchSeqRef.current) return
+        // A dead/unrecoverable session can't be fixed in place — sign out so the
+        // app falls back to LoginPage instead of showing a silently empty
+        // calendar. (Asana uses a bundled key, so the rest of the page would
+        // otherwise keep rendering and mask the auth failure.)
+        if (e instanceof CalendarAuthError) {
+          void supabase.auth.signOut()
+          return
+        }
         setEventsError(e instanceof Error ? e.message : 'Failed to load calendar')
       })
       .finally(() => {
