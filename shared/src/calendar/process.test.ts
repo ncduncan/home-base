@@ -1,5 +1,57 @@
 import { describe, it, expect } from 'vitest'
-import { processAmionEvents } from './process'
+import { processAmionEvents, parseCalendarSources } from './process'
+
+// A raw timed Google Calendar item for a Gus event on one calendar source.
+function gusItem(
+  id: string,
+  summary: 'Gus pickup' | 'Gus dropoff',
+  date: string,
+  opts: { owner?: 'nat' | 'caitie'; iCalUID?: string } = {},
+): Record<string, unknown> {
+  return {
+    id,
+    iCalUID: opts.iCalUID ?? `${id}@google.com`,
+    summary,
+    status: 'confirmed',
+    start: { dateTime: `${date}T07:00:00-04:00` },
+    end: { dateTime: `${date}T08:00:00-04:00` },
+    ...(opts.owner
+      ? { extendedProperties: { private: { homebase_owner: opts.owner, homebase_gus_key: `${date}-dropoff` } } }
+      : {}),
+  }
+}
+
+describe('parseCalendarSources — Gus duplicate collapse (stale mirror calendar)', () => {
+  it('collapses a canonical Gus event and a stale mirror copy with a different id/uid', () => {
+    // Primary calendar: the canonical event (recreated after an owner flip → new id).
+    const primary = {
+      cal: { id: 'ncduncan@gmail.com', summary: 'Nat Personal' },
+      items: [gusItem('newid123', 'Gus dropoff', '2026-07-08', { owner: 'caitie', iCalUID: 'newid123@google.com' })],
+    }
+    // Mirror iCal import: the pre-flip copy — different id, different uid, NO homebase_owner.
+    const mirror = {
+      cal: { id: 'mirror@import.calendar.google.com', summary: 'Calendar' },
+      items: [gusItem('oldid456', 'Gus dropoff', '2026-07-08', { iCalUID: 'oldid456@google.com' })],
+    }
+    const events = parseCalendarSources([primary, mirror])
+    const dropoffs = events.filter(e => e.title === 'Gus dropoff' && e.start.startsWith('2026-07-08'))
+    expect(dropoffs).toHaveLength(1)
+    expect(dropoffs[0].id).toBe('newid123')          // kept the canonical copy
+    expect(dropoffs[0].homebase_owner).toBe('caitie')
+  })
+
+  it('keeps distinct Gus events on different dates', () => {
+    const primary = {
+      cal: { id: 'ncduncan@gmail.com', summary: 'Nat Personal' },
+      items: [
+        gusItem('a', 'Gus dropoff', '2026-07-08', { owner: 'caitie' }),
+        gusItem('b', 'Gus dropoff', '2026-07-09', { owner: 'nat' }),
+      ],
+    }
+    const events = parseCalendarSources([primary])
+    expect(events.filter(e => e.title === 'Gus dropoff')).toHaveLength(2)
+  })
+})
 
 // Build a raw AMION all-day item for a single day (Google uses exclusive end.date).
 function allDay(summary: string, date: string): Record<string, unknown> {

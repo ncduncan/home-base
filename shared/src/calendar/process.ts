@@ -327,5 +327,34 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
   }
 
   const amionEvents = processAmionEvents(amionItems)
-  return [...regularEvents, ...amionEvents].sort((a, b) => a.start.localeCompare(b.start))
+  return [...collapseGusDuplicates(regularEvents), ...amionEvents].sort((a, b) => a.start.localeCompare(b.start))
+}
+
+// Collapse duplicate "Gus pickup"/"Gus dropoff" events that share the same
+// title + date. This closes the one gap the seenIcalUids/seenIds guards can't:
+// when a manual owner flip recreates the canonical event, it gets a NEW id and
+// iCalUID. A subscribed mirror calendar (a slow-refreshing iCal import of a
+// calendar we already read) keeps serving the PRE-flip copy — different id AND
+// different iCalUID — so both render until the mirror re-syncs hours later.
+// There is only ever one Gus event per (date, role), so collapsing by title+date
+// is safe. Prefer the copy carrying homebase_owner: the canonical primary event
+// always has it; mirror iCal copies drop extendedProperties, so they never do.
+function collapseGusDuplicates(events: CalendarEvent[]): CalendarEvent[] {
+  const isGus = (t: string) => t === 'Gus pickup' || t === 'Gus dropoff'
+  const idxByKey = new Map<string, number>()
+  const out: CalendarEvent[] = []
+  for (const e of events) {
+    if (!isGus(e.title)) { out.push(e); continue }
+    const key = `${e.title}|${e.start.slice(0, 10)}`
+    const existingIdx = idxByKey.get(key)
+    if (existingIdx === undefined) {
+      idxByKey.set(key, out.length)
+      out.push(e)
+    } else if (!out[existingIdx].homebase_owner && e.homebase_owner) {
+      // Replace a stale, owner-less mirror copy with the canonical event.
+      out[existingIdx] = e
+    }
+    // else: drop the duplicate (existing copy is canonical or equally good).
+  }
+  return out
 }
