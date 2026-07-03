@@ -38,6 +38,9 @@ htmlcov/
 *.swp
 *.swo
 
+# macOS
+.DS_Store
+
 # E-ink output (local)
 briefing_eink.json
 
@@ -54,8 +57,9 @@ preview-week-grid.html
 /home-base/
 
 # Private seed data — personal goals/notes that shouldn't enter public history.
-# Apply locally via `supabase db query --linked --file <file>`.
-supabase/*_private.sql
+# Apply locally via `supabase db query --linked --file <file>`. The `**` matches
+# any depth so it also covers files under supabase/migrations/.
+supabase/**/*_private.sql
 
 # Supabase CLI version-check cache — bumps every CLI run, no value in tracking.
 supabase/.temp/cli-latest
