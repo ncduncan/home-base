@@ -18,11 +18,10 @@
 DO $$
 DECLARE
   t text;
-  -- Household-shared tables: both allow-listed users may read/write.
-  -- homebase_events + calendar_overrides are reached by the browser (anon key);
-  -- calendar_cache + todos are service-role-only today (bypasses RLS) — the
-  -- allow-list policy is defence-in-depth and denies the anon key regardless.
-  shared_tables text[] := ARRAY['homebase_events', 'calendar_overrides', 'calendar_cache', 'todos'];
+  -- Household-shared tables reached by the browser (anon key); both allow-listed
+  -- users may read/write. (calendar_cache/todos backed the now-removed TRMNL
+  -- edge function and are being dropped — not listed here.)
+  shared_tables text[] := ARRAY['homebase_events', 'calendar_overrides'];
 BEGIN
   FOREACH t IN ARRAY shared_tables LOOP
     IF to_regclass('public.' || t) IS NULL THEN
@@ -60,6 +59,5 @@ END $$;
 
 -- ── Verify (run separately; every row must show relrowsecurity = t) ────────────
 -- SELECT relname, relrowsecurity FROM pg_class
--- WHERE relname IN ('homebase_events','calendar_overrides','calendar_cache',
---                   'todos','goals','google_tokens')
+-- WHERE relname IN ('homebase_events','calendar_overrides','goals','google_tokens')
 -- ORDER BY relname;

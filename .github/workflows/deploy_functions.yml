@@ -31,10 +31,10 @@ jobs:
         with:
           version: latest
 
-      # Deploys every function under supabase/functions (calendar-ops, trmnl).
-      # Per-function verify_jwt is pinned in supabase/config.toml (calendar-ops
-      # true, trmnl false) so the gateway auth posture is source-controlled, not
-      # left to the shifting CLI default. Function secrets are managed separately
-      # in Supabase and are untouched by a deploy.
+      # Deploys every function under supabase/functions (calendar-ops, asana-ops).
+      # Per-function verify_jwt is pinned in supabase/config.toml (both true) so
+      # the gateway auth posture is source-controlled, not left to the shifting
+      # CLI default. Function secrets are managed separately in Supabase and are
+      # untouched by a deploy.
       - name: Deploy Edge Functions
         run: supabase functions deploy --project-ref "$PROJECT_REF"
