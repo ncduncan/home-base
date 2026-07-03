@@ -1,4 +1,4 @@
-import type { CalendarEvent, GusResponsibility } from './types.ts'
+import type { CalendarEvent, GusResponsibility, GusOverride } from './types.ts'
 import { eventOwner } from './calendar/process.ts'
 
 function isWeekend(dateStr: string): boolean {
@@ -44,7 +44,14 @@ const TRAVEL_BUFFER_MIN = 30 // commute padding applied to non-AMION events
 export function computeGusCare(
   events: CalendarEvent[],
   weekDates?: string[],
+  gusOverrides?: GusOverride[],
 ): GusResponsibility[] {
+  // Manual assignment overrides always win over the shift-derived algorithm.
+  // Keyed by `${date}-${role}` → owner. Set offline by Nat/Caitie via the
+  // dashboard when they agree on something different from the computed default.
+  const overrideMap = new Map<string, 'nat' | 'caitie'>()
+  for (const o of gusOverrides ?? []) overrideMap.set(`${o.date}-${o.role}`, o.owner)
+
   // Group Caitie's events by start date (AMION shifts + her regular events).
   // Skip "backup" AMION shifts — they don't make her unavailable.
   // Skip Gus pickup/dropoff invites — they're outputs of this algorithm, not
@@ -107,11 +114,17 @@ export function computeGusCare(
     if (natDropoffOvernight && !natDropoffEarly) reasons.push('post-overnight')
     const reason = reasons.length > 0 ? `Caitie: ${reasons.join(', ')}` : 'Caitie off'
 
+    // Apply manual overrides last so they always win over the computed owner.
+    const pickupOverride = overrideMap.get(`${dateStr}-pickup`)
+    const dropoffOverride = overrideMap.get(`${dateStr}-dropoff`)
+
     results.push({
       date: dateStr,
-      pickup: natPickup ? 'nat' : 'caitie',
-      dropoff: natDropoff ? 'nat' : 'caitie',
+      pickup: pickupOverride ?? (natPickup ? 'nat' : 'caitie'),
+      dropoff: dropoffOverride ?? (natDropoff ? 'nat' : 'caitie'),
       reason,
+      pickupOverridden: pickupOverride !== undefined,
+      dropoffOverridden: dropoffOverride !== undefined,
     })
   }
 

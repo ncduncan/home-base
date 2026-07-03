@@ -16,6 +16,7 @@ import type {
   AsanaUser,
   CalendarEvent,
   CalendarOverride,
+  GusOverride,
   WeatherDay,
 } from '../types'
 
@@ -29,6 +30,9 @@ interface Props {
   overrides: CalendarOverride[]
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
+  gusOverrides: GusOverride[]
+  onSetGusOwner: (date: string, role: 'pickup' | 'dropoff', owner: 'nat' | 'caitie') => Promise<void>
+  onClearGusOwner: (date: string, role: 'pickup' | 'dropoff') => Promise<void>
   onCreateHomebaseEvent: (fields: Omit<HomebaseEvent, 'id'>) => Promise<void>
   onDeleteHomebaseEvent: (id: string) => Promise<void>
   weekOffset: number
@@ -57,6 +61,7 @@ function weekLabel(weekOffset: number): string {
 export default function WeekDashboard({
   events, rawEvents, eventsLoading, eventsError, onRefreshEvents,
   weather, overrides, onSaveOverride, onDeleteOverride,
+  gusOverrides, onSetGusOwner, onClearGusOwner,
   onCreateHomebaseEvent, onDeleteHomebaseEvent,
   weekOffset, onWeekChange,
   tasks, setTasks, tasksLoading, userEmail,
@@ -299,6 +304,9 @@ export default function WeekDashboard({
               userEmail={userEmail}
               onSaveOverride={onSaveOverride}
               onDeleteOverride={onDeleteOverride}
+              gusOverrides={gusOverrides}
+              onSetGusOwner={onSetGusOwner}
+              onClearGusOwner={onClearGusOwner}
               onDeleteHomebaseEvent={onDeleteHomebaseEvent}
               onToggleTask={(gid, c) => void mutations.toggleTask(gid, c)}
               onDeleteTask={(gid) => void mutations.removeTask(gid)}

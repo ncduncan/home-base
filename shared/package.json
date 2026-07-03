@@ -16,6 +16,7 @@
     "./calendar/gus-sync": "./src/calendar/gus-sync.ts",
     "./calendar/io": "./src/calendar/io.ts",
     "./gus-care": "./src/gus-care.ts",
+    "./gus-overrides": "./src/gus-overrides.ts",
     "./overrides": "./src/overrides.ts",
     "./homebase-events": "./src/homebase-events.ts",
     "./goals": "./src/goals.ts",

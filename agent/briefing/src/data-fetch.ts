@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import {
   fetchCalendarEvents,
   fetchOverrides,
+  fetchGusOverrides,
   fetchHomebaseEvents,
   homebaseToCalendarEvent,
   applyOverrides,
@@ -49,9 +50,10 @@ export async function fetchAllData(
   })
 
   // Parallel fetches — calendar, supabase rows, asana
-  const [calendarEvents, overrides, homebaseEvents, asanaTasks] = await Promise.all([
+  const [calendarEvents, overrides, gusOverrides, homebaseEvents, asanaTasks] = await Promise.all([
     fetchCalendarEvents(getGoogleAccessToken, 0),
     fetchOverrides(supabase, week.startDate, week.endDate),
+    fetchGusOverrides(supabase, week.startDate, week.endDate),
     fetchHomebaseEvents(supabase, week.startDate, week.endDate),
     asana.fetchTasks(),
   ])
@@ -63,7 +65,7 @@ export async function fetchAllData(
   )
 
   const overridden = applyOverrides(merged, overrides)
-  const gusCare = computeGusCare(overridden, week.dates)
+  const gusCare = computeGusCare(overridden, week.dates, gusOverrides)
 
   return {
     events: overridden,

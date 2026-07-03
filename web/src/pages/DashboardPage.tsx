@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { fetchWeatherForecast } from '../lib/weather'
 import { fetchTasks, fetchAllOpenTasks } from '../lib/asana'
 import { fetchOverrides, upsertOverride, deleteOverride, applyOverrides } from '../lib/overrides'
+import { fetchGusOverrides, upsertGusOverride, deleteGusOverride } from '../lib/gus-overrides'
 import {
   fetchHomebaseEvents,
   createHomebaseEvent,
@@ -14,7 +15,7 @@ import {
 import type { HomebaseEvent } from '../lib/homebase-events'
 import { computeGusCare } from '../lib/gus-care'
 import type { Session } from '@supabase/supabase-js'
-import type { AsanaTask, CalendarEvent, CalendarOverride, WeatherDay } from '../types'
+import type { AsanaTask, CalendarEvent, CalendarOverride, GusOverride, WeatherDay } from '../types'
 import { OWNER_EMAILS } from '../lib/owners'
 import Header from '../components/Header'
 import WeekDashboard from '../components/WeekDashboard'
@@ -46,6 +47,9 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
   // ── Overrides ──────────────────────────────────────────────────────────────
   const [overrides, setOverrides] = useState<CalendarOverride[]>([])
 
+  // ── Gus assignment overrides (manual pickup/dropoff reassignment) ──────────
+  const [gusOverrides, setGusOverrides] = useState<GusOverride[]>([])
+
   // ── Home-base events (Supabase-stored, not in Google Calendar) ────────────
   const [homebaseEvents, setHomebaseEvents] = useState<HomebaseEvent[]>([])
 
@@ -65,6 +69,11 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     fetchOverrides(start, end).then(setOverrides).catch(() => {})
   }, [weekRange])
 
+  const loadGusOverrides = useCallback((offset: number) => {
+    const { start, end } = weekRange(offset)
+    fetchGusOverrides(start, end).then(setGusOverrides).catch(() => {})
+  }, [weekRange])
+
   const loadHomebaseEvents = useCallback((offset: number) => {
     const { start, end } = weekRange(offset)
     fetchHomebaseEvents(start, end).then(setHomebaseEvents).catch(() => {})
@@ -81,6 +90,7 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     setEventsLoading(true)
     setEventsError(null)
     loadOverrides(offset)
+    loadGusOverrides(offset)
     loadHomebaseEvents(offset)
     fetchCalendarEvents(offset)
       .then(events => {
@@ -103,7 +113,7 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
         if (seq !== fetchSeqRef.current) return
         setEventsLoading(false)
       })
-  }, [loadOverrides, loadHomebaseEvents])
+  }, [loadOverrides, loadGusOverrides, loadHomebaseEvents])
 
   useEffect(() => { fetchEvents(weekOffset) }, [fetchEvents, weekOffset])
 
@@ -122,7 +132,10 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     sun.setDate(sun.getDate() - sun.getDay() + weekOffset * 7)
     return Array.from({ length: 7 }, (_, i) => format(addDays(sun, i), 'yyyy-MM-dd'))
   }, [weekOffset])
-  const gusCare = useMemo(() => computeGusCare(events, weekDates), [events, weekDates])
+  const gusCare = useMemo(
+    () => computeGusCare(events, weekDates, gusOverrides),
+    [events, weekDates, gusOverrides],
+  )
 
   // Sync Gus care invites to Google Calendar (debounced).
   // Gated to Nat because the OAuth token lives on his personal Google account —
@@ -184,6 +197,29 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     await deleteOverride(id)
     setOverrides(prev => prev.filter(o => o.id !== id))
   }, [])
+
+  // ── Gus assignment override handlers ──────────────────────────────────────
+  // Setting an owner writes a gus_override that wins over the algorithm; the
+  // gusCare memo recomputes and the debounced sync effect re-syncs the Google
+  // Calendar invite (delete old attendee's copy + create for the new owner).
+  const handleSetGusOwner = useCallback(
+    async (date: string, role: 'pickup' | 'dropoff', owner: 'nat' | 'caitie') => {
+      const saved = await upsertGusOverride({ date, role, owner, created_by: session.user.email ?? '' })
+      setGusOverrides(prev => {
+        const filtered = prev.filter(o => !(o.date === saved.date && o.role === saved.role))
+        return [...filtered, saved]
+      })
+    },
+    [session.user.email],
+  )
+
+  const handleClearGusOwner = useCallback(
+    async (date: string, role: 'pickup' | 'dropoff') => {
+      await deleteGusOverride(date, role)
+      setGusOverrides(prev => prev.filter(o => !(o.date === date && o.role === role)))
+    },
+    [],
+  )
 
   // ── Home-base event handlers ──────────────────────────────────────────────
   const handleCreateHomebaseEvent = useCallback(async (fields: Omit<HomebaseEvent, 'id'>) => {
@@ -312,6 +348,9 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
           overrides={overrides}
           onSaveOverride={handleSaveOverride}
           onDeleteOverride={handleDeleteOverride}
+          gusOverrides={gusOverrides}
+          onSetGusOwner={handleSetGusOwner}
+          onClearGusOwner={handleClearGusOwner}
           onCreateHomebaseEvent={handleCreateHomebaseEvent}
           onDeleteHomebaseEvent={handleDeleteHomebaseEvent}
           weekOffset={weekOffset}

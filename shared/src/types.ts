@@ -49,6 +49,17 @@ export interface GusResponsibility {
   pickup: 'nat' | 'caitie'
   dropoff: 'nat' | 'caitie'
   reason: string               // e.g. "Caitie: Day Shift"
+  pickupOverridden?: boolean   // true if a manual gus_override set the pickup owner
+  dropoffOverridden?: boolean  // true if a manual gus_override set the dropoff owner
+}
+
+export interface GusOverride {
+  id: string
+  date: string                 // 'YYYY-MM-DD'
+  role: 'pickup' | 'dropoff'
+  owner: 'nat' | 'caitie'
+  created_by: string
+  updated_at?: string
 }
 
 export interface WeatherDay {

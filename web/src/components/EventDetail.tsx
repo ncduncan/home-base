@@ -4,7 +4,7 @@ import { X, Eye, EyeOff, Pencil, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import type { CalendarEvent, CalendarOverride } from '../types'
+import type { CalendarEvent, CalendarOverride, GusOverride } from '../types'
 
 interface Props {
   event: CalendarEvent
@@ -12,7 +12,17 @@ interface Props {
   userEmail: string
   onSave: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  // Gus assignment controls — present only when the event is a Gus pickup/dropoff.
+  gusOverride?: GusOverride | null
+  onSetGusOwner?: (date: string, role: 'pickup' | 'dropoff', owner: 'nat' | 'caitie') => Promise<void>
+  onClearGusOwner?: (date: string, role: 'pickup' | 'dropoff') => Promise<void>
   onClose: () => void
+}
+
+function gusRoleOf(event: CalendarEvent): 'pickup' | 'dropoff' | null {
+  if (event.title === 'Gus pickup') return 'pickup'
+  if (event.title === 'Gus dropoff') return 'dropoff'
+  return null
 }
 
 const AMION_KINDS = [
@@ -23,8 +33,29 @@ const AMION_KINDS = [
   { value: 'backup', label: 'Backup' },
 ] as const
 
-export default function EventDetail({ event, override, userEmail, onSave, onDelete, onClose }: Props) {
+export default function EventDetail({
+  event, override, userEmail, onSave, onDelete,
+  gusOverride, onSetGusOwner, onClearGusOwner, onClose,
+}: Props) {
   const dateStr = event.start.slice(0, 10)
+  const gusRole = gusRoleOf(event)
+  const isGus = gusRole !== null && !!onSetGusOwner && !!onClearGusOwner
+  const [gusSaving, setGusSaving] = useState(false)
+
+  async function chooseGusOwner(owner: 'nat' | 'caitie' | 'auto') {
+    if (!gusRole || !onSetGusOwner || !onClearGusOwner) return
+    setGusSaving(true)
+    try {
+      if (owner === 'auto') await onClearGusOwner(dateStr, gusRole)
+      else await onSetGusOwner(dateStr, gusRole, owner)
+      onClose()
+    } catch (e) {
+      console.error('Failed to set Gus owner:', e)
+    } finally {
+      setGusSaving(false)
+    }
+  }
+
   const [hidden, setHidden] = useState(override?.hidden ?? false)
   const [startTime, setStartTime] = useState(
     override?.start_override
@@ -117,6 +148,40 @@ export default function EventDetail({ event, override, userEmail, onSave, onDele
           <span className="ml-1 text-[#a07a18]">(overridden)</span>
         )}
       </div>
+
+      {/* Gus pickup/dropoff owner — manual reassignment that wins over the
+          shift-derived algorithm. "Auto" clears the override. */}
+      {isGus && (
+        <div className="space-y-1.5">
+          <div className="text-[11px] text-hb-fg-secondary">
+            Who's on {gusRole}?
+            {gusOverride && <span className="ml-1 text-[#a07a18]">· set manually</span>}
+          </div>
+          <div className="flex items-center gap-1">
+            {([
+              { value: 'caitie', label: 'Caitie' },
+              { value: 'nat', label: 'Nat' },
+              { value: 'auto', label: 'Auto' },
+            ] as const).map(opt => {
+              const selected = (gusOverride?.owner ?? 'auto') === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => void chooseGusOwner(opt.value)}
+                  disabled={gusSaving}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                    selected
+                      ? 'bg-hb-fg text-hb-card border-hb-fg'
+                      : 'bg-hb-card border-hb-border-soft text-hb-fg-secondary hover:border-hb-fg-faint'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Hide toggle */}
       <button

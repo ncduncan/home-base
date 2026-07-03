@@ -19,6 +19,7 @@ import type {
   AsanaUser,
   CalendarEvent,
   CalendarOverride,
+  GusOverride,
   WeatherDay,
 } from '../types'
 
@@ -35,6 +36,9 @@ interface Props {
   userEmail: string
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
+  gusOverrides: GusOverride[]
+  onSetGusOwner: (date: string, role: 'pickup' | 'dropoff', owner: 'nat' | 'caitie') => Promise<void>
+  onClearGusOwner: (date: string, role: 'pickup' | 'dropoff') => Promise<void>
   onDeleteHomebaseEvent: (id: string) => Promise<void>
   onToggleTask: (gid: string, completed: boolean) => void
   onDeleteTask: (gid: string) => void
@@ -44,6 +48,13 @@ interface Props {
 
 function isGusEvent(event: CalendarEvent): boolean {
   return event.title === 'Gus pickup' || event.title === 'Gus dropoff'
+}
+
+// A Gus event's role is encoded in its title.
+function gusRole(event: CalendarEvent): 'pickup' | 'dropoff' | null {
+  if (event.title === 'Gus pickup') return 'pickup'
+  if (event.title === 'Gus dropoff') return 'dropoff'
+  return null
 }
 
 // Compact lowercase time. "5p" / "5:30p" / "10:30a"
@@ -114,8 +125,11 @@ interface OwnerSectionProps {
   expandedEventId: string | null
   setExpandedEventId: (id: string | null) => void
   userEmail: string
+  gusOverrideMap: Map<string, GusOverride>
   onSaveOverride: (override: Omit<CalendarOverride, 'id'>) => Promise<void>
   onDeleteOverride: (id: string) => Promise<void>
+  onSetGusOwner: (date: string, role: 'pickup' | 'dropoff', owner: 'nat' | 'caitie') => Promise<void>
+  onClearGusOwner: (date: string, role: 'pickup' | 'dropoff') => Promise<void>
   onDeleteHomebaseEvent: (id: string) => Promise<void>
   onToggleTask: (gid: string, completed: boolean) => void
   onDeleteTask: (gid: string) => void
@@ -124,8 +138,8 @@ interface OwnerSectionProps {
 
 function OwnerSection({
   owner, events, tasks, users, overrideMap, dayDateStr,
-  expandedEventId, setExpandedEventId, userEmail,
-  onSaveOverride, onDeleteOverride, onDeleteHomebaseEvent,
+  expandedEventId, setExpandedEventId, userEmail, gusOverrideMap,
+  onSaveOverride, onDeleteOverride, onSetGusOwner, onClearGusOwner, onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
 }: OwnerSectionProps) {
   const edgeClass = owner === 'nat'
@@ -260,6 +274,13 @@ function OwnerSection({
                         userEmail={userEmail}
                         onSave={onSaveOverride}
                         onDelete={onDeleteOverride}
+                        gusOverride={
+                          isGusEvent(event)
+                            ? gusOverrideMap.get(`${dayDateStr}-${gusRole(event)}`) ?? null
+                            : null
+                        }
+                        onSetGusOwner={onSetGusOwner}
+                        onClearGusOwner={onClearGusOwner}
                         onClose={() => setExpandedEventId(null)}
                       />
                     </PopoverContent>
@@ -312,6 +333,7 @@ export default function DayColumn({
   date, isToday, isPast,
   events, rawEvents, overrides, weather, tasks, users, userEmail,
   onSaveOverride, onDeleteOverride,
+  gusOverrides, onSetGusOwner, onClearGusOwner,
   onDeleteHomebaseEvent,
   onToggleTask, onDeleteTask, onUpdateTask,
   todayDate,
@@ -322,6 +344,10 @@ export default function DayColumn({
 
   const overrideMap = new Map<string, CalendarOverride>()
   for (const o of overrides) overrideMap.set(`${o.event_key}|${o.event_date}`, o)
+
+  // Gus assignment overrides keyed by `${date}-${role}` for this day's lookups.
+  const gusOverrideMap = new Map<string, GusOverride>()
+  for (const o of gusOverrides) gusOverrideMap.set(`${o.date}-${o.role}`, o)
 
   // Banner candidates: all-day, non-AMION events that overlap this day.
   // Multi-day banners get a continuation chevron on days where they extend
@@ -335,8 +361,8 @@ export default function DayColumn({
 
   const ownerProps = {
     users, overrideMap, dayDateStr,
-    expandedEventId, setExpandedEventId, userEmail,
-    onSaveOverride, onDeleteOverride, onDeleteHomebaseEvent,
+    expandedEventId, setExpandedEventId, userEmail, gusOverrideMap,
+    onSaveOverride, onDeleteOverride, onSetGusOwner, onClearGusOwner, onDeleteHomebaseEvent,
     onToggleTask, onDeleteTask, onUpdateTask,
   }
 

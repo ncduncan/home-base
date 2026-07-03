@@ -269,6 +269,14 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
   // homebase_owner extendedProperty lives, so this naturally prefers the
   // canonical copy.
   const seenIcalUids = new Set<string>()
+  // Secondary dedup by event id. Some subscribed mirror calendars (e.g. a
+  // read-only iCal import of a calendar we already read) surface the exact same
+  // event with an identical `id` but a stripped/absent iCalUID, which the
+  // seenIcalUids guard alone can't catch. calendarList returns the user's own
+  // primary first, so the first occurrence is the canonical copy (the one
+  // carrying homebase_owner). singleEvents recurrence instances carry unique
+  // per-instance ids, so this never collapses distinct occurrences.
+  const seenIds = new Set<string>()
 
   for (const { cal, items } of sources) {
     const calName = (cal.summary ?? '').toLowerCase()
@@ -291,6 +299,8 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
       if (item.status === 'cancelled') continue
       // Skip cross-calendar duplicates of the same logical event.
       if (uid && seenIcalUids.has(uid)) continue
+      const id = item.id as string
+      if (id && seenIds.has(id)) continue
       const title = (item.summary as string) ?? ''
       if (/^Week\s+\d+\s+of/i.test(title)) continue  // skip "Week N of YYYY" globally
       if (isCaitieAuxCalendar && title.startsWith('Declined: ')) continue
@@ -300,8 +310,9 @@ export function parseCalendarSources(sources: RawCalendarSource[]): CalendarEven
       const extProps = item.extendedProperties as { private?: Record<string, string> } | undefined
       const homebaseOwner = extProps?.private?.homebase_owner as 'nat' | 'caitie' | undefined
       if (uid) seenIcalUids.add(uid)
+      if (id) seenIds.add(id)
       regularEvents.push({
-        id: item.id as string,
+        id,
         title: title || '(No title)',
         start: allDay ? `${start.date}T00:00:00` : start.dateTime,
         end: allDay ? `${end.date}T00:00:00` : end.dateTime,

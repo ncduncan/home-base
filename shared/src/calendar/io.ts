@@ -297,7 +297,19 @@ async function syncGusEventsBySpec(
     const matchesAttendee = canonical.attendeeEmail?.toLowerCase() === want.attendeeEmail.toLowerCase()
     const matchesOwner = canonical.homebaseOwner === want.owner
     const matchesKey = canonical.gusKey === expectedKey
-    if (!matchesAttendee || !matchesOwner || !matchesKey) {
+    if (!matchesAttendee || !matchesOwner) {
+      // Owner changed. A PATCH that swaps the attendee list does NOT reliably
+      // send a cancellation to the removed attendee cross-system (Google →
+      // GE/Outlook), so the old invite strands. Instead DELETE the canonical
+      // event (deleteGusEvent uses sendUpdates=all → a real cancellation reaches
+      // the old attendee) and CREATE a fresh one for the new owner. The two ops
+      // run concurrently below; the new event gets its own ID, so there's no
+      // ordering hazard.
+      ops.push(deleteGusEvent(token, canonical.eventId, spec.summary, dateStr))
+      ops.push(createGusEvent(token, spec, dateStr, want))
+    } else if (!matchesKey) {
+      // Same owner/attendee — a legacy event missing the stable gusKey. Stamp
+      // the key in place; no attendee change means no invite churn.
       ops.push(patchGusEvent(token, canonical.eventId, spec, dateStr, want))
     }
   }
