@@ -62,10 +62,8 @@ function parseUsers(json: any): AsanaUser[] {
 export function createAsanaClient(config: AsanaConfig): AsanaClient {
   const { pat, workspaceGid } = config
 
-  // Cached after first successful resolveWorkspace() call — used by createTask
-  let _resolvedWorkspaceGid: string | null = null
   // Full resolution cache — resolveWorkspace() is called by fetchTasks,
-  // fetchAllOpenTasks and fetchWorkspaceUsers, so memoize to run it once.
+  // fetchAllOpenTasks, fetchWorkspaceUsers and createTask, so memoize to run it once.
   let _resolved: { workspaceGid: string; users: AsanaUser[] } | null = null
 
   function headers() {
@@ -138,7 +136,6 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
     // 1. Configured workspace first — the expected happy path.
     try {
       const users = await listWorkspaceUsers(workspaceGid)
-      _resolvedWorkspaceGid = workspaceGid
       _resolved = { workspaceGid, users }
       return _resolved
     } catch { /* unusable (wrong/too-large) — fall through to discovery */ }
@@ -155,7 +152,6 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
     for (const gid of discovered) {
       try {
         const users = await listWorkspaceUsers(gid)
-        _resolvedWorkspaceGid = gid
         _resolved = { workspaceGid: gid, users }
         return _resolved
       } catch { continue }
@@ -164,7 +160,6 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
     // 3. Final fallback: just the PAT owner; use configured workspace for tasks.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const me = await asanaGet('/users/me?opt_fields=gid,name,email') as any
-    _resolvedWorkspaceGid = workspaceGid
     _resolved = {
       workspaceGid,
       users: [{
@@ -289,7 +284,11 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
     assignee?: string
     notes?: string
   }): Promise<AsanaTask> {
-    const wsGid = _resolvedWorkspaceGid ?? workspaceGid
+    // Post to the resolved workspace (same one reads use), not the raw
+    // configured gid — the configured one may be an oversized org that
+    // resolveWorkspace() skips in favor of a discovered personal workspace.
+    // resolveWorkspace() memoizes, so this is free after the first call.
+    const { workspaceGid: wsGid } = await resolveWorkspace()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const json = await asanaPost(withTaskOptFields('/tasks'), { ...fields, workspace: wsGid }) as any
     return parseTask(json.data)

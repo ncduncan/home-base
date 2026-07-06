@@ -105,26 +105,25 @@ function asanaHeaders() {
 }
 async function asanaGet(path: string): Promise<unknown> {
   const res = await fetch(`${BASE}${path}`, { headers: asanaHeaders() })
-  if (!res.ok) throw new Error(`Asana API error ${res.status}`)
+  if (!res.ok) throw new Error(`Asana API error ${res.status}: ${await res.text()}`)
   return res.json()
 }
 async function asanaPost(path: string, body: unknown): Promise<unknown> {
   const res = await fetch(`${BASE}${path}`, { method: 'POST', headers: asanaHeaders(), body: JSON.stringify({ data: body }) })
-  if (!res.ok) throw new Error(`Asana API error ${res.status}`)
+  if (!res.ok) throw new Error(`Asana API error ${res.status}: ${await res.text()}`)
   return res.json()
 }
 async function asanaPut(path: string, body: unknown): Promise<unknown> {
   const res = await fetch(`${BASE}${path}`, { method: 'PUT', headers: asanaHeaders(), body: JSON.stringify({ data: body }) })
-  if (!res.ok) throw new Error(`Asana API error ${res.status}`)
+  if (!res.ok) throw new Error(`Asana API error ${res.status}: ${await res.text()}`)
   return res.json()
 }
 async function asanaDelete(path: string): Promise<void> {
   const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: asanaHeaders() })
-  if (!res.ok) throw new Error(`Asana API error ${res.status}`)
+  if (!res.ok) throw new Error(`Asana API error ${res.status}: ${await res.text()}`)
 }
 
 // Module-scoped memoization (survives across requests on a warm instance).
-let _resolvedWorkspaceGid: string | null = null
 let _resolved: { workspaceGid: string; users: AsanaUser[] } | null = null
 
 async function listWorkspaceUsers(gid: string): Promise<AsanaUser[]> {
@@ -138,7 +137,6 @@ async function resolveWorkspace(): Promise<{ workspaceGid: string; users: AsanaU
 
   try {
     const users = await listWorkspaceUsers(ASANA_WORKSPACE_GID)
-    _resolvedWorkspaceGid = ASANA_WORKSPACE_GID
     _resolved = { workspaceGid: ASANA_WORKSPACE_GID, users }
     return _resolved
   } catch { /* unusable — fall through to discovery */ }
@@ -154,7 +152,6 @@ async function resolveWorkspace(): Promise<{ workspaceGid: string; users: AsanaU
   for (const gid of discovered) {
     try {
       const users = await listWorkspaceUsers(gid)
-      _resolvedWorkspaceGid = gid
       _resolved = { workspaceGid: gid, users }
       return _resolved
     } catch { continue }
@@ -162,7 +159,6 @@ async function resolveWorkspace(): Promise<{ workspaceGid: string; users: AsanaU
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const me = await asanaGet('/users/me?opt_fields=gid,name,email') as any
-  _resolvedWorkspaceGid = ASANA_WORKSPACE_GID
   _resolved = {
     workspaceGid: ASANA_WORKSPACE_GID,
     users: [{ gid: me.data.gid, name: me.data.name, email: me.data.email ?? '' }],
@@ -236,7 +232,11 @@ async function fetchMe(): Promise<AsanaUser> {
 }
 
 async function createTask(fields: { name: string; due_on?: string; assignee?: string; notes?: string }): Promise<AsanaTask> {
-  const wsGid = _resolvedWorkspaceGid ?? ASANA_WORKSPACE_GID
+  // Resolve the workspace the same way reads do. In a stateless edge function
+  // the instance handling this request may never have run fetchTasks, so we
+  // can't trust cached state; using the raw configured secret would post to a
+  // wrong/oversized workspace and 400. resolveWorkspace() memoizes per instance.
+  const { workspaceGid: wsGid } = await resolveWorkspace()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const json = await asanaPost(withTaskOptFields('/tasks'), { ...fields, workspace: wsGid }) as any
   return parseTask(json.data)
