@@ -218,12 +218,21 @@ const GUS_TIME_ZONE = 'America/New_York'
  * be mistaken for "these events don't exist", which is what drove the old sync
  * to create duplicates.
  */
+/**
+ * Google's own bookkeeping timestamps, carried alongside the planner's fields.
+ * planGusSync ignores them; they exist so the cleanup diagnostic can answer
+ * "is the sync rewriting events it should be leaving alone?" — a rewrite mints
+ * a fresh invite in Outlook, so a churning sync shows up as recent `created` /
+ * `updated` stamps on events nobody touched.
+ */
+type ExistingGusEventWithMeta = ExistingGusEvent & { created?: string; updated?: string }
+
 async function listGusEventsInWindow(
   token: string,
   timeMin: Date,
   timeMax: Date,
-): Promise<ExistingGusEvent[]> {
-  const found: ExistingGusEvent[] = []
+): Promise<ExistingGusEventWithMeta[]> {
+  const found: ExistingGusEventWithMeta[] = []
   let pageToken: string | undefined
   do {
     const params = new URLSearchParams({
@@ -253,6 +262,8 @@ async function listGusEventsInWindow(
         start?: { dateTime?: string; date?: string }
         end?: { dateTime?: string; date?: string }
         attendees?: Array<{ email?: string; organizer?: boolean; self?: boolean }>
+        created?: string
+        updated?: string
       }>
       nextPageToken?: string
     }
@@ -265,6 +276,8 @@ async function listGusEventsInWindow(
         attendeeEmail: firstGuestEmail(item.attendees),
         start: item.start?.dateTime ?? item.start?.date ?? '',
         end: item.end?.dateTime ?? item.end?.date ?? '',
+        created: item.created,
+        updated: item.updated,
       })
     }
     pageToken = page.nextPageToken
@@ -448,13 +461,15 @@ export async function purgeGusEvents(
   timeMin: Date,
   timeMax: Date,
   opts: { dryRun?: boolean } = {},
-): Promise<Array<{ eventId: string; summary: string; date: string }>> {
+): Promise<Array<{ eventId: string; summary: string; date: string; created?: string; updated?: string }>> {
   const token = await getAccessToken()
   const existing = await listGusEventsInWindow(token, timeMin, timeMax)
   const found = existing.map(e => ({
     eventId: e.eventId,
     summary: e.summary,
     date: e.start.slice(0, 10),
+    created: e.created,
+    updated: e.updated,
   }))
   if (opts.dryRun) return found
   for (const e of found) {

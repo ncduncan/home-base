@@ -115,6 +115,19 @@ async function main(): Promise<void> {
     ` ${upcoming.length - canonical} legacy id(s) awaiting migration`
   )
 
+  // Churn probe. Every create sends Outlook a fresh invite and every update
+  // re-sends it, so if the sync is rewriting events it should be leaving alone,
+  // these counts climb every time a dashboard week is loaded. A converged sync
+  // writes nothing, so on a week that has already migrated both should be 0.
+  const ageBuckets = [15, 60] as const
+  const now = Date.now()
+  for (const mins of ageBuckets) {
+    const cutoff = now - mins * 60_000
+    const createdRecently = upcoming.filter(e => e.created && Date.parse(e.created) >= cutoff).length
+    const updatedRecently = upcoming.filter(e => e.updated && Date.parse(e.updated) >= cutoff).length
+    console.log(`[cleanup-gus] last ${mins}min: ${createdRecently} created, ${updatedRecently} updated`)
+  }
+
   if (process.env.GITHUB_ACTIONS === 'true') {
     // Public repo → public logs. A list of pickup dates is the household's
     // schedule, so the per-date breakdown stays local-only.
