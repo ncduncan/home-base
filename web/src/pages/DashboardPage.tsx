@@ -16,7 +16,6 @@ import type { HomebaseEvent } from '../lib/homebase-events'
 import { computeGusCare } from '../lib/gus-care'
 import type { Session } from '@supabase/supabase-js'
 import type { AsanaTask, CalendarEvent, CalendarOverride, GusOverride, WeatherDay } from '../types'
-import { OWNER_EMAILS } from '../lib/owners'
 import Header from '../components/Header'
 import WeekDashboard from '../components/WeekDashboard'
 
@@ -42,6 +41,9 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
   const [rawEvents, setRawEvents] = useState<CalendarEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
+  // Calendar sources that failed to read on the latest fetch. Non-zero means
+  // the picture is incomplete, so the Gus sync must not write from it.
+  const [failedSources, setFailedSources] = useState(0)
   const [weekOffset, setWeekOffset] = useState(0)
 
   // ── Overrides ──────────────────────────────────────────────────────────────
@@ -49,6 +51,10 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
 
   // ── Gus assignment overrides (manual pickup/dropoff reassignment) ──────────
   const [gusOverrides, setGusOverrides] = useState<GusOverride[]>([])
+  // Whether gus_overrides for the current week have landed. The sync must wait
+  // for these: syncing before they arrive would write the algorithmic default
+  // (with real invite emails) and then correct itself moments later.
+  const [gusOverridesReady, setGusOverridesReady] = useState(false)
 
   // ── Home-base events (Supabase-stored, not in Google Calendar) ────────────
   const [homebaseEvents, setHomebaseEvents] = useState<HomebaseEvent[]>([])
@@ -64,38 +70,54 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     return { start, end }
   }, [])
 
-  const loadOverrides = useCallback((offset: number) => {
-    const { start, end } = weekRange(offset)
-    fetchOverrides(start, end).then(setOverrides).catch(() => {})
-  }, [weekRange])
-
-  const loadGusOverrides = useCallback((offset: number) => {
-    const { start, end } = weekRange(offset)
-    fetchGusOverrides(start, end).then(setGusOverrides).catch(() => {})
-  }, [weekRange])
-
-  const loadHomebaseEvents = useCallback((offset: number) => {
-    const { start, end } = weekRange(offset)
-    fetchHomebaseEvents(start, end).then(setHomebaseEvents).catch(() => {})
-  }, [weekRange])
-
   // Tracks the latest in-flight fetch so out-of-order responses can be
   // discarded. Without this, rapid Next/Prev clicks issue several fetches
   // and whichever resolves last wins — which can blow away the visible
   // week's events with stale data from a different week.
   const fetchSeqRef = useRef(0)
 
+  const loadOverrides = useCallback((offset: number, seq: number) => {
+    const { start, end } = weekRange(offset)
+    fetchOverrides(start, end)
+      .then(rows => { if (seq === fetchSeqRef.current) setOverrides(rows) })
+      .catch(() => {})
+  }, [weekRange])
+
+  // Sequence-guarded like the calendar fetch, so paging weeks can't apply the
+  // previous week's override rows to the new week. `gusOverridesReady` gates
+  // the calendar sync — on failure it stays false, which keeps the sync from
+  // writing an assignment that a manual override was about to change.
+  const loadGusOverrides = useCallback((offset: number, seq: number) => {
+    const { start, end } = weekRange(offset)
+    fetchGusOverrides(start, end)
+      .then(rows => {
+        if (seq !== fetchSeqRef.current) return
+        setGusOverrides(rows)
+        setGusOverridesReady(true)
+      })
+      .catch(() => {})
+  }, [weekRange])
+
+  const loadHomebaseEvents = useCallback((offset: number, seq: number) => {
+    const { start, end } = weekRange(offset)
+    fetchHomebaseEvents(start, end)
+      .then(rows => { if (seq === fetchSeqRef.current) setHomebaseEvents(rows) })
+      .catch(() => {})
+  }, [weekRange])
+
   const fetchEvents = useCallback((offset: number) => {
     const seq = ++fetchSeqRef.current
     setEventsLoading(true)
     setEventsError(null)
-    loadOverrides(offset)
-    loadGusOverrides(offset)
-    loadHomebaseEvents(offset)
+    setGusOverridesReady(false)
+    loadOverrides(offset, seq)
+    loadGusOverrides(offset, seq)
+    loadHomebaseEvents(offset, seq)
     fetchCalendarEvents(offset)
-      .then(events => {
+      .then(({ events, failedSources: failed }) => {
         if (seq !== fetchSeqRef.current) return // stale response, ignore
         setRawEvents(events)
+        setFailedSources(failed)
       })
       .catch((e: unknown) => {
         if (seq !== fetchSeqRef.current) return
@@ -138,21 +160,53 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
   )
 
   // Sync Gus care invites to Google Calendar (debounced).
-  // Gated to Nat because the OAuth token lives on his personal Google account —
-  // syncGusCareInvites writes to that calendar and adds the responsible person
-  // (Nat or Caitie) as the attendee for each day.
   //
+  // Keyed on the CONTENT of gusCare, not the array's identity. gusCare is a memo
+  // that produces a fresh array on every event refetch, and a successful sync
+  // triggers exactly such a refetch — so keying on identity made the effect
+  // re-arm itself indefinitely, roughly every 2s, for as long as the tab was
+  // open. With a content key, a refetch that yields the same responsibilities is
+  // a no-op and the loop terminates.
+  //
+  // Not gated to Nat: calendar access runs through the calendar-ops Edge
+  // Function on a shared server-side credential, so Caitie's session can write
+  // too and her manual overrides take effect immediately. Two writers is safe —
+  // the sync derives deterministic event ids, so concurrent passes converge on
+  // the same event instead of duplicating it.
+  const gusCareKey = useMemo(
+    () => gusCare.map(g => `${g.date}:${g.pickup}:${g.dropoff}`).join('|'),
+    [gusCare],
+  )
+  // Latest values, read inside the timeout. Keeping them out of the dep array
+  // is what lets the effect key purely on content; it also fixes a stale-week
+  // bug where an in-flight sync's refetch used the weekOffset captured at
+  // schedule time and overwrote whichever week the user had since paged to.
+  const syncInputsRef = useRef({ gusCare, weekOffset, fetchEvents })
+  // Updated in an effect rather than during render: a render can be discarded
+  // under concurrent React, and the sync reads this 2s later from a timeout —
+  // long after effects have flushed — so post-commit is both safe and timely.
+  useEffect(() => {
+    syncInputsRef.current = { gusCare, weekOffset, fetchEvents }
+  })
+
   // Single-flight: only one sync runs at a time per tab. If the inputs change
   // mid-flight we set a "pending" flag and re-run once the in-flight pass
-  // resolves. Combined with PATCH-based reconciliation in syncGusCareInvites,
-  // this keeps the calendar from accumulating duplicate Gus invites.
+  // resolves.
   const syncTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const inFlightRef = useRef(false)
   const pendingRef = useRef(false)
   const [syncTick, setSyncTick] = useState(0)
   useEffect(() => {
-    if (session.user.email?.toLowerCase() !== OWNER_EMAILS.nat) return
+    // Never write from an incomplete picture. A failed calendar source (or a
+    // load error) is indistinguishable from "Caitie has no shifts this week",
+    // which would reassign every slot to her and send real cancellations to
+    // Nat. Same for overrides that haven't landed yet — syncing first would
+    // email an invite for the algorithmic default and then correct it.
     if (eventsLoading) return
+    if (eventsError) return
+    if (failedSources > 0) return
+    if (!gusOverridesReady) return
+    if (!gusCareKey) return
 
     clearTimeout(syncTimerRef.current)
     syncTimerRef.current = setTimeout(() => {
@@ -161,11 +215,12 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
         return
       }
       inFlightRef.current = true
-      syncGusCareInvites(gusCare)
+      const { gusCare: care, weekOffset: offset, fetchEvents: refetch } = syncInputsRef.current
+      syncGusCareInvites(care)
         .then(changed => {
-          // If the sync updated any Google events, refetch so the dashboard
-          // reflects the new attendee/owner state without a manual reload.
-          if (changed) fetchEvents(weekOffset)
+          // Only refetch when Google actually changed. Once converged the sync
+          // reports false, so this settles after a single pass.
+          if (changed) refetch(offset)
         })
         .catch(err => {
           // Don't block the UI but do surface the error in console so the
@@ -182,7 +237,7 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     }, 2000) // 2s debounce
 
     return () => clearTimeout(syncTimerRef.current)
-  }, [gusCare, session.user.email, eventsLoading, fetchEvents, weekOffset, syncTick])
+  }, [gusCareKey, eventsLoading, eventsError, failedSources, gusOverridesReady, syncTick])
 
   // ── Override handlers ─────────────────────────────────────────────────────
   const handleSaveOverride = useCallback(async (override: Omit<CalendarOverride, 'id'>) => {

@@ -87,7 +87,7 @@ npm workspaces at the repo root: `shared`, `web`, `agent/briefing`. Run `npm ins
 - **Single source of truth for rules.** AMION processing, gus-care assignment, overrides, etc. live in `shared/`. Both web and agent import from there. NEVER reimplement these in either consumer — fix once in `shared/` and both surfaces update together.
 - **Web wrappers stay thin.** `web/src/lib/*` files only bind browser singletons (supabase client, `import.meta.env`) and re-export shared functionality. Anything more complex belongs in `shared/`.
 - **Agent uses service-role Supabase + refreshed Google OAuth token.** It runs autonomously without depending on a logged-in user session. Same Google credentials it uses for calendar reads also send the email (gmail.send scope).
-- **Idempotent calendar reconciliation.** Both web and agent call `syncGusCareInvites` against the same Google Calendar. The dedup key (event title + date) is the contract; both writers stay safe.
+- **Idempotent calendar reconciliation via deterministic event IDs.** Both web and agent reconcile Gus invites against the same Google Calendar. **The contract is the event ID**, derived from `(date, role, owner)` by `gusEventId()` in `shared/src/calendar/gus-sync.ts` — e.g. `hbgus20260908pickupcaitie`. Google enforces ID uniqueness per calendar, so duplicates are structurally impossible no matter how many writers race. See the Gus sync section below before touching any of this.
 - **Public-repo logging policy.** GH Action logs are world-readable. Agent logs counts and step transitions only — never event titles, todo content, or rendered email bodies. The agent enforces this in code (`config.ts` refuses `BRIEFING_DRY_RUN=true` when `GITHUB_ACTIONS=true`).
 
 ---
@@ -118,6 +118,7 @@ Frontend categorization is owner-based, so both feeds bucket under Caitie automa
 | `Call: NC-XXX`       | Actual night-call working shift (see Night Call rules)   |
 | `Call: Chief`        | Passive phone-call role — Caitie covers chief calls but is otherwise NOT working. Appears every day in the feed → `backup` shift, all-day (suppressed when a real shift exists) |
 | `Call: <other>`      | Standalone call → day shift (8am–6pm)                    |
+| `Research...`        | **Non-clinical day.** Passive `research` marker, all-day. Caitie is NOT on a shift — she keeps both Gus dropoff and pickup. Suppressed when a real shift exists that day; outranks a backup chip. Matched `/^research\b/i`, so `Call: Research` is still a real call shift and `ICU Research Elective` is still a rotation |
 | `<text>` (e.g. `CICU`, `BWH ICU`) | Regular rotation — weekday day shift, weekend off |
 | Contains `SC`        | Backup on-call (passive) — `backup` shift, all-day       |
 
@@ -139,6 +140,64 @@ the weekend(s) and any specifically-marked weekday `Call:` evenings.
 - Change `shared/src/calendar/process.ts` → `classifyAmionTitle()` and/or `processAmionEvents()`
 - Both the dashboard and the Sunday agent automatically pick up the change
 - Gus pickup/dropoff logic in `shared/src/gus-care.ts` reads the resulting shifts; usually no edit needed there
+
+---
+
+## Gus Invite Sync — the rules that keep it from duplicating
+
+One Google Calendar event per `(date, role)`, on the shared primary calendar,
+with the responsible person's **work** email as its only guest. When
+responsibility flips, the previous owner's event is DELETEd (a real cancellation
+reaches their Outlook) and the new owner's is upserted at its own stable ID.
+
+**Decision logic lives in exactly one file:** `shared/src/calendar/gus-sync.ts`
+(`planGusSync` — pure, zero imports, unit-tested). Two runtimes consume it:
+
+| Consumer | How it gets the planner |
+|---|---|
+| Sunday agent (Node) | `shared/src/calendar/io.ts` imports it directly |
+| Web dashboard (Deno) | `supabase/functions/calendar-ops/gus-sync.ts`, a **generated mirror** |
+
+Edge Functions can't resolve the npm workspace, hence the mirror. **Never edit
+the mirror.** Edit the shared source, then run `npm run sync:edge-shared`.
+`shared/src/calendar/gus-sync.mirror.test.ts` fails if they drift — this repo has
+already shipped one bug caused by the two copies diverging.
+
+### Invariants — breaking any of these reintroduces duplicate invites
+
+1. **Never create an event without a deterministic ID.** A server-generated ID
+   makes duplicate detection depend on a read, and reads are not trustworthy (2).
+2. **Never treat a failed or partial list read as "no events exist."** Both
+   `listGusEventsInWindow` implementations paginate to exhaustion and *throw* on
+   any API error. Google documents that a page "may be less than [maxResults],
+   **or none at all, even if there are more events matching the query**" — the
+   old code's unpaginated read plus `if (!resp.ok) return emptyMap` was the main
+   duplicate generator.
+3. **Never use `q=` free-text search to check existence.** It's a lagging search
+   index; a just-created event can be invisible to the next query.
+4. **Upsert is PUT-then-POST-on-404, never POST-then-fallback.** A deleted event
+   lingers as a `cancelled` resource that still owns its ID, so POSTing that ID
+   409s forever. PUT revives it. A POST that 409s means a concurrent writer won —
+   loop back to PUT once.
+5. **Steady state must issue zero writes.** `planGusSync` returns `[]` when the
+   calendar already matches. Google makes no promise that a no-op update
+   suppresses notification email, so the diff has to happen on our side.
+6. **Never write from degraded data.** A failed calendar source is
+   indistinguishable from "Caitie has no shifts this week", which would reassign
+   every slot to her and fire real cancellations at Nat. `listCalendarEvents`
+   returns `failedSources`; both the dashboard effect and the Sunday agent skip
+   the sync when it's non-zero.
+7. **Don't key the dashboard's sync effect on `gusCare`'s array identity.** It's
+   a memo that yields a fresh array on every refetch, and a successful sync
+   triggers a refetch — that's an endless ~2s write loop. Key on the content
+   string (`gusCareKey`).
+
+### Clearing a backlog of duplicates
+
+`npm run cleanup-gus -w agent/briefing` — dry run by default, `--apply` to
+delete, `--days N` to narrow the ±90d window. Deletes every Gus event in the
+window with `sendUpdates=none` (no email burst); the fixed sync then recreates
+the current and upcoming weeks at canonical IDs. Needs `GOOGLE_OAUTH_TOKEN`.
 
 ---
 
@@ -250,12 +309,16 @@ to Node and consume `shared/` like the web app and briefing agent do. Out of sco
 |---|---|
 | `shared/src/types.ts` | All cross-surface TS types |
 | `shared/src/calendar/process.ts` | AMION processor, eventOwner, parseCalendarSources |
-| `shared/src/calendar/io.ts` | fetchCalendarEvents, syncGusCareInvites (take getAccessToken) |
-| `shared/src/gus-care.ts` | computeGusCare(events, weekDates) |
+| `shared/src/calendar/io.ts` | fetchCalendarEvents(Detailed), syncGusCareInvites, purgeGusEvents (take getAccessToken) |
+| `shared/src/calendar/gus-sync.ts` | **Zero-import** Gus planner: `gusEventId`, `buildDesiredGusEvents`, `planGusSync`. Mirrored into the Edge Function — see the Gus Invite Sync section |
+| `shared/src/gus-care.ts` | computeGusCare(events, weekDates, gusOverrides) |
 | `shared/src/overrides.ts` | applyOverrides + Supabase fetch/upsert/delete |
 | `shared/src/homebase-events.ts` | Supabase IO + homebaseToCalendarEvent |
 | `shared/src/asana.ts` | createAsanaClient({ pat, workspaceGid }) |
-| `web/src/lib/calendar.ts` | Web wrapper: provider_token cache + binds shared IO |
+| `web/src/lib/calendar.ts` | Web wrapper: RPC client for the calendar-ops Edge Function (browser holds no Google token) |
+| `supabase/functions/calendar-ops/gus-sync.ts` | Generated mirror — regenerate with `npm run sync:edge-shared` |
+| `agent/briefing/src/cleanup-gus.ts` | One-off duplicate-backlog purge (dry-run by default) |
+| `scripts/sync-edge-shared.mjs` | Regenerates Edge Function mirrors of shared modules |
 | `web/src/lib/asana.ts` | Web wrapper: shared client bound to VITE_ASANA_PAT |
 | `agent/briefing/src/index.ts` | Sunday agent orchestrator |
 | `agent/briefing/src/google-token.ts` | Refresh-token → access-token flow |
@@ -272,3 +335,5 @@ to Node and consume `shared/` like the web app and briefing agent do. Out of sco
 | 2026-04-27 | Extracted shared/ rules package, rebuilt Sunday agent in Node, re-enabled cron |
 | 2026-04-27 | Removed dormant Python briefing files (commit 5fb8bf2); TRMNL Python pipelines unchanged |
 | 2026-04-27 | Swapped narrative pass from Gemini to Claude Opus 4.7 via @anthropic-ai/sdk |
+| 2026-09-07 | **Gus invites rebuilt on deterministic event IDs.** Fixes duplicate invites + missing cancellations. Extracted `shared/src/calendar/gus-sync.ts` (mirrored into the Edge Function, drift-tested); paginated every `events.list`; reads now throw instead of returning empty; sync refuses to write from degraded data; dashboard effect keyed on gusCare content to kill a self-driving resync loop; Nat-only gate removed so Caitie's overrides sync too. Added `cleanup-gus` backlog purge |
+| 2026-09-07 | AMION `Research` is a passive non-clinical day — new `research` amion_kind, Caitie keeps both Gus slots |

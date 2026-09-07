@@ -1,6 +1,7 @@
 export * from './types.ts'
 export * from './calendar/process.ts'
 export * from './calendar/io.ts'
+export * from './calendar/gus-sync.ts'
 export * from './gus-care.ts'
 export * from './gus-overrides.ts'
 export * from './overrides.ts'

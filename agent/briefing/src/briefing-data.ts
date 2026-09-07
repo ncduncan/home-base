@@ -66,6 +66,7 @@ const SHIFT_LABELS: Record<string, string> = {
   night: 'Night Shift',
   '24hr': '24Hr',
   backup: 'Backup',
+  research: 'Research',
 }
 
 function dayLabel(dateStr: string): string {

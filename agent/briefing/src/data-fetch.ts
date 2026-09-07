@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import {
-  fetchCalendarEvents,
+  fetchCalendarEventsDetailed,
   fetchOverrides,
   fetchGusOverrides,
   fetchHomebaseEvents,
@@ -21,6 +21,9 @@ export type FetchedData = {
   homebaseEvents: HomebaseEvent[]
   gusCare: GusResponsibility[]
   asanaTasks: AsanaTask[]
+  /** Calendar sources that failed to read. Non-zero means gusCare is derived
+   *  from an incomplete picture — safe to render, NOT safe to write from. */
+  failedCalendarSources: number
 }
 
 export type DataFetchDeps = {
@@ -50,8 +53,8 @@ export async function fetchAllData(
   })
 
   // Parallel fetches — calendar, supabase rows, asana
-  const [calendarEvents, overrides, gusOverrides, homebaseEvents, asanaTasks] = await Promise.all([
-    fetchCalendarEvents(getGoogleAccessToken, 0),
+  const [calendar, overrides, gusOverrides, homebaseEvents, asanaTasks] = await Promise.all([
+    fetchCalendarEventsDetailed(getGoogleAccessToken, 0),
     fetchOverrides(supabase, week.startDate, week.endDate),
     fetchGusOverrides(supabase, week.startDate, week.endDate),
     fetchHomebaseEvents(supabase, week.startDate, week.endDate),
@@ -60,7 +63,7 @@ export async function fetchAllData(
 
   // Merge homebase events into calendar event list (same shape as the dashboard)
   const homebaseAsCalendar = homebaseEvents.map(homebaseToCalendarEvent)
-  const merged = [...calendarEvents, ...homebaseAsCalendar].sort((a, b) =>
+  const merged = [...calendar.events, ...homebaseAsCalendar].sort((a, b) =>
     a.start.localeCompare(b.start)
   )
 
@@ -72,5 +75,6 @@ export async function fetchAllData(
     homebaseEvents,
     gusCare,
     asanaTasks,
+    failedCalendarSources: calendar.failedSources,
   }
 }

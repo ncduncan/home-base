@@ -18,6 +18,15 @@ const SHIFT_LABELS: Record<string, string> = {
   night: 'Night Shift',
   '24hr': '24Hr',
   backup: 'Backup',
+  research: 'Research',
+}
+
+// AMION kinds that are passive — Caitie is marked as being somewhere, but not
+// in a way that stops her doing a 7:30am dropoff or a 5pm pickup. These events
+// still reach the reason string (so the dashboard and briefing say "Research"
+// rather than "off"); they just never count as unavailability.
+function isPassiveAmion(event: CalendarEvent): boolean {
+  return event.is_amion === true && event.amion_kind === 'research'
 }
 
 const DROPOFF_HOUR = 7 // 7:30am
@@ -133,6 +142,7 @@ export function computeGusCare(
 
 // Does this event make Caitie unavailable at 5pm on its start date?
 function coversPickup(event: CalendarEvent): boolean {
+  if (isPassiveAmion(event)) return false
   if (event.all_day) return true // all-day commitment
 
   const startStr = bufferedStart(event)
@@ -159,6 +169,7 @@ function coversPickup(event: CalendarEvent): boolean {
 // through unbuffered (bufferedStart is a no-op for them), so the behavior is unchanged
 // for AMION: an 8am day/training shift still blocks, a 4pm night shift still doesn't.
 function startsByMorning(event: CalendarEvent, dateStr: string): boolean {
+  if (isPassiveAmion(event)) return false
   if (event.start.slice(0, 10) !== dateStr) return false
   if (event.all_day) return true
   return hourOf(event.start) <= 8

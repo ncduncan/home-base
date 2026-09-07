@@ -52,7 +52,14 @@ async function main(): Promise<void> {
 
   // Reconcile Gus calendar invites (skip in dry-run so we never accidentally
   // mutate the calendar from a local test run).
-  if (!config.dryRun) {
+  //
+  // Also skip when any calendar source failed to read: a missing AMION feed
+  // looks identical to "Caitie has no shifts", which would hand every Gus slot
+  // to her and fire real cancellations at Nat. Rendering a slightly incomplete
+  // briefing is recoverable; writing the calendar from bad data isn't.
+  if (data.failedCalendarSources > 0) {
+    log(`gus calendar sync: SKIPPED — ${data.failedCalendarSources} calendar source(s) failed to read`)
+  } else if (!config.dryRun) {
     await syncGusCareInvites(getAccessToken, data.gusCare, {
       natAttendeeEmail: config.natAttendeeEmail,
       caitieAttendeeEmail: config.caitieAttendeeEmail,

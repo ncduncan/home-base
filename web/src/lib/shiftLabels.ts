@@ -6,6 +6,7 @@ export const SHIFT_LABELS: Record<string, string> = {
   night:    'Night Shift',
   '24hr':   '24Hr',
   backup:   'Backup',
+  research: 'Research',
 }
 
 export function shiftLabel(kind: CalendarEvent['amion_kind']): string {

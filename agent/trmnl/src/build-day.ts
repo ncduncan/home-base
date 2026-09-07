@@ -20,7 +20,7 @@ import {
 } from '@home-base/shared'
 import type { WeatherToday } from './weather.ts'
 
-export type ShiftGlyph = 'D' | 'N' | 'T' | '24' | 'B'
+export type ShiftGlyph = 'D' | 'N' | 'T' | '24' | 'B' | 'R'
 
 export type Item = {
   kind: 'shift' | 'event' | 'block'
@@ -61,6 +61,7 @@ const SHIFT_GLYPH: Record<string, ShiftGlyph> = {
   night: 'N',
   '24hr': '24',
   backup: 'B',
+  research: 'R',
 }
 
 const SHIFT_TITLE: Record<string, string> = {
@@ -69,6 +70,7 @@ const SHIFT_TITLE: Record<string, string> = {
   night: 'Night Shift',
   '24hr': '24Hr Shift',
   backup: 'Backup',
+  research: 'Research',
 }
 
 function pad2(n: number): string { return n < 10 ? `0${n}` : String(n) }

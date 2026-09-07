@@ -87,7 +87,18 @@ type RawCalendarSource = Parameters<typeof parseCalendarSources>[0][number]
 // empirical Google Calendar API quirk (UTC-calendar all-day events disappearing
 // when timeMin equals their start). timeMax is exclusive in Google's API, so we
 // add an extra trailing day to keep Saturday + the trailing-Sunday peek intact.
-export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent[]> {
+export type CalendarFetchResult = {
+  events: CalendarEvent[]
+  /**
+   * Calendar sources that failed to read. Non-zero means the event list is
+   * incomplete — fine to render, NOT safe to write from. A missing AMION feed
+   * is indistinguishable from "Caitie has no shifts this week", which would
+   * hand every Gus slot to her and fire real cancellations at Nat.
+   */
+  failedSources: number
+}
+
+export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarFetchResult> {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   now.setDate(now.getDate() - now.getDay()) // snap to Sunday
@@ -96,12 +107,15 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarEvent
   const timeMax = new Date(timeMin)
   timeMax.setDate(timeMax.getDate() + 8 + 1) // 8 day window + 1 for exclusive timeMax
 
-  const { sources } = await callOp<{ sources: RawCalendarSource[] }>({
+  const { sources, failedSources = 0 } = await callOp<{
+    sources: RawCalendarSource[]
+    failedSources?: number
+  }>({
     op: 'listCalendarEvents',
     timeMinISO: timeMin.toISOString(),
     timeMaxISO: timeMax.toISOString(),
   })
-  return parseCalendarSources(sources)
+  return { events: parseCalendarSources(sources), failedSources }
 }
 
 export async function fetchCalendarEventsRange(startISO: string, endISO: string): Promise<CalendarEvent[]> {

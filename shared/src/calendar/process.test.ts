@@ -102,3 +102,50 @@ describe('processAmionEvents — Call: Chief (passive phone-call role)', () => {
     expect(kinds(date, items)).toEqual(['day'])
   })
 })
+
+describe('processAmionEvents — Research (non-clinical, passive)', () => {
+  it('weekday Research → a single passive research marker, never a Day Shift', () => {
+    const date = '2026-06-16' // Tuesday
+    expect(kinds(date, [allDay('Research', date)])).toEqual(['research'])
+  })
+
+  it('emits the research marker as an all-day event (no 8am–6pm block)', () => {
+    const date = '2026-06-16'
+    const [e] = processAmionEvents([allDay('Research', date)])
+    expect(e.all_day).toBe(true)
+    expect(e.amion_kind).toBe('research')
+  })
+
+  it('matches case-insensitively and allows a suffix', () => {
+    const date = '2026-06-16'
+    expect(kinds(date, [allDay('research day', date)])).toEqual(['research'])
+    expect(kinds(date, [allDay('Research - Lab', date)])).toEqual(['research'])
+  })
+
+  it('a real rotation on the same day wins and suppresses the research chip', () => {
+    const date = '2026-06-16'
+    const items = [allDay('Research', date), allDay('11H-Medical', date)]
+    expect(kinds(date, items)).toEqual(['day'])
+  })
+
+  it('Research + Call: Chief → research marker, not backup (research is the real signal)', () => {
+    const date = '2026-06-16'
+    const items = [allDay('Research', date), allDay('Call: Chief', date)]
+    expect(kinds(date, items)).toEqual(['research'])
+  })
+
+  it('"Call: Research" is still a real call shift, not a research marker', () => {
+    const date = '2026-06-16'
+    expect(kinds(date, [allDay('Call: Research', date)])).toEqual(['day'])
+  })
+
+  it('does not match a clinical rotation that merely mentions research', () => {
+    const date = '2026-06-16'
+    expect(kinds(date, [allDay('ICU Research Elective', date)])).toEqual(['day'])
+  })
+
+  it('weekend Research emits nothing (she is off regardless)', () => {
+    const date = '2026-06-20' // Saturday
+    expect(kinds(date, [allDay('Research', date)])).toEqual([])
+  })
+})

@@ -1,5 +1,12 @@
 import type { CalendarEvent, GusResponsibility } from '../types.ts'
 import { parseCalendarSources, type RawCalendarSource } from './process.ts'
+import {
+  buildDesiredGusEvents,
+  isGusSummary,
+  planGusSync,
+  type DesiredGusEvent,
+  type ExistingGusEvent,
+} from './gus-sync.ts'
 
 export type GetAccessToken = () => Promise<string>
 
@@ -44,6 +51,31 @@ export async function fetchCalendarEvents(
   const timeMax = new Date(timeMin)
   timeMax.setDate(timeMax.getDate() + daysAhead + 1)
 
+  return (await fetchEventsInWindow(getAccessToken, timeMin, timeMax, onTokenRejected)).events
+}
+
+/**
+ * Same as `fetchCalendarEvents`, but also reports how many calendar sources
+ * failed to read.
+ *
+ * Callers that go on to WRITE based on this data (the Gus invite sync) must use
+ * this variant and refuse to write when `failedSources > 0`. A silently-empty
+ * source looks exactly like "Caitie has no shifts this week", which would flip
+ * every Gus responsibility to her and fire real cancellations at Nat.
+ */
+export async function fetchCalendarEventsDetailed(
+  getAccessToken: GetAccessToken,
+  weekOffset = 0,
+  onTokenRejected?: OnTokenRejected,
+  daysAhead = 7,
+): Promise<{ events: CalendarEvent[]; failedSources: number }> {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  now.setDate(now.getDate() - now.getDay())
+  const timeMin = new Date(now)
+  timeMin.setDate(timeMin.getDate() + weekOffset * 7 - 1)
+  const timeMax = new Date(timeMin)
+  timeMax.setDate(timeMax.getDate() + daysAhead + 1)
   return fetchEventsInWindow(getAccessToken, timeMin, timeMax, onTokenRejected)
 }
 
@@ -63,7 +95,7 @@ export async function fetchCalendarEventsRange(
 ): Promise<CalendarEvent[]> {
   const timeMin = new Date(`${startDateISO}T00:00:00`)
   const timeMax = new Date(`${endDateISO}T00:00:00`)
-  return fetchEventsInWindow(getAccessToken, timeMin, timeMax, onTokenRejected)
+  return (await fetchEventsInWindow(getAccessToken, timeMin, timeMax, onTokenRejected)).events
 }
 
 async function fetchEventsInWindow(
@@ -71,7 +103,7 @@ async function fetchEventsInWindow(
   timeMin: Date,
   timeMax: Date,
   onTokenRejected?: OnTokenRejected,
-): Promise<CalendarEvent[]> {
+): Promise<{ events: CalendarEvent[]; failedSources: number }> {
   let token = await getAccessToken()
 
   let listResp = await fetch(
@@ -108,26 +140,43 @@ async function fetchEventsInWindow(
   // refresh across parallel fan-outs.
   let tokenRefreshedThisBatch = false
   const fetchEvents = async (cal: { id: string; summary: string; summaryOverride?: string }): Promise<RawCalendarSource> => {
-    const params = new URLSearchParams({
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      timeZone: userTimeZone,
-      singleEvents: 'true',
-      orderBy: 'startTime',
-      maxResults: '250',
-    })
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`
-    let resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    if (resp.status === 401) {
-      if (!tokenRefreshedThisBatch) {
-        tokenRefreshedThisBatch = true
-        onTokenRejected?.()
-        token = await getAccessToken()
+    // Follow nextPageToken to completion. Google documents that a single page
+    // "may be less than [maxResults], or none at all, even if there are more
+    // events matching the query" — so treating page 1 as the whole answer can
+    // silently drop a calendar's entire contents.
+    const items: Array<Record<string, unknown>> = []
+    let pageToken: string | undefined
+    do {
+      const params = new URLSearchParams({
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        timeZone: userTimeZone,
+        singleEvents: 'true',
+        orderBy: 'startTime',
+        maxResults: '250',
+      })
+      if (pageToken) params.set('pageToken', pageToken)
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`
+      let resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      if (resp.status === 401) {
+        if (!tokenRefreshedThisBatch) {
+          tokenRefreshedThisBatch = true
+          onTokenRejected?.()
+          token = await getAccessToken()
+        }
+        resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       }
-      resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    }
-    if (!resp.ok) return { cal, items: [] as Array<Record<string, unknown>> }
-    const { items = [] } = await resp.json() as { items: Array<Record<string, unknown>> }
+      // Throw rather than returning an empty page: an unreadable calendar must
+      // be counted as a failure, not silently rendered as "no events". Callers
+      // that write based on this data key off failedSources.
+      if (!resp.ok) throw new Error(`calendar ${cal.id} responded ${resp.status}`)
+      const page = await resp.json() as {
+        items?: Array<Record<string, unknown>>
+        nextPageToken?: string
+      }
+      items.push(...(page.items ?? []))
+      pageToken = page.nextPageToken
+    } while (pageToken)
     return { cal, items }
   }
 
@@ -137,235 +186,181 @@ async function fetchEventsInWindow(
       .map(fetchEvents)
   )
   const sources: RawCalendarSource[] = []
-  let rejectedCount = 0
+  let failedSources = 0
   for (const r of results) {
     if (r.status === 'fulfilled') sources.push(r.value)
-    else rejectedCount++
+    else failedSources++
   }
-  if (rejectedCount > 0) {
+  if (failedSources > 0) {
     // Count-only log: contents stay out of public-repo CI streams.
-    console.warn(`[calendar] ${rejectedCount} calendar source(s) failed to fetch`)
+    console.warn(`[calendar] ${failedSources} calendar source(s) failed to fetch`)
   }
 
-  return parseCalendarSources(sources)
+  return { events: parseCalendarSources(sources), failedSources }
 }
 
 // ── Gus care GCal invite sync ─────────────────────────────────────────────────
+//
+// The decision logic lives in ./gus-sync.ts and is shared verbatim with the
+// Supabase Edge Function. Everything below is the Google Calendar executor:
+// read the window, ask the planner what to do, do it.
 
-type GusRole = 'pickup' | 'dropoff'
+const GCAL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+const GUS_TIME_ZONE = 'America/New_York'
 
-type GusEventSpec = {
-  summary: string
-  role: GusRole
-  startHour: number
-  endHour: number
+/**
+ * Read every Gus event on the primary calendar within the window.
+ *
+ * Deliberately does NOT use the `q=` free-text parameter: it's backed by a
+ * search index that lags writes, so a just-created event can be invisible to
+ * the next query. A plain time-range list is a direct read. Pagination is
+ * followed to completion and any API failure throws — a partial read must never
+ * be mistaken for "these events don't exist", which is what drove the old sync
+ * to create duplicates.
+ */
+async function listGusEventsInWindow(
+  token: string,
+  timeMin: Date,
+  timeMax: Date,
+): Promise<ExistingGusEvent[]> {
+  const found: ExistingGusEvent[] = []
+  let pageToken: string | undefined
+  do {
+    const params = new URLSearchParams({
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      singleEvents: 'true',
+      maxResults: '250',
+      // Pin the RESPONSE timezone. Without this Google renders dateTimes in the
+      // calendar's own default zone, and planGusSync compares wall-clock
+      // prefixes — a calendar defaulting to UTC would make every comparison
+      // mismatch, rewriting (and re-emailing) every event on every pass.
+      // Events are written with this same zone, so the two always line up.
+      timeZone: GUS_TIME_ZONE,
+    })
+    if (pageToken) params.set('pageToken', pageToken)
+    const resp = await fetch(`${GCAL}?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!resp.ok) {
+      throw new Error(`Failed to list Gus events: ${resp.status}`)
+    }
+    const page = await resp.json() as {
+      items?: Array<{
+        id: string
+        summary?: string
+        status?: string
+        start?: { dateTime?: string; date?: string }
+        end?: { dateTime?: string; date?: string }
+        attendees?: Array<{ email?: string; organizer?: boolean; self?: boolean }>
+      }>
+      nextPageToken?: string
+    }
+    for (const item of page.items ?? []) {
+      if (item.status === 'cancelled') continue
+      if (!isGusSummary(item.summary)) continue
+      found.push({
+        eventId: item.id,
+        summary: item.summary as string,
+        attendeeEmail: firstGuestEmail(item.attendees),
+        start: item.start?.dateTime ?? item.start?.date ?? '',
+        end: item.end?.dateTime ?? item.end?.date ?? '',
+      })
+    }
+    pageToken = page.nextPageToken
+  } while (pageToken)
+  return found
 }
 
-type DesiredGusEvent = { attendeeEmail: string; owner: 'nat' | 'caitie' }
-
-type ExistingGusEvent = {
-  eventId: string
-  attendeeEmail: string | null
-  homebaseOwner: 'nat' | 'caitie' | null
-  gusKey: string | null
+/**
+ * The invited guest's email. Google may add the organizer to the attendee list
+ * and reorder it, so pick the first non-organizer entry rather than trusting
+ * position — reading the organizer here would look like "the owner changed" and
+ * churn the event on every pass.
+ */
+function firstGuestEmail(
+  attendees: Array<{ email?: string; organizer?: boolean; self?: boolean }> | undefined,
+): string | null {
+  if (!attendees?.length) return null
+  const guest = attendees.find(a => !a.organizer && !a.self && a.email)
+  return (guest ?? attendees[0])?.email ?? null
 }
 
-const gusKeyFor = (dateStr: string, role: GusRole) => `${dateStr}-${role}`
+function gusEventBody(want: DesiredGusEvent) {
+  return {
+    summary: want.summary,
+    status: 'confirmed',
+    start: { dateTime: want.startLocal, timeZone: GUS_TIME_ZONE },
+    end: { dateTime: want.endLocal, timeZone: GUS_TIME_ZONE },
+    attendees: [{ email: want.attendeeEmail }],
+    extendedProperties: {
+      private: {
+        // Routes the event into the right dashboard column even though it
+        // physically lives on Nat's primary calendar.
+        homebase_owner: want.owner,
+        homebase_gus_key: `${want.date}-${want.role}`,
+      },
+    },
+  }
+}
 
+/**
+ * Create-or-update the event at its deterministic id.
+ *
+ * PUT first, then POST on 404. That order matters: deleting an event leaves it
+ * on the calendar as a `cancelled` resource that still owns the id, so a POST
+ * with that id would 409 forever. PUT revives it instead. A POST that 409s means
+ * a concurrent writer won the race, so we loop back to PUT once — both writers
+ * are sending the same content, so they converge.
+ */
+async function upsertGusEvent(token: string, want: DesiredGusEvent): Promise<void> {
+  const body = JSON.stringify(gusEventBody(want))
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  const idUrl = `${GCAL}/${encodeURIComponent(want.eventId)}?sendUpdates=all`
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const put = await fetch(idUrl, { method: 'PUT', headers, body })
+    if (put.ok) return
+    if (put.status !== 404) {
+      console.warn(`Failed to update ${want.summary} for ${want.date}:`, put.status)
+      return
+    }
+    // 404 — never existed. Insert it with our id.
+    const post = await fetch(`${GCAL}?sendUpdates=all`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...gusEventBody(want), id: want.eventId }),
+    })
+    if (post.ok) return
+    if (post.status !== 409) {
+      console.warn(`Failed to create ${want.summary} for ${want.date}:`, post.status)
+      return
+    }
+    // 409 — someone created it between our PUT and POST. Retry the PUT.
+  }
+  console.warn(`Gave up reconciling ${want.summary} for ${want.date} after 2 attempts`)
+}
+
+/**
+ * Cancel a Gus event. `notify` controls whether the guest gets a real
+ * cancellation — true for live responsibility changes, false for the one-off
+ * backlog cleanup where a burst of emails would just be noise.
+ */
 async function deleteGusEvent(
   token: string,
   eventId: string,
   summary: string,
   dateStr: string,
+  notify = true,
 ): Promise<void> {
   const resp = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    `${GCAL}/${encodeURIComponent(eventId)}?sendUpdates=${notify ? 'all' : 'none'}`,
     { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
   )
-  if (!resp.ok && resp.status !== 410) {
+  // 404/410 mean it's already gone — that's the desired end state, not an error.
+  if (!resp.ok && resp.status !== 404 && resp.status !== 410) {
     console.warn(`Failed to cancel ${summary} for ${dateStr}:`, resp.status)
   }
-}
-
-async function createGusEvent(
-  token: string,
-  spec: GusEventSpec,
-  dateStr: string,
-  desired: DesiredGusEvent,
-): Promise<void> {
-  const resp = await fetch(
-    'https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all',
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        summary: spec.summary,
-        start: { dateTime: `${dateStr}T${String(spec.startHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
-        end:   { dateTime: `${dateStr}T${String(spec.endHour).padStart(2, '0')}:00:00`, timeZone: 'America/New_York' },
-        attendees: [{ email: desired.attendeeEmail }],
-        extendedProperties: {
-          private: {
-            // homebase_owner routes the event into the correct dashboard
-            // column even when the attendee email is Caitie's but the event
-            // lives on Nat's primary calendar.
-            homebase_owner: desired.owner,
-            // homebase_gus_key is the stable per-(date, role) dedup key.
-            // Two concurrent sync passes always agree on this value, so the
-            // canonical event for a slot is unambiguous regardless of who's
-            // currently responsible.
-            homebase_gus_key: gusKeyFor(dateStr, spec.role),
-          },
-        },
-      }),
-    }
-  )
-  if (!resp.ok && resp.status !== 409) {
-    console.warn(`Failed to create ${spec.summary} for ${dateStr}:`, resp.status)
-  }
-}
-
-async function patchGusEvent(
-  token: string,
-  eventId: string,
-  spec: GusEventSpec,
-  dateStr: string,
-  desired: DesiredGusEvent,
-): Promise<void> {
-  const resp = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
-    {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        attendees: [{ email: desired.attendeeEmail }],
-        extendedProperties: {
-          private: {
-            homebase_owner: desired.owner,
-            homebase_gus_key: gusKeyFor(dateStr, spec.role),
-          },
-        },
-      }),
-    }
-  )
-  if (!resp.ok) {
-    console.warn(`Failed to patch ${spec.summary} for ${dateStr}:`, resp.status)
-  }
-}
-
-async function syncGusEventsBySpec(
-  token: string,
-  desired: Map<string, DesiredGusEvent>,
-  existing: Map<string, ExistingGusEvent[]>,
-  spec: GusEventSpec,
-): Promise<boolean> {
-  const ops: Promise<void>[] = []
-
-  // Cancel events for dates that are no longer desired (delete every duplicate)
-  for (const [dateStr, exList] of existing) {
-    if (!desired.has(dateStr)) {
-      for (const ex of exList) {
-        ops.push(deleteGusEvent(token, ex.eventId, spec.summary, dateStr))
-      }
-    }
-  }
-
-  // For each desired date, pick a canonical event by stable gusKey (or fall back
-  // to the first legacy event), delete every other event on that date, and
-  // either no-op or PATCH the canonical to match the desired attendee/owner.
-  // PATCH (not delete+recreate) keeps the event ID stable across passes so
-  // concurrent syncs converge instead of creating duplicates.
-  for (const [dateStr, want] of desired) {
-    const exList = existing.get(dateStr) ?? []
-    const expectedKey = gusKeyFor(dateStr, spec.role)
-
-    if (exList.length === 0) {
-      ops.push(createGusEvent(token, spec, dateStr, want))
-      continue
-    }
-
-    const keyedIdx = exList.findIndex(ex => ex.gusKey === expectedKey)
-    const canonicalIdx = keyedIdx >= 0 ? keyedIdx : 0
-    const canonical = exList[canonicalIdx]
-
-    // Delete every other event on this date — duplicates created by races,
-    // or legacy events without the stable key.
-    for (let i = 0; i < exList.length; i++) {
-      if (i === canonicalIdx) continue
-      ops.push(deleteGusEvent(token, exList[i].eventId, spec.summary, dateStr))
-    }
-
-    const matchesAttendee = canonical.attendeeEmail?.toLowerCase() === want.attendeeEmail.toLowerCase()
-    const matchesOwner = canonical.homebaseOwner === want.owner
-    const matchesKey = canonical.gusKey === expectedKey
-    if (!matchesAttendee || !matchesOwner) {
-      // Owner changed. A PATCH that swaps the attendee list does NOT reliably
-      // send a cancellation to the removed attendee cross-system (Google →
-      // GE/Outlook), so the old invite strands. Instead DELETE the canonical
-      // event (deleteGusEvent uses sendUpdates=all → a real cancellation reaches
-      // the old attendee) and CREATE a fresh one for the new owner. The two ops
-      // run concurrently below; the new event gets its own ID, so there's no
-      // ordering hazard.
-      ops.push(deleteGusEvent(token, canonical.eventId, spec.summary, dateStr))
-      ops.push(createGusEvent(token, spec, dateStr, want))
-    } else if (!matchesKey) {
-      // Same owner/attendee — a legacy event missing the stable gusKey. Stamp
-      // the key in place; no attendee change means no invite churn.
-      ops.push(patchGusEvent(token, canonical.eventId, spec, dateStr, want))
-    }
-  }
-
-  await Promise.all(ops)
-  return ops.length > 0
-}
-
-async function fetchExistingGusEvents(
-  token: string,
-  query: string,
-  timeMin: Date,
-  timeMax: Date,
-): Promise<Map<string, ExistingGusEvent[]>> {
-  const resp = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-    new URLSearchParams({
-      q: query,
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      singleEvents: 'true',
-      maxResults: '250',
-    }),
-    { headers: { Authorization: `Bearer ${token}` } }
-  )
-  const map = new Map<string, ExistingGusEvent[]>()
-  if (!resp.ok) return map
-  const { items = [] } = await resp.json() as {
-    items: Array<{
-      id: string
-      summary?: string
-      status?: string
-      start?: { dateTime?: string; date?: string }
-      attendees?: Array<{ email?: string }>
-      extendedProperties?: { private?: Record<string, string> }
-    }>
-  }
-  for (const item of items) {
-    if (item.summary !== query) continue
-    if (item.status === 'cancelled') continue
-    const startStr = item.start?.dateTime ?? item.start?.date ?? ''
-    const dateStr = startStr.slice(0, 10)
-    if (!dateStr) continue
-    const attendeeEmail = item.attendees?.[0]?.email ?? null
-    const homebaseOwner = item.extendedProperties?.private?.homebase_owner as 'nat' | 'caitie' | undefined
-    const gusKey = item.extendedProperties?.private?.homebase_gus_key ?? null
-    const list = map.get(dateStr) ?? []
-    list.push({
-      eventId: item.id,
-      attendeeEmail,
-      homebaseOwner: homebaseOwner ?? null,
-      gusKey,
-    })
-    map.set(dateStr, list)
-  }
-  return map
 }
 
 export type SyncGusCareInvitesOptions = {
@@ -376,19 +371,22 @@ export type SyncGusCareInvitesOptions = {
 }
 
 /**
- * Sync Gus pickup/dropoff Google Calendar invites based on computed responsibilities.
- * Creates one event per (day, role) for whichever owner is responsible, with that
- * owner's work email as attendee. When responsibility flips, the existing event is
- * PATCHed in place (attendee + homebase_owner) so each person sees the invite only
- * on their responsible days while keeping the event ID stable.
+ * Sync Gus pickup/dropoff Google Calendar invites from computed responsibilities.
  *
- * Only operates within the date range of the provided gusCare entries — events
- * outside that window are left untouched. Idempotent: matches existing events by
- * a stable extendedProperties.private.homebase_gus_key (`<date>-<role>`) and falls
- * back to summary+date for legacy events created before the key was introduced.
- * Safe to run from multiple sources (web + agent) and concurrently — concurrent
- * passes converge on the same canonical event via PATCH instead of creating
- * duplicates.
+ * Exactly one event exists per (day, role): it lives on the shared primary
+ * calendar with the responsible person's work email as its only guest, and its
+ * Google id is derived from (date, role, owner) — see `gusEventId`. When
+ * responsibility flips, the previous owner's event is genuinely DELETEd (a real
+ * cancellation reaches their Outlook) and the new owner's is upserted at its own
+ * stable id.
+ *
+ * Only touches the date range of the supplied gusCare entries, and never the
+ * past. Safe to run concurrently from anywhere — two passes compute identical
+ * ids and identical content, so they converge instead of duplicating. In the
+ * steady state it issues no writes at all, which is what keeps Google from
+ * re-sending invitation email on every pass.
+ *
+ * Returns true if anything was actually changed.
  */
 export async function syncGusCareInvites(
   getAccessToken: GetAccessToken,
@@ -397,54 +395,72 @@ export async function syncGusCareInvites(
 ): Promise<boolean> {
   if (gusCare.length === 0) return false
 
-  const token = await getAccessToken()
-
-  // Scope the sync to the input's date range
-  const dates = gusCare.map(g => g.date).sort()
-  const rangeStart = new Date(`${dates[0]}T00:00:00`)
-  const rangeEnd = new Date(`${dates[dates.length - 1]}T23:59:59`)
-
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Don't modify past events
-  if (rangeEnd < today) return false
-  const effectiveStart = rangeStart < today ? today : rangeStart
+  // Never modify the past.
+  const upcoming = gusCare.filter(g => new Date(`${g.date}T12:00:00`) >= today)
+  if (upcoming.length === 0) return false
 
-  const attendeeFor = (owner: 'nat' | 'caitie') =>
-    owner === 'nat' ? options.natAttendeeEmail : options.caitieAttendeeEmail
+  const dates = upcoming.map(g => g.date).sort()
+  const rangeStart = new Date(`${dates[0]}T00:00:00`)
+  const rangeEnd = new Date(`${dates[dates.length - 1]}T23:59:59`)
 
-  // Build desired-state maps: one entry per future day per role, keyed by date.
-  const pickupDesired = new Map<string, DesiredGusEvent>()
-  const dropoffDesired = new Map<string, DesiredGusEvent>()
-  for (const g of gusCare) {
-    const d = new Date(`${g.date}T12:00:00`)
-    if (d < today) continue
-    pickupDesired.set(g.date, { attendeeEmail: attendeeFor(g.pickup), owner: g.pickup })
-    dropoffDesired.set(g.date, { attendeeEmail: attendeeFor(g.dropoff), owner: g.dropoff })
+  const token = await getAccessToken()
+
+  const desired = buildDesiredGusEvents({
+    gusCare: upcoming.map(g => ({ date: g.date, pickup: g.pickup, dropoff: g.dropoff })),
+    natAttendeeEmail: options.natAttendeeEmail,
+    caitieAttendeeEmail: options.caitieAttendeeEmail,
+  })
+
+  // Throws on a partial/failed read rather than reconciling against a half-view.
+  const existing = await listGusEventsInWindow(token, rangeStart, rangeEnd)
+  const ops = planGusSync(desired, existing)
+  if (ops.length === 0) return false
+
+  // Cancellations first, so a responsibility flip reads as "cancelled, then
+  // invited" rather than arriving in an arbitrary order.
+  for (const op of ops) {
+    if (op.kind === 'delete') {
+      await deleteGusEvent(token, op.eventId, op.summary, op.date)
+    }
+  }
+  for (const op of ops) {
+    if (op.kind === 'upsert') {
+      await upsertGusEvent(token, op.event)
+    }
   }
 
-  const [existingPickups, existingDropoffs] = await Promise.all([
-    fetchExistingGusEvents(token, 'Gus pickup', effectiveStart, rangeEnd),
-    fetchExistingGusEvents(token, 'Gus dropoff', effectiveStart, rangeEnd),
-  ])
+  return true
+}
 
-  const [pickupChanged, dropoffChanged] = await Promise.all([
-    syncGusEventsBySpec(token, pickupDesired, existingPickups, {
-      summary: 'Gus pickup',
-      role: 'pickup',
-      startHour: 17,
-      endHour: 18,
-    }),
-    syncGusEventsBySpec(token, dropoffDesired, existingDropoffs, {
-      summary: 'Gus dropoff',
-      role: 'dropoff',
-      startHour: 7,
-      endHour: 8,
-    }),
-  ])
-
-  return pickupChanged || dropoffChanged
+/**
+ * Delete every Gus event on the primary calendar in a window, silently.
+ *
+ * One-off migration helper for clearing the duplicate backlog left by the old
+ * non-deterministic sync. Uses sendUpdates=none so cleaning up doesn't fire a
+ * burst of cancellation emails for events that are mostly in the past.
+ * Returns the events it removed (or would remove, when dryRun).
+ */
+export async function purgeGusEvents(
+  getAccessToken: GetAccessToken,
+  timeMin: Date,
+  timeMax: Date,
+  opts: { dryRun?: boolean } = {},
+): Promise<Array<{ eventId: string; summary: string; date: string }>> {
+  const token = await getAccessToken()
+  const existing = await listGusEventsInWindow(token, timeMin, timeMax)
+  const found = existing.map(e => ({
+    eventId: e.eventId,
+    summary: e.summary,
+    date: e.start.slice(0, 10),
+  }))
+  if (opts.dryRun) return found
+  for (const e of found) {
+    await deleteGusEvent(token, e.eventId, e.summary, e.date, false)
+  }
+  return found
 }
 
 // ── Event editing ─────────────────────────────────────────────────────────────

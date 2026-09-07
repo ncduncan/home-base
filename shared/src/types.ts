@@ -24,7 +24,7 @@ export interface CalendarEvent {
   all_day: boolean
   calendar_name: string
   is_amion: boolean
-  amion_kind?: 'training' | 'day' | 'night' | '24hr' | 'backup'
+  amion_kind?: 'training' | 'day' | 'night' | '24hr' | 'backup' | 'research'
   organizer_email?: string
   overridden?: boolean         // true if a calendar_override was applied
   notes?: string               // from override

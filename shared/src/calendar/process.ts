@@ -2,11 +2,16 @@ import type { CalendarEvent } from '../types.ts'
 
 // ── AMION helpers ──────────────────────────────────────────────────────────────
 
-type AmionType = 'skip' | 'vacation' | 'am' | 'pm' | 'backup' | 'nc-pool' | 'nc-call' | 'call' | 'rotation'
+type AmionType = 'skip' | 'vacation' | 'am' | 'pm' | 'backup' | 'research' | 'nc-pool' | 'nc-call' | 'call' | 'rotation'
 
 function classifyAmionTitle(title: string): AmionType {
   if (/^Week\s+\d/i.test(title)) return 'skip'
   if (/^(vacation|leave)$/i.test(title)) return 'vacation'
+  // Research is a non-clinical day: Caitie is at work but flexible, so it must
+  // never emit a Day Shift (which would block both Gus slots). Anchored to the
+  // start of the title so "Call: Research" stays a real call shift and a
+  // clinical rotation like "ICU Research Elective" isn't swallowed.
+  if (/^research\b/i.test(title)) return 'research'
   if (title.startsWith('AM:')) return 'am'
   if (title.startsWith('PM:')) return 'pm'
   if (/^Call:\s*NC-/i.test(title)) return 'nc-call'  // before SC check — NC-call titles may contain 'SC'
@@ -88,6 +93,7 @@ export function processAmionEvents(rawItems: Array<Record<string, unknown>>): Ca
     const rotations = entries.filter(e => e.type === 'rotation')
     const calls     = entries.filter(e => e.type === 'call')
     const backups   = entries.filter(e => e.type === 'backup')
+    const researches = entries.filter(e => e.type === 'research')
     const ams       = entries.filter(e => e.type === 'am')
     const pms       = entries.filter(e => e.type === 'pm')
     const ncCalls   = entries.filter(e => e.type === 'nc-call')
@@ -215,8 +221,30 @@ export function processAmionEvents(rawItems: Array<Record<string, unknown>>): Ca
       emittedWorking = true
     }
 
-    // 7. Backup (SC) — only if nothing else was emitted
-    if (backups.length > 0 && !emittedWorking) {
+    // 7. Research — a non-clinical weekday. Emits a passive all-day marker so
+    //    the dashboard still shows where Caitie is, but it is NOT a working
+    //    shift: gus-care ignores it, so she keeps both dropoff and pickup.
+    //    Suppressed by any real shift. Outranks a backup chip on the same day —
+    //    "Research" is the more informative label. Weekends emit nothing, same
+    //    as a weekend rotation with no call.
+    let emittedPassive = false
+    if (researches.length > 0 && !emittedWorking && !isWeekend(dateStr)) {
+      results.push({
+        id: `amion-research-${dateStr}`,
+        title: '',
+        start: localDT(dateStr, 0),
+        end: localDT(dateStr, 0),
+        location: null,
+        all_day: true,
+        calendar_name: 'Caitie shifts',
+        is_amion: true,
+        amion_kind: 'research',
+      })
+      emittedPassive = true
+    }
+
+    // 8. Backup (SC) — only if nothing else was emitted
+    if (backups.length > 0 && !emittedWorking && !emittedPassive) {
       results.push({
         id: `amion-backup-${dateStr}`,
         title: '',

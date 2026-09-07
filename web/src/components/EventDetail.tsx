@@ -31,6 +31,7 @@ const AMION_KINDS = [
   { value: 'night', label: 'Night Shift' },
   { value: '24hr', label: '24Hr' },
   { value: 'backup', label: 'Backup' },
+  { value: 'research', label: 'Research' },
 ] as const
 
 export default function EventDetail({

@@ -1,0 +1,72 @@
+name: Cleanup Gus Events (one-off)
+
+# Manual-only. Clears the duplicate Gus invite backlog left by the old
+# non-deterministic sync, then the fixed sync recreates the current and
+# upcoming weeks at their canonical deterministic ids.
+#
+# Deletes use sendUpdates=none, so no cancellation emails are sent.
+#
+# Public repo: Action logs are world-readable. The script prints counts only
+# when GITHUB_ACTIONS=true — never dates, titles or attendees.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Actually delete. Leave false for a dry run.'
+        type: boolean
+        default: false
+      confirm:
+        description: 'Type DELETE to confirm (only needed when apply is true).'
+        type: string
+        default: ''
+      days:
+        description: 'Window size in days, before and after today.'
+        type: string
+        default: '90'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  cleanup:
+    name: Purge duplicate Gus invites
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      # Bulk deletion is irreversible, so a stray click on "Run workflow" with
+      # apply checked must not be enough on its own.
+      - name: Verify confirmation
+        if: ${{ inputs.apply }}
+        run: |
+          if [ "${{ inputs.confirm }}" != "DELETE" ]; then
+            echo "::error::apply=true requires confirm=DELETE. Nothing was deleted."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run cleanup
+        working-directory: agent/briefing
+        env:
+          TZ: America/New_York
+          GOOGLE_OAUTH_TOKEN: ${{ secrets.GOOGLE_OAUTH_TOKEN }}
+          APPLY: ${{ inputs.apply }}
+          DAYS: ${{ inputs.days }}
+        run: |
+          ARGS="--days $DAYS"
+          if [ "$APPLY" = "true" ]; then ARGS="$ARGS --apply"; fi
+          npm run cleanup-gus -- $ARGS
