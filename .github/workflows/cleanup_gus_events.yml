@@ -24,6 +24,10 @@ on:
         description: 'Window size in days, before and after today.'
         type: string
         default: '90'
+      from_today:
+        description: 'Only touch today onward. Leaves past events alone (the sync never touches them anyway).'
+        type: boolean
+        default: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -66,7 +70,9 @@ jobs:
           GOOGLE_OAUTH_TOKEN: ${{ secrets.GOOGLE_OAUTH_TOKEN }}
           APPLY: ${{ inputs.apply }}
           DAYS: ${{ inputs.days }}
+          FROM_TODAY: ${{ inputs.from_today }}
         run: |
           ARGS="--days $DAYS"
           if [ "$APPLY" = "true" ]; then ARGS="$ARGS --apply"; fi
+          if [ "$FROM_TODAY" = "true" ]; then ARGS="$ARGS --from-today"; fi
           npm run cleanup-gus -- $ARGS
