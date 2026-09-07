@@ -47,6 +47,9 @@ function parseArgs(argv: string[]): { apply: boolean; days: number; fromToday: b
   return { apply, days, fromToday }
 }
 
+/** Shape produced by gusEventId(): hbgus<YYYYMMDD><role><owner>. */
+const CANONICAL_ID = /^hbgus\d{8}(pickup|dropoff)(nat|caitie)$/
+
 const roleOf = (summary: string): string =>
   summary === 'Gus pickup' ? 'pickup' : summary === 'Gus dropoff' ? 'dropoff' : 'other'
 
@@ -100,6 +103,17 @@ async function main(): Promise<void> {
   // inert history; only the upcoming ones will be migrated to canonical ids.
   const past = removed.filter(e => e.date < todayStr).length
   console.log(`[cleanup-gus] ${past} in the past (sync never touches these), ${removed.length - past} today or later`)
+
+  // Have the upcoming events migrated to deterministic ids yet? A legacy
+  // (randomly-named) event still pending migration will be deleted+recreated on
+  // its first sync, which sends a cancellation and a fresh invite. All-canonical
+  // means the migration is done and no further invite churn is expected.
+  const upcoming = removed.filter(e => e.date >= todayStr)
+  const canonical = upcoming.filter(e => CANONICAL_ID.test(e.eventId)).length
+  console.log(
+    `[cleanup-gus] of the ${upcoming.length} upcoming: ${canonical} canonical id(s),` +
+    ` ${upcoming.length - canonical} legacy id(s) awaiting migration`
+  )
 
   if (process.env.GITHUB_ACTIONS === 'true') {
     // Public repo → public logs. A list of pickup dates is the household's
