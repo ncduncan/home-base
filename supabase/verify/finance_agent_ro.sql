@@ -1,4 +1,4 @@
--- Manual check for supabase/migrations/20261103000000_finance_agent_ro.sql.
+-- Manual check for supabase/migrations/20261103112021_finance_agent_ro.sql.
 -- Run in the SQL editor as postgres AFTER applying the migration. Every
 -- statement after `set role` should succeed, or fail where it says so.
 
