@@ -8,7 +8,6 @@ import {
   useSensors,
   type DragOverEvent,
   type DragEndEvent,
-  type DragStartEvent,
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type { Goal, GoalCategory, GoalStatus, GoalVisibility } from '../../lib/goals'
@@ -75,7 +74,7 @@ export default function GoalsBoard({
     return CATEGORIES.find(c => grouped[c.key].some(g => g.id === id))?.key
   }
 
-  const handleDragStart = (_e: DragStartEvent) => {
+  const handleDragStart = () => {
     draggingRef.current = true
   }
 

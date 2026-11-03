@@ -1,0 +1,79 @@
+name: CI
+
+# Merge gate for every pull request (and a post-merge check on main). Runs
+# lint, the vitest suites, the agent typechecks and the web build. Uses NO
+# repository secrets: a PR check must never be able to reach production.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push to the same PR supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Informational only, as in deploy.yml: advisories in build tooling land
+      # independent of our code and shouldn't block unrelated merges.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+        working-directory: web
+        continue-on-error: true
+
+      - name: Lint (web)
+        run: npm run lint
+        working-directory: web
+
+      - name: Test (shared)
+        run: npm test
+        working-directory: shared
+
+      - name: Test (web)
+        run: npm test
+        working-directory: web
+
+      - name: Test (agent/briefing)
+        run: npm test
+        working-directory: agent/briefing
+
+      # vitest strips types without checking them; the web build's `tsc -b`
+      # covers web + shared, these cover the two Node agents.
+      - name: Typecheck (agent/briefing)
+        run: npm run typecheck
+        working-directory: agent/briefing
+
+      # agent/trmnl has no test script yet, so typecheck is its only gate.
+      - name: Typecheck (agent/trmnl)
+        run: npm run typecheck
+        working-directory: agent/trmnl
+
+      - name: Build (web)
+        run: npm run build
+        working-directory: web
+        env:
+          # Placeholders: the build only needs these to be present.
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
+          VITE_ALLOWED_EMAILS: ci@example.com
