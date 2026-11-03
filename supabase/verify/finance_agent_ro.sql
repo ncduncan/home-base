@@ -9,9 +9,9 @@ select policyname, permissive, roles, cmd, qual, with_check
 begin;
 set local role finance_agent_ro;
 
--- 1. Expect: zero rows (no private goal owned by caitie).
-select count(*) as leaked_caitie_private
-  from public.goals where visibility = 'private' and owner = 'caitie';
+-- 1. Expect: zero rows (no other owner's private goals).
+select count(*) as leaked_other_private
+  from public.goals where visibility = 'private' and owner <> 'nat';
 
 -- 2. Expect: the shared count plus Nat's private count, as postgres sees them.
 select visibility, owner, count(*) from public.goals group by 1, 2 order by 1, 2;

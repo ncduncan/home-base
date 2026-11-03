@@ -13,7 +13,7 @@ grant usage on schema public to finance_agent_ro;
 grant select (id, text, category, status, visibility, owner, notes, created_at, updated_at)
   on public.goals to finance_agent_ro;
 
--- Shared goals plus Nat's private ones. Caitie's private goals are excluded.
+-- Shared goals plus the primary owner's private ones; other owners' private goals are excluded.
 create policy finance_agent_ro_select on public.goals
   as permissive for select to finance_agent_ro
   using (visibility = 'shared' or owner = 'nat');
