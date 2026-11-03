@@ -62,7 +62,8 @@ export default function GoalRow({
     opacity: isDragging ? 0.4 : undefined,
   }
 
-  useEffect(() => { setDraft(goal.text) }, [goal.text])
+  const [prevText, setPrevText] = useState(goal.text)
+  if (goal.text !== prevText) { setPrevText(goal.text); setDraft(goal.text) }
 
   useEffect(() => {
     if (editing && taRef.current) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
@@ -25,8 +25,12 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
   const [notesVal, setNotesVal] = useState(task.notes ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  useEffect(() => { setNameVal(task.name) }, [task.name])
-  useEffect(() => { setNotesVal(task.notes ?? '') }, [task.notes])
+  // Reset local edits when the task changes upstream (adjust-state-during-render
+  // pattern, so there's no extra render pass from an effect).
+  const [prevName, setPrevName] = useState(task.name)
+  if (task.name !== prevName) { setPrevName(task.name); setNameVal(task.name) }
+  const [prevNotes, setPrevNotes] = useState(task.notes)
+  if (task.notes !== prevNotes) { setPrevNotes(task.notes); setNotesVal(task.notes ?? '') }
 
   const saveName = async () => {
     const trimmed = nameVal.trim()

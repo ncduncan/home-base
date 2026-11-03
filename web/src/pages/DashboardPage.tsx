@@ -137,6 +137,9 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
       })
   }, [loadOverrides, loadGusOverrides, loadHomebaseEvents])
 
+  // Fetching from an external system is what effects are for; the rule trips on
+  // the loading/error flags fetchEvents resets synchronously before the request.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchEvents(weekOffset) }, [fetchEvents, weekOffset])
 
   // Merge homebase events into the raw event list, then apply overrides
