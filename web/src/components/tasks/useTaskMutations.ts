@@ -1,16 +1,21 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { createTask, updateTask, deleteTask } from '../../lib/asana'
+import { createTaskMutations } from '../../lib/task-mutations'
+import { useToast } from '../../lib/toast'
 import type { AsanaTask, AsanaUser } from '../../types'
-import type { TaskUpdatePatch } from './TaskRow'
 
 export function useTaskMutations(
   tasks: AsanaTask[],
   setTasks: React.Dispatch<React.SetStateAction<AsanaTask[]>>,
   users: AsanaUser[],
 ) {
-  const addTask = useCallback((task: AsanaTask) => {
-    setTasks(prev => [task, ...prev])
-  }, [setTasks])
+  const notify = useToast()
+
+  // Edit and create are optimistic with rollback + toast (lib/task-mutations).
+  const { editTask, createTask: createTaskOptimistic } = useMemo(
+    () => createTaskMutations({ setTasks, users, api: { createTask, updateTask }, notify }),
+    [setTasks, users, notify],
+  )
 
   const toggleTask = useCallback(async (gid: string, completed: boolean) => {
     setTasks(prev => prev.map(t => t.gid === gid ? { ...t, completed } : t))
@@ -31,23 +36,5 @@ export function useTaskMutations(
     }
   }, [tasks, setTasks])
 
-  const editTask = useCallback(async (gid: string, patch: TaskUpdatePatch) => {
-    const { assignee_gid, ...rest } = patch
-    setTasks(prev => prev.map(t => {
-      if (t.gid !== gid) return t
-      const newAssignee = assignee_gid !== undefined
-        ? (assignee_gid
-          ? (users.find(u => u.gid === assignee_gid)
-            ? { gid: assignee_gid, name: users.find(u => u.gid === assignee_gid)!.name }
-            : t.assignee)
-          : null)
-        : t.assignee
-      return { ...t, ...rest, assignee: newAssignee }
-    }))
-    const apiPatch: Parameters<typeof updateTask>[1] = { ...rest }
-    if (assignee_gid !== undefined) apiPatch.assignee = assignee_gid
-    await updateTask(gid, apiPatch)
-  }, [setTasks, users])
-
-  return { addTask, toggleTask, removeTask, editTask, createTask }
+  return { toggleTask, removeTask, editTask, createTask: createTaskOptimistic }
 }

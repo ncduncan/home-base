@@ -5,8 +5,10 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import type { AsanaTask, AsanaUser } from '../../types'
 import AssigneeButton from './AssigneeButton'
 import DueDateChip from './DueDateChip'
+import { isPendingId } from '../../lib/optimistic'
+import type { TaskUpdatePatch } from '../../lib/task-mutations'
 
-export type TaskUpdatePatch = Partial<Pick<AsanaTask, 'name' | 'notes' | 'due_on'> & { assignee_gid: string | null }>
+export type { TaskUpdatePatch }
 
 interface Props {
   task: AsanaTask
@@ -24,6 +26,8 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
   const [expanded, setExpanded] = useState(false)
   const [notesVal, setNotesVal] = useState(task.notes ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // A just-added task has no Asana gid yet: read-only until it's saved.
+  const pending = isPendingId(task.gid)
 
   // Reset local edits when the task changes upstream (adjust-state-during-render
   // pattern, so there's no extra render pass from an effect).
@@ -48,8 +52,12 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
     <Popover open={expanded} onOpenChange={setExpanded}>
       <li className="group border-b border-hb-border-rule last:border-0">
       <PopoverAnchor asChild>
-      <div className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-black/[.02]">
+      <div className={`flex items-center gap-1.5 px-2 py-1.5 hover:bg-black/[.02] ${pending ? 'opacity-60' : ''}`}>
+      {/* `disabled` on a fieldset disables every control inside it; `contents`
+          keeps it out of the flex layout. */}
+      <fieldset disabled={pending} className="contents">
         <Checkbox
+          disabled={pending}
           checked={task.completed}
           onCheckedChange={checked => onToggle(task.gid, checked as boolean)}
           className="shrink-0 h-3.5 w-3.5"
@@ -69,7 +77,7 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
           />
         ) : (
           <span
-            onClick={() => !task.completed && setNameEditing(true)}
+            onClick={() => !task.completed && !pending && setNameEditing(true)}
             className={`flex-1 min-w-0 ${compact ? 'text-[11px]' : 'text-[13px]'} ${
               task.completed
                 ? 'line-through text-hb-fg-muted'
@@ -122,6 +130,7 @@ export default function TaskRow({ task, users, onToggle, onDelete, onUpdate, com
             aria-label="Delete"
           >✕</button>
         )}
+      </fieldset>
       </div>
 
       </PopoverAnchor>

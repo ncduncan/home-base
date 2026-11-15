@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import type { CalendarEvent, CalendarOverride, GusOverride } from '../types'
+import { isPendingId } from '../lib/optimistic'
 
 interface Props {
   event: CalendarEvent
@@ -41,20 +42,14 @@ export default function EventDetail({
   const dateStr = event.start.slice(0, 10)
   const gusRole = gusRoleOf(event)
   const isGus = gusRole !== null && !!onSetGusOwner && !!onClearGusOwner
-  const [gusSaving, setGusSaving] = useState(false)
 
-  async function chooseGusOwner(owner: 'nat' | 'caitie' | 'auto') {
+  // Handlers below are optimistic: the change is on screen as soon as they're
+  // called and a failure rolls back with a toast, so close without awaiting.
+  function chooseGusOwner(owner: 'nat' | 'caitie' | 'auto') {
     if (!gusRole || !onSetGusOwner || !onClearGusOwner) return
-    setGusSaving(true)
-    try {
-      if (owner === 'auto') await onClearGusOwner(dateStr, gusRole)
-      else await onSetGusOwner(dateStr, gusRole, owner)
-      onClose()
-    } catch (e) {
-      console.error('Failed to set Gus owner:', e)
-    } finally {
-      setGusSaving(false)
-    }
+    if (owner === 'auto') void onClearGusOwner(dateStr, gusRole)
+    else void onSetGusOwner(dateStr, gusRole, owner)
+    onClose()
   }
 
   const [hidden, setHidden] = useState(override?.hidden ?? false)
@@ -72,7 +67,8 @@ export default function EventDetail({
     override?.amion_kind_override ?? event.amion_kind ?? ''
   )
   const [notes, setNotes] = useState(override?.notes ?? '')
-  const [saving, setSaving] = useState(false)
+  // An override that hasn't been saved yet has no server id to reset by.
+  const overridePending = override !== null && isPendingId(override.id)
 
   const hasChanges = hidden !== (override?.hidden ?? false)
     || (startTime && `${dateStr}T${startTime}:00` !== (override?.start_override ?? (event.all_day ? '' : event.start)))
@@ -80,48 +76,36 @@ export default function EventDetail({
     || (event.is_amion && amionKind !== (override?.amion_kind_override ?? event.amion_kind ?? ''))
     || notes !== (override?.notes ?? '')
 
-  async function handleSave() {
-    setSaving(true)
-    try {
-      // Decide which calendar date the new endTime belongs to:
-      // - end > start  → same day (e.g. shortening a 24hr shift to 8a–5p)
-      // - end ≤ start  → next day (overnight shift, e.g. 4p → 8a +1)
-      // Using the original event's end-date here would lock shortened shifts
-      // into a "+1" cross-midnight, which then leaks into Gus availability.
-      let endDateStr = dateStr
-      if (startTime && endTime && endTime <= startTime) {
-        const next = new Date(`${dateStr}T12:00:00`)
-        next.setDate(next.getDate() + 1)
-        endDateStr = format(next, 'yyyy-MM-dd')
-      }
-      await onSave({
-        event_key: event.id,
-        event_date: dateStr,
-        hidden,
-        title_override: null,
-        start_override: startTime ? `${dateStr}T${startTime}:00` : null,
-        end_override: endTime ? `${endDateStr}T${endTime}:00` : null,
-        amion_kind_override: event.is_amion && amionKind !== event.amion_kind ? amionKind : null,
-        notes: notes.trim() || null,
-        created_by: userEmail,
-      })
-      onClose()
-    } catch (e) {
-      console.error('Failed to save override:', e)
-    } finally {
-      setSaving(false)
+  function handleSave() {
+    // Decide which calendar date the new endTime belongs to:
+    // - end > start  → same day (e.g. shortening a 24hr shift to 8a–5p)
+    // - end ≤ start  → next day (overnight shift, e.g. 4p → 8a +1)
+    // Using the original event's end-date here would lock shortened shifts
+    // into a "+1" cross-midnight, which then leaks into Gus availability.
+    let endDateStr = dateStr
+    if (startTime && endTime && endTime <= startTime) {
+      const next = new Date(`${dateStr}T12:00:00`)
+      next.setDate(next.getDate() + 1)
+      endDateStr = format(next, 'yyyy-MM-dd')
     }
+    void onSave({
+      event_key: event.id,
+      event_date: dateStr,
+      hidden,
+      title_override: null,
+      start_override: startTime ? `${dateStr}T${startTime}:00` : null,
+      end_override: endTime ? `${endDateStr}T${endTime}:00` : null,
+      amion_kind_override: event.is_amion && amionKind !== event.amion_kind ? amionKind : null,
+      notes: notes.trim() || null,
+      created_by: userEmail,
+    })
+    onClose()
   }
 
-  async function handleReset() {
-    if (!override) return
-    setSaving(true)
-    try {
-      await onDelete(override.id)
-      onClose()
-    } finally {
-      setSaving(false)
-    }
+  function handleReset() {
+    if (!override || overridePending) return
+    void onDelete(override.id)
+    onClose()
   }
 
   return (
@@ -169,7 +153,6 @@ export default function EventDetail({
                 <button
                   key={opt.value}
                   onClick={() => void chooseGusOwner(opt.value)}
-                  disabled={gusSaving}
                   className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
                     selected
                       ? 'bg-hb-fg text-hb-card border-hb-fg'
@@ -250,17 +233,17 @@ export default function EventDetail({
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={saving || !hasChanges}
+          disabled={!hasChanges}
           className="text-xs h-7"
         >
-          {saving ? 'Saving...' : 'Save Override'}
+          Save Override
         </Button>
         {override && (
           <Button
             variant="outline"
             size="sm"
             onClick={handleReset}
-            disabled={saving}
+            disabled={overridePending}
             className="text-xs h-7"
           >
             <Undo2 size={12} className="mr-1" />

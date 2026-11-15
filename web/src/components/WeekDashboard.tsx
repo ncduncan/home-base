@@ -267,7 +267,7 @@ export default function WeekDashboard({
             users={users}
             selfGid={selfGid}
             defaultDueDate={defaultAddDate}
-            onAdd={mutations.addTask}
+            onCreate={t => void mutations.createTask(t)}
             onClose={() => setAddMode(null)}
           />
         </div>
