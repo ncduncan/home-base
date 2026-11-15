@@ -10,7 +10,7 @@
 import type { CalendarOverride, GusOverride } from '@home-base/shared/types'
 import type { HomebaseEvent } from '@home-base/shared/homebase-events'
 import {
-  beginWrite, confirmWrite, failWrite, nextWriteTick, upsertBy, removeBy, pendingId, isPendingId,
+  beginWrite, confirmWrite, failWrite, nextWriteTick, serialQueue, upsertBy, removeBy, pendingId, isPendingId,
   type OptimisticList, type Transform,
 } from './optimistic'
 
@@ -87,12 +87,16 @@ export function createDashboardMutations(deps: {
   userEmail: string
 }) {
   const { overrides, gusOverrides, homebaseEvents, api, notify, userEmail } = deps
+  // One queue per list: writes to the same list reach the server in the order
+  // the user made them (see serialQueue). The overlays still show all of them
+  // at once, newest on top.
+  const q = { overrides: serialQueue(), gus: serialQueue(), hb: serialQueue() }
   return {
     saveOverride(o: Omit<CalendarOverride, 'id'>): Promise<void> {
       return runOptimisticWrite(
         overrides,
         upsertKeepingId<CalendarOverride>(overrideKey, o, pendingId()),
-        () => api.upsertOverride(o),
+        () => q.overrides(() => api.upsertOverride(o)),
         saved => upsertBy(overrideKey, saved),
         () => notify("Couldn't save the event change"),
       )
@@ -104,7 +108,7 @@ export function createDashboardMutations(deps: {
       return runOptimisticWrite(
         overrides,
         removeBy(overrideId, id),
-        () => api.deleteOverride(id),
+        () => q.overrides(() => api.deleteOverride(id)),
         () => removeBy(overrideId, id),
         () => notify("Couldn't reset the event"),
       )
@@ -115,7 +119,7 @@ export function createDashboardMutations(deps: {
       return runOptimisticWrite(
         gusOverrides,
         upsertKeepingId<GusOverride>(gusKey, row, pendingId()),
-        () => api.upsertGusOverride(row),
+        () => q.gus(() => api.upsertGusOverride(row)),
         saved => upsertBy(gusKey, saved),
         () => notify(`Couldn't change the ${role} owner`),
       )
@@ -126,7 +130,7 @@ export function createDashboardMutations(deps: {
       return runOptimisticWrite(
         gusOverrides,
         removeBy<GusOverride>(gusKey, k),
-        () => api.deleteGusOverride(date, role),
+        () => q.gus(() => api.deleteGusOverride(date, role)),
         () => removeBy<GusOverride>(gusKey, k),
         () => notify(`Couldn't reset the ${role} owner`),
       )
@@ -137,7 +141,7 @@ export function createDashboardMutations(deps: {
       return runOptimisticWrite(
         homebaseEvents,
         upsertBy(hbId, { ...fields, id: tmp }),
-        () => api.createHomebaseEvent(fields),
+        () => q.hb(() => api.createHomebaseEvent(fields)),
         created => rows => upsertBy(hbId, created)(removeBy(hbId, tmp)(rows)),
         () => notify("Couldn't add the event"),
       )
@@ -148,7 +152,7 @@ export function createDashboardMutations(deps: {
       return runOptimisticWrite(
         homebaseEvents,
         removeBy(hbId, id),
-        () => api.deleteHomebaseEvent(id),
+        () => q.hb(() => api.deleteHomebaseEvent(id)),
         () => removeBy(hbId, id),
         () => notify("Couldn't delete the event"),
       )

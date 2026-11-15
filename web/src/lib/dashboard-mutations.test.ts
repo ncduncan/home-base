@@ -111,6 +111,39 @@ describe('dashboard mutations: pickup/dropoff owner', () => {
   })
 })
 
+describe('dashboard mutations: write ordering', () => {
+  it('starts a write only after the previous one on the same list settles', async () => {
+    const up = deferred<GusOverride>()
+    const del = vi.fn(() => Promise.resolve())
+    const t = setup({ upsertGusOverride: () => up.promise, deleteGusOverride: del })
+    const a = t.m.setGusOwner('2026-11-16', 'pickup', 'caitie')
+    const b = t.m.clearGusOwner('2026-11-16', 'pickup')
+    // Both changes are on screen at once; the newest wins.
+    expect(viewOf(t.gusOverrides.get())).toEqual([])
+    await Promise.resolve()
+    expect(del).not.toHaveBeenCalled()
+    up.resolve(gus({ id: 'real', owner: 'caitie' }))
+    await a
+    await b
+    expect(del).toHaveBeenCalledTimes(1)
+    expect(viewOf(t.gusOverrides.get())).toEqual([])
+    expect(hasPendingWrites(t.gusOverrides.get())).toBe(false)
+  })
+
+  it('a failed write does not stop the next queued write', async () => {
+    const t = setup({
+      upsertGusOverride: () => Promise.reject(new Error('offline')),
+      deleteGusOverride: () => Promise.resolve(),
+    }, { gus: [gus()] })
+    const a = t.m.setGusOwner('2026-11-16', 'pickup', 'caitie')
+    const b = t.m.clearGusOwner('2026-11-16', 'pickup')
+    await a
+    await b
+    expect(viewOf(t.gusOverrides.get())).toEqual([])
+    expect(t.notify).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('dashboard mutations: calendar overrides', () => {
   it('shows a saved override immediately and keeps the existing id while pending', () => {
     const t = setup({ upsertOverride: () => new Promise(() => {}) }, { overrides: [override()] })
@@ -210,7 +243,7 @@ function setupTasks(api: Partial<TaskApi>, initial: AsanaTask[] = []) {
   const tasks = store(initial)
   const notify = vi.fn()
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  const m = createTaskMutations({ setTasks: tasks.set, users, api: api as TaskApi, notify })
+  const m = createTaskMutations({ getTasks: tasks.get, setTasks: tasks.set, users, api: api as TaskApi, notify })
   return { m, tasks, notify }
 }
 
@@ -231,6 +264,45 @@ describe('task mutations', () => {
     await done
     expect(t.tasks.get()).toEqual([task({ completed: true })])
     expect(t.notify).toHaveBeenCalledWith("Couldn't update the task")
+  })
+
+  it('two failed edits to the same field roll back to the saved value, not the first edit', async () => {
+    const t = setupTasks({ updateTask: () => Promise.reject(new Error('offline')) }, [task()])
+    const a = t.m.editTask('t1', { due_on: '2026-12-01' })
+    const b = t.m.editTask('t1', { due_on: '2026-12-02' })
+    expect(t.tasks.get()[0].due_on).toBe('2026-12-02')
+    await a
+    await b
+    expect(t.tasks.get()[0].due_on).toBe('2026-11-16')
+  })
+
+  it('a failed edit after a saved one rolls back to the saved value', async () => {
+    let n = 0
+    const t = setupTasks({
+      updateTask: () => (++n === 1 ? Promise.resolve(task()) : Promise.reject(new Error('offline'))),
+    }, [task()])
+    const a = t.m.editTask('t1', { due_on: '2026-12-01' })
+    const b = t.m.editTask('t1', { due_on: '2026-12-02' })
+    await a
+    await b
+    expect(t.tasks.get()[0].due_on).toBe('2026-12-01')
+  })
+
+  it('edits to one task are sent one at a time', async () => {
+    const first = deferred<AsanaTask>()
+    const upd = vi.fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => Promise.resolve(task()))
+    const t = setupTasks({ updateTask: upd }, [task()])
+    const a = t.m.editTask('t1', { name: 'A' })
+    const b = t.m.editTask('t1', { name: 'B' })
+    await Promise.resolve()
+    expect(upd).toHaveBeenCalledTimes(1)
+    first.resolve(task())
+    await a
+    await b
+    expect(upd).toHaveBeenCalledTimes(2)
+    expect(t.tasks.get()[0].name).toBe('B')
   })
 
   it('adds a task immediately with a pending gid, then swaps in the created task', async () => {

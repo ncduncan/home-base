@@ -114,6 +114,23 @@ export function removeBy<T>(key: (row: T) => string, k: string): Transform<T> {
   return rows => rows.filter(r => key(r) !== k)
 }
 
+// ── Serial write queue ──────────────────────────────────────────────────────
+
+/**
+ * Runs writes one at a time, in the order the user made them. Overlapping
+ * writes to one row (set an owner, then reset it) could otherwise land at the
+ * server in either order and leave it disagreeing with the screen. A failed
+ * write doesn't block the next.
+ */
+export function serialQueue(): <R>(write: () => Promise<R>) => Promise<R> {
+  let tail: Promise<unknown> = Promise.resolve()
+  return write => {
+    const run = tail.then(write)
+    tail = run.catch(() => {})
+    return run
+  }
+}
+
 // ── Temporary ids for rows the server hasn't created yet ───────────────────
 
 const PENDING_PREFIX = 'pending-'

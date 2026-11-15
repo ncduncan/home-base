@@ -134,6 +134,13 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
 
   // Whether a visible (non-silent) load is in flight. Read from callbacks only.
   const loudFetchRef = useRef(false)
+  // A silent check that was skipped because a visible load was in flight. That
+  // load may have been issued before the sync's Google writes landed, so the
+  // check runs once it finishes.
+  const silentDeferredRef = useRef(false)
+  // Points at the latest fetchEvents, so its `finally` can run that deferred
+  // check without referencing itself inside its own useCallback.
+  const fetchEventsRef = useRef<((offset: number, opts?: { silent?: boolean }) => void) | null>(null)
 
   // `silent` is the post-sync check that Google matches: same week, data
   // already on screen, so it shows no loading state and keeps the sync gates
@@ -143,7 +150,10 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     // A silent refetch must never supersede a visible load: bumping the
     // sequence would discard that load's `finally` and leave the week stuck on
     // its loading state. The visible load brings fresh data anyway.
-    if (silent && loudFetchRef.current) return
+    if (silent && loudFetchRef.current) {
+      silentDeferredRef.current = true
+      return
+    }
     const seq = ++fetchSeqRef.current
     const startedAt = writeClock()
     if (!silent) {
@@ -158,8 +168,15 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
     fetchCalendarEvents(offset)
       .then(({ events, failedSources: failed }) => {
         if (seq !== fetchSeqRef.current) return // stale response, ignore
-        setRawEvents(events)
         setFailedSources(failed)
+        // A partial background read would drop a source's events from a week
+        // that's already showing them (and flip Gus chips). Keep the screen;
+        // failedSources still holds the sync off until a complete read.
+        if (silent && failed > 0) {
+          console.error('Background calendar refetch incomplete; keeping current events')
+          return
+        }
+        setRawEvents(events)
       })
       .catch((e: unknown) => {
         if (seq !== fetchSeqRef.current) return
@@ -181,10 +198,16 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
       })
       .finally(() => {
         if (seq !== fetchSeqRef.current) return
-        loudFetchRef.current = false
         setEventsLoading(false)
+        if (silent) return
+        loudFetchRef.current = false
+        if (silentDeferredRef.current) {
+          silentDeferredRef.current = false
+          fetchEventsRef.current?.(offset, { silent: true })
+        }
       })
   }, [loadOverrides, loadGusOverrides, loadHomebaseEvents])
+  useEffect(() => { fetchEventsRef.current = fetchEvents })
 
   // Fetching from an external system is what effects are for; the rule trips on
   // the loading/error flags fetchEvents resets synchronously before the request.
