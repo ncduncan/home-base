@@ -1,16 +1,13 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
-const GoalsPage = lazy(() => import('./pages/GoalsPage'))
 import { ALLOWED_EMAILS } from './lib/owners'
 import type { Session } from '@supabase/supabase-js'
-import type { AppTab } from './components/Header'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [unauthorized, setUnauthorized] = useState(false)
-  const [tab, setTab] = useState<AppTab>('home')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -40,18 +37,7 @@ export default function App() {
   }
 
   if (session) {
-    if (tab === 'home') {
-      return <DashboardPage session={session} tab={tab} onTabChange={setTab} />
-    }
-    return (
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-hb-page">
-          <div className="text-hb-fg-faint text-sm">Loading...</div>
-        </div>
-      }>
-        <GoalsPage session={session} tab={tab} onTabChange={setTab} />
-      </Suspense>
-    )
+    return <DashboardPage session={session} />
   }
   return <LoginPage unauthorized={unauthorized} />
 }
