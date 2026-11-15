@@ -21,11 +21,9 @@ import WeekDashboard from '../components/WeekDashboard'
 
 interface Props {
   session: Session
-  tab: 'home' | 'goals'
-  onTabChange: (tab: 'home' | 'goals') => void
 }
 
-export default function DashboardPage({ session, tab, onTabChange }: Props) {
+export default function DashboardPage({ session }: Props) {
   // ── Asana tasks ───────────────────────────────────────────────────────────
   const [tasks, setTasks] = useState<AsanaTask[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
@@ -394,7 +392,7 @@ export default function DashboardPage({ session, tab, onTabChange }: Props) {
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-hb-page">
-      <Header session={session} tab={tab} onTabChange={onTabChange} />
+      <Header session={session} />
       <main className="px-6 py-6">
         <WeekDashboard
           events={events}
