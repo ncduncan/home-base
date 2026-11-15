@@ -6,6 +6,7 @@ import { computeRangeBlock, computeNatWorkBlock, type BusyBlock } from '../lib/b
 import EventDetail from './EventDetail'
 import DayHeaderPanel from './DayHeaderPanel'
 import TaskRow from './tasks/TaskRow'
+import { isPendingId } from '../lib/optimistic'
 import type { TaskUpdatePatch } from './tasks/TaskRow'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
@@ -251,7 +252,9 @@ function OwnerSection({
                         e.stopPropagation()
                         void onDeleteHomebaseEvent(homebaseIdFromCalendarEventId(event.id))
                       }}
-                      className="absolute top-1/2 -translate-y-1/2 right-1 opacity-0 group-hover/event:opacity-100 text-gray-300 hover:text-red-500 transition-all text-[10px]"
+                      // Read-only until the server assigns its id.
+                      disabled={isPendingId(homebaseIdFromCalendarEventId(event.id))}
+                      className="disabled:hidden absolute top-1/2 -translate-y-1/2 right-1 opacity-0 group-hover/event:opacity-100 text-gray-300 hover:text-red-500 transition-all text-[10px]"
                       aria-label="Delete event"
                     >
                       ✕

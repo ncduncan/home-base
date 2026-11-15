@@ -1,18 +1,35 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createTask, updateTask, deleteTask } from '../../lib/asana'
+import { createTaskMutations, createTaskWriteState } from '../../lib/task-mutations'
+import { isPendingId } from '../../lib/optimistic'
+import { useToast } from '../../lib/toast'
 import type { AsanaTask, AsanaUser } from '../../types'
-import type { TaskUpdatePatch } from './TaskRow'
 
 export function useTaskMutations(
   tasks: AsanaTask[],
   setTasks: React.Dispatch<React.SetStateAction<AsanaTask[]>>,
   users: AsanaUser[],
 ) {
-  const addTask = useCallback((task: AsanaTask) => {
-    setTasks(prev => [task, ...prev])
-  }, [setTasks])
+  const notify = useToast()
+  const [writeState] = useState(createTaskWriteState)
+  // Edit and create are optimistic with rollback + toast (lib/task-mutations).
+  // Re-created when `tasks` changes; the write state it shares is stable.
+  const { editTask, createTask: createTaskOptimistic } = useMemo(
+    () => createTaskMutations({
+      getTasks: () => tasks,
+      state: writeState,
+      setTasks,
+      users,
+      api: { createTask, updateTask },
+      notify,
+    }),
+    [tasks, setTasks, users, notify, writeState],
+  )
 
+  // A just-added task has no Asana gid yet; its controls are disabled, and
+  // these guard against any other caller.
   const toggleTask = useCallback(async (gid: string, completed: boolean) => {
+    if (isPendingId(gid)) return
     setTasks(prev => prev.map(t => t.gid === gid ? { ...t, completed } : t))
     try {
       await updateTask(gid, { completed })
@@ -22,6 +39,7 @@ export function useTaskMutations(
   }, [setTasks])
 
   const removeTask = useCallback(async (gid: string) => {
+    if (isPendingId(gid)) return
     const backup = tasks.find(t => t.gid === gid)
     setTasks(prev => prev.filter(t => t.gid !== gid))
     try {
@@ -31,23 +49,5 @@ export function useTaskMutations(
     }
   }, [tasks, setTasks])
 
-  const editTask = useCallback(async (gid: string, patch: TaskUpdatePatch) => {
-    const { assignee_gid, ...rest } = patch
-    setTasks(prev => prev.map(t => {
-      if (t.gid !== gid) return t
-      const newAssignee = assignee_gid !== undefined
-        ? (assignee_gid
-          ? (users.find(u => u.gid === assignee_gid)
-            ? { gid: assignee_gid, name: users.find(u => u.gid === assignee_gid)!.name }
-            : t.assignee)
-          : null)
-        : t.assignee
-      return { ...t, ...rest, assignee: newAssignee }
-    }))
-    const apiPatch: Parameters<typeof updateTask>[1] = { ...rest }
-    if (assignee_gid !== undefined) apiPatch.assignee = assignee_gid
-    await updateTask(gid, apiPatch)
-  }, [setTasks, users])
-
-  return { addTask, toggleTask, removeTask, editTask, createTask }
+  return { toggleTask, removeTask, editTask, createTask: createTaskOptimistic }
 }

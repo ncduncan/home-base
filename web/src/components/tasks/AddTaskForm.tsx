@@ -1,19 +1,20 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
-import { createTask } from '../../lib/asana'
-import type { AsanaTask, AsanaUser } from '../../types'
+import type { AsanaUser } from '../../types'
+import type { NewTaskFields } from '../../lib/task-mutations'
 import { firstWord } from './helpers'
 
 interface Props {
   users: AsanaUser[]
   selfGid: string
   defaultDueDate?: string | null  // YYYY-MM-DD
-  onAdd: (task: AsanaTask) => void
+  /** Optimistic: shows the task at once; failures surface as a toast. */
+  onCreate: (fields: NewTaskFields) => void
   onClose: () => void
 }
 
-export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onClose }: Props) {
+export default function AddTaskForm({ users, selfGid, defaultDueDate, onCreate, onClose }: Props) {
   const [name, setName] = useState('')
   const [dueDate, setDueDate] = useState(defaultDueDate ?? format(new Date(), 'yyyy-MM-dd'))
   // Empty until the user picks someone. Until then the form falls back to
@@ -21,28 +22,14 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
   // when selfGid or users load after the form mounts.
   const [pickedAssigneeGid, setAssigneeGid] = useState('')
   const assigneeGid = pickedAssigneeGid || selfGid || users[0]?.gid || ''
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const submit = async () => {
+  const submit = () => {
     if (!name.trim()) return
-    setSaving(true)
-    setError(null)
-    try {
-      const task = await createTask({
-        name: name.trim(),
-        due_on: dueDate || undefined,
-        assignee: assigneeGid || undefined,
-      })
-      onAdd(task)
-      setName('')
-      onClose()
-    } catch (e) {
-      console.error('AddTaskForm create failed:', e)
-      setError(e instanceof Error ? e.message : 'Failed to create task')
-    } finally {
-      setSaving(false)
-    }
+    onCreate({
+      name: name.trim(),
+      due_on: dueDate || undefined,
+      assignee: assigneeGid || undefined,
+    })
+    onClose()
   }
 
   return (
@@ -61,7 +48,7 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
         value={name}
         onChange={e => setName(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Enter' && name.trim()) void submit()
+          if (e.key === 'Enter' && name.trim()) submit()
           if (e.key === 'Escape') onClose()
         }}
       />
@@ -89,19 +76,13 @@ export default function AddTaskForm({ users, selfGid, defaultDueDate, onAdd, onC
         <div className="flex-1" />
 
         <button
-          onClick={() => void submit()}
-          disabled={saving || !name.trim()}
+          onClick={submit}
+          disabled={!name.trim()}
           className="text-xs h-7 px-3 bg-hb-fg text-white rounded-md disabled:opacity-40 hover:bg-black transition-colors"
         >
-          {saving ? 'Adding...' : 'Add task'}
+          Add task
         </button>
       </div>
-
-      {error && (
-        <div className="px-2 py-1 bg-[#fcf0f0] border border-[#f1d8d8] rounded">
-          <p className="text-[11px] text-[#a14040]">{error}</p>
-        </div>
-      )}
     </div>
   )
 }

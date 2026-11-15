@@ -7,6 +7,7 @@ import { OWNER_LABELS, OWNER_EMAILS } from '../lib/owners'
 interface Props {
   defaultDate: string           // YYYY-MM-DD
   currentUserEmail: string
+  /** Optimistic: shows the event at once; failures surface as a toast. */
   onCreate: (fields: Omit<HomebaseEvent, 'id'>) => Promise<void>
   onClose: () => void
 }
@@ -22,32 +23,20 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
     if (OWNER_EMAILS.caitie && email === OWNER_EMAILS.caitie) return 'caitie'
     return 'nat'
   })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  async function submit() {
+  function submit() {
     if (!title.trim()) return
-    setSaving(true)
-    setError(null)
-    try {
-      await onCreate({
-        title: title.trim(),
-        start_time: allDay ? date : `${date}T${startTime}:00`,
-        end_time: allDay ? date : `${date}T${endTime}:00`,
-        all_day: allDay,
-        location: null,
-        notes: null,
-        owner,
-        created_by: currentUserEmail,
-      })
-      setTitle('')
-      onClose()
-    } catch (e) {
-      console.error('AddEventForm create failed:', e)
-      setError(e instanceof Error ? e.message : 'Failed to create event')
-    } finally {
-      setSaving(false)
-    }
+    void onCreate({
+      title: title.trim(),
+      start_time: allDay ? date : `${date}T${startTime}:00`,
+      end_time: allDay ? date : `${date}T${endTime}:00`,
+      all_day: allDay,
+      location: null,
+      notes: null,
+      owner,
+      created_by: currentUserEmail,
+    })
+    onClose()
   }
 
   return (
@@ -66,7 +55,7 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
         value={title}
         onChange={e => setTitle(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Enter' && title.trim()) void submit()
+          if (e.key === 'Enter' && title.trim()) submit()
           if (e.key === 'Escape') onClose()
         }}
       />
@@ -122,19 +111,13 @@ export default function AddEventForm({ defaultDate, currentUserEmail, onCreate, 
         <div className="flex-1" />
 
         <button
-          onClick={() => void submit()}
-          disabled={saving || !title.trim()}
+          onClick={submit}
+          disabled={!title.trim()}
           className="text-xs h-7 px-3 bg-hb-fg text-white rounded-md disabled:opacity-40 hover:bg-black transition-colors"
         >
-          {saving ? 'Adding...' : 'Add event'}
+          Add event
         </button>
       </div>
-
-      {error && (
-        <div className="px-2 py-1 bg-[#fcf0f0] border border-[#f1d8d8] rounded">
-          <p className="text-[11px] text-[#a14040]">{error}</p>
-        </div>
-      )}
     </div>
   )
 }
