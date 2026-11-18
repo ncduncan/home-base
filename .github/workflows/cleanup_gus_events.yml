@@ -6,7 +6,7 @@ name: Cleanup Gus Events (one-off)
 #
 # Deletes use sendUpdates=none, so no cancellation emails are sent.
 #
-# Public repo: Action logs are world-readable. The script prints counts only
+# Private repo, but keep Action logs clean anyway. The script prints counts only
 # when GITHUB_ACTIONS=true — never dates, titles or attendees.
 
 on:

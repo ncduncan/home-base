@@ -22,8 +22,8 @@
  *
  * Logging: never titles or attendees. Locally it also prints a per-date
  * breakdown so a dry run is reviewable; under GITHUB_ACTIONS that breakdown is
- * suppressed to counts only, because this repo is public and its Action logs
- * are world-readable — a list of pickup dates is the household's schedule.
+ * suppressed to counts only — the repo is private, but Action logs stay clean
+ * as defense in depth: a list of pickup dates is the household's schedule.
  */
 
 import { purgeGusEvents } from '@home-base/shared'
@@ -129,7 +129,7 @@ async function main(): Promise<void> {
   }
 
   if (process.env.GITHUB_ACTIONS === 'true') {
-    // Public repo → public logs. A list of pickup dates is the household's
+    // Keep CI logs clean: a list of pickup dates is the household's
     // schedule, so the per-date breakdown stays local-only.
     console.log('[cleanup-gus] per-date breakdown suppressed in CI')
   } else {

@@ -19,27 +19,40 @@ export const MIRRORS = [
   {
     source: 'shared/src/calendar/gus-sync.ts',
     target: 'supabase/functions/calendar-ops/gus-sync.ts',
+    purpose: 'keep the web path and the Sunday agent on identical\n// reconciliation logic.',
+    test: 'gus-sync.mirror.test.ts',
+  },
+  {
+    source: 'shared/src/cors.ts',
+    target: 'supabase/functions/calendar-ops/cors.ts',
+    purpose: 'keep both functions on one tested CORS allowlist.',
+    test: 'cors.mirror.test.ts',
+  },
+  {
+    source: 'shared/src/cors.ts',
+    target: 'supabase/functions/asana-ops/cors.ts',
+    purpose: 'keep both functions on one tested CORS allowlist.',
+    test: 'cors.mirror.test.ts',
   },
 ]
 
-export function headerFor(source) {
+export function headerFor({ source, purpose, test }) {
   return [
     '// ⚠️  GENERATED FILE — DO NOT EDIT.',
     '//',
     `// Verbatim copy of ${source}. Supabase Edge Functions run on`,
     '// Deno and cannot resolve the npm workspace, so this dependency-free module',
-    '// is mirrored here to keep the web path and the Sunday agent on identical',
-    '// reconciliation logic.',
+    `// is mirrored here to ${purpose}`,
     '//',
     '// Edit the shared original, then run:  npm run sync:edge-shared',
-    '// gus-sync.mirror.test.ts fails if the two drift apart.',
+    `// ${test} fails if the two drift apart.`,
     '',
     '',
   ].join('\n')
 }
 
-export function renderMirror(root, { source }) {
-  return headerFor(source) + readFileSync(join(root, source), 'utf8')
+export function renderMirror(root, mirror) {
+  return headerFor(mirror) + readFileSync(join(root, mirror.source), 'utf8')
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

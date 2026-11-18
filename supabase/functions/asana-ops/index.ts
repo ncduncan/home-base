@@ -3,7 +3,7 @@
 // Routes ALL Asana reads/writes for the web app through a single server-side
 // Personal Access Token (Supabase secret ASANA_PAT). The browser never receives
 // the PAT — this replaces the previous design where VITE_ASANA_PAT was baked
-// into the public GitHub Pages bundle (an Asana PAT is full-account and cannot
+// into the browser bundle (an Asana PAT is full-account and cannot
 // be scoped, so a public bundle leaked total account access).
 //
 // Auth: caller passes a Supabase JWT in `Authorization: Bearer ...`; the JWT
@@ -24,6 +24,7 @@
 //   deleteTask         → {gid} → {ok:true}
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders, parseAllowedOrigins } from './cors.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -34,19 +35,9 @@ const ALLOWED_EMAILS = (Deno.env.get('ALLOWED_EMAILS') ?? '')
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ??
-  'https://ncduncan.github.io,http://localhost:5173')
-  .split(',').map(o => o.trim()).filter(Boolean)
-
-function corsHeaders(origin: string | null): Record<string, string> {
-  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
-  return {
-    'Access-Control-Allow-Origin': allowOrigin,
-    'Vary': 'Origin',
-    'Access-Control-Allow-Headers': 'authorization, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  }
-}
+// Origin allowlist for CORS, from the ALLOWED_ORIGINS secret. Unset → local dev
+// only (fails closed). See ./cors.ts — a generated mirror of shared/src/cors.ts.
+const ALLOWED_ORIGINS = parseAllowedOrigins(Deno.env.get('ALLOWED_ORIGINS'))
 
 // ── Types (mirror shared/src/types.ts) ────────────────────────────────────────
 
@@ -258,7 +249,7 @@ async function deleteTask(gid: string): Promise<void> {
 // ── HTTP entry point ──────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  const cors = corsHeaders(req.headers.get('Origin'))
+  const cors = corsHeaders(req.headers.get('Origin'), ALLOWED_ORIGINS)
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
   if (req.method !== 'POST') {
     return Response.json({ error: 'Method not allowed' }, { status: 405, headers: cors })

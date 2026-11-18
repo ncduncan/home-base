@@ -9,7 +9,7 @@ Personal dashboard and weekly briefing agent.
 Two things in one repo:
 
 ### 1. Web Dashboard (active)
-A private React SPA deployed to GitHub Pages. Shows:
+A React SPA hosted on Vercel (Hobby), built from this private repo. Shows:
 - **Google Calendar** — current week's events with AMION shift badges
 - **Asana Tasks** — everything past due, due today, or due this week; create / edit / complete / delete / reassign between users
 - **Weather** — 7-day forecast inline with each calendar day
@@ -38,7 +38,6 @@ home-base/
 │   ├── collectors/             # calendar.py, asana.py, weather.py
 │   └── publishers/             # email.py, calendar_invites.py
 ├── .github/workflows/
-│   ├── deploy.yml              # Builds web/ → GitHub Pages on push to main
 │   └── weekly_briefing.yml     # DORMANT — Sunday cron (workflow_dispatch retained)
 └── scripts/
     └── generate_token.py       # One-time Google OAuth setup (for agent)
@@ -63,20 +62,26 @@ npm run dev                  # http://localhost:5173
 |---|---|
 | `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
 | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
-| `VITE_ASANA_PAT` | https://app.asana.com/0/my-apps |
-| `VITE_ASANA_WORKSPACE_GID` | Your Asana workspace GID |
+| `VITE_ALLOWED_EMAILS` | Comma-separated emails allowed to log in |
 
-### GitHub Actions secrets (for deploy)
+Asana runs through the `asana-ops` Edge Function (`ASANA_PAT` / `ASANA_WORKSPACE_GID` Supabase secrets); no browser variable.
 
-| Secret | Value |
-|---|---|
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
-| `ALLOWED_EMAILS` | Comma-separated Google emails allowed to log in |
-| `ASANA_PAT` | Asana Personal Access Token |
-| `ASANA_WORKSPACE_GID` | Asana workspace GID |
+### Hosting (Vercel)
 
-Pushes to `main` that touch `web/**` auto-deploy to GitHub Pages.
+The Vercel project is connected to this repo through Vercel's Git integration:
+every push to `main` deploys production, every PR gets a preview URL. Build
+settings live in `web/vercel.json` (root directory `web`; install runs from the
+repo root so the `@home-base/shared` workspace resolves; SPA rewrite to
+`index.html`). The app is served at the domain root (`base: '/'`).
+
+Vercel project env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
+`VITE_ALLOWED_EMAILS`. The Supabase `ALLOWED_ORIGINS` function secret must list
+the Vercel production origin; with it unset, the Edge Functions only allow
+`http://localhost:5173`. Preview URLs are deliberately not allowlisted, so
+calendar and task calls fail CORS on previews.
+
+The built bundle is publicly fetchable from the production URL (no edge gate);
+data stays behind Supabase auth, the `ALLOWED_EMAILS` check and RLS.
 
 ---
 

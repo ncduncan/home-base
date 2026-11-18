@@ -3,7 +3,7 @@ import type { AsanaTask, AsanaUser } from '@home-base/shared/types'
 
 // All Asana reads/writes go through the asana-ops Edge Function, which holds the
 // Personal Access Token as a server-side secret. The browser never sees the PAT
-// (it used to be baked into the public GitHub Pages bundle via VITE_ASANA_PAT —
+// (it used to be baked into the public browser bundle via VITE_ASANA_PAT —
 // a full-account credential exposed to anyone who viewed source).
 
 type AsanaOpBody = Record<string, unknown> & { op: string }
