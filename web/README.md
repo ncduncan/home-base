@@ -23,7 +23,7 @@ Access is restricted to a configurable allowlist of Google accounts (set via `AL
 | Tasks | Asana REST API (direct from browser) |
 | Calendar | Google Calendar REST API (via Supabase `provider_token`) |
 | Weather | Open-Meteo (free, no key required) |
-| Hosting | GitHub Pages (deployed on push to `main`) |
+| Hosting | Vercel (Git integration; production on push to `main`, previews per PR) |
 
 ---
 
@@ -53,7 +53,7 @@ Asana no longer uses a browser variable — the PAT is held server-side by the
 
 ## Deployment
 
-Pushes to `main` that touch `web/**` automatically trigger the GitHub Actions deploy workflow, which builds the Vite app and publishes it to GitHub Pages.
+Vercel builds and deploys `web/` on every push to `main` (production) and every PR (preview). Settings are in `web/vercel.json`; see the root README's Hosting section.
 
 ### Required GitHub Actions secrets
 

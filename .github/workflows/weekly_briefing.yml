@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     # Manual trigger for testing
 
-# Public repo: keep run logs clean of personal content. The agent enforces
+# Private repo, but keep run logs clean of personal content anyway. The agent enforces
 # this in code; this comment is a reminder for human edits.
 
 env:

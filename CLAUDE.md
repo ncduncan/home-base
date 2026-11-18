@@ -75,7 +75,6 @@ home-base/
 ├── supabase/                     # Edge functions (google-token-refresh, trmnl)
 └── .github/workflows/
     ├── weekly_briefing.yml       # Node — Sunday 7am ET briefing email
-    ├── deploy.yml                # Builds web/ and deploys to GitHub Pages
     ├── trmnl_update.yml          # Daily TRMNL display update (Python — separate)
     └── trmnl_finance_update.yml  # TRMNL finance dashboard (Python — separate)
 ```
@@ -88,7 +87,7 @@ npm workspaces at the repo root: `shared`, `web`, `agent/briefing`. Run `npm ins
 - **Web wrappers stay thin.** `web/src/lib/*` files only bind browser singletons (supabase client, `import.meta.env`) and re-export shared functionality. Anything more complex belongs in `shared/`.
 - **Agent uses service-role Supabase + refreshed Google OAuth token.** It runs autonomously without depending on a logged-in user session. Same Google credentials it uses for calendar reads also send the email (gmail.send scope).
 - **Idempotent calendar reconciliation via deterministic event IDs.** Both web and agent reconcile Gus invites against the same Google Calendar. **The contract is the event ID**, derived from `(date, role, owner)` by `gusEventId()` in `shared/src/calendar/gus-sync.ts` — e.g. `hbgus20260908pickupcaitie`. Google enforces ID uniqueness per calendar, so duplicates are structurally impossible no matter how many writers race. See the Gus sync section below before touching any of this.
-- **Public-repo logging policy.** GH Action logs are world-readable. Agent logs counts and step transitions only — never event titles, todo content, or rendered email bodies. The agent enforces this in code (`config.ts` refuses `BRIEFING_DRY_RUN=true` when `GITHUB_ACTIONS=true`).
+- **Log-hygiene policy.** The repo is private, but keep Action logs clean anyway (defense in depth if it's ever made public or logs are shared). Agent logs counts and step transitions only — never event titles, todo content, or rendered email bodies. The agent enforces this in code (`config.ts` refuses `BRIEFING_DRY_RUN=true` when `GITHUB_ACTIONS=true`).
 
 ---
 
@@ -266,13 +265,12 @@ revoked in Google account security).
 | Secret | Used by | Notes |
 |---|---|---|
 | `GOOGLE_OAUTH_TOKEN` | weekly_briefing.yml, trmnl_update.yml | Raw token.json contents |
-| `VITE_SUPABASE_URL` | deploy.yml, weekly_briefing.yml | Same URL used by web + agent |
-| `VITE_SUPABASE_ANON_KEY` | deploy.yml | Browser-bundled (intentional) |
+| `VITE_SUPABASE_URL` | weekly_briefing.yml (web: Vercel env var) | Same URL used by web + agent |
 | `SUPABASE_SERVICE_ROLE_KEY` | weekly_briefing.yml | NEW — agent's RLS-bypass key |
-| `ALLOWED_EMAILS` | deploy.yml (browser-bundled), weekly_briefing.yml | Comma-separated recipient list |
+| `ALLOWED_EMAILS` | weekly_briefing.yml (web: `VITE_ALLOWED_EMAILS` Vercel env var) | Comma-separated recipient list |
 | `ANTHROPIC_API_KEY` | weekly_briefing.yml | Claude Opus 4.7 narrative pass |
-| `ASANA_PAT` | deploy.yml (browser-bundled ⚠), trmnl_update.yml, weekly_briefing.yml | See security note below |
-| `ASANA_WORKSPACE_GID` | deploy.yml, trmnl_update.yml, weekly_briefing.yml | Must be the small **personal** workspace, NOT a large employer org (which 400s on user listing). `deploy.yml` derives `VITE_ASANA_WORKSPACE_GID` from this same secret. See gotcha below. |
+| `ASANA_PAT` | trmnl_update.yml, weekly_briefing.yml | Web uses the `asana-ops` Edge Function's own secret |
+| `ASANA_WORKSPACE_GID` | trmnl_update.yml, weekly_briefing.yml | Must be the small **personal** workspace, NOT a large employer org (which 400s on user listing). See gotcha below. |
 | `OPENWEATHERMAP_API_KEY` | trmnl_update.yml | Not used by the briefing agent |
 | `FRED_API_KEY` | trmnl_finance_update.yml | |
 | `TRMNL_WEBHOOK_URL` | trmnl_update.yml, trmnl_finance_update.yml | |
@@ -287,10 +285,20 @@ paginate), so it can never be enumerated. `resolveWorkspace()` in
 only if it fails — so a wrong GID degrades silently to noisy console 400s +
 PAT-owner-only tasks rather than an outright error.
 
-### Security note: Asana PAT in browser bundle
-`deploy.yml` embeds `VITE_ASANA_PAT` and `VITE_ASANA_WORKSPACE_GID` into the GH Pages bundle.
-Since the site is public, those values are readable via devtools. The Asana PAT is effectively
-public. Long-term fix: move Asana fetches to a Supabase Edge Function. Tracked as a follow-up.
+### Hosting: Vercel
+The dashboard is served by Vercel (Hobby) from this private repo via Vercel's Git
+integration — production on push to `main`, a preview per PR. Config is
+`web/vercel.json`; the app is served at the root (`base: '/'`). Build-time
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_ALLOWED_EMAILS` are Vercel
+project env vars (not GH secrets). The production bundle is publicly fetchable
+(no edge gate) — never put a secret in a `VITE_*` var.
+
+Edge-function CORS lives in `shared/src/cors.ts`, mirrored into both functions by
+`npm run sync:edge-shared`. Allowed origins come from the `ALLOWED_ORIGINS`
+function secret (the Vercel production origin); unset means local dev only.
+Exact match only — Vercel preview URLs are intentionally refused.
+
+Asana calls go through the `asana-ops` Edge Function; the PAT never reaches the browser.
 
 ---
 
@@ -318,6 +326,8 @@ to Node and consume `shared/` like the web app and briefing agent do. Out of sco
 | `web/src/lib/calendar.ts` | Web wrapper: RPC client for the calendar-ops Edge Function (browser holds no Google token) |
 | `supabase/functions/calendar-ops/gus-sync.ts` | Generated mirror — regenerate with `npm run sync:edge-shared` |
 | `agent/briefing/src/cleanup-gus.ts` | One-off duplicate-backlog purge (dry-run by default) |
+| `shared/src/cors.ts` | **Zero-import** Edge Function CORS allowlist, mirrored into `calendar-ops/` and `asana-ops/` |
+| `web/vercel.json` | Vercel build + SPA rewrite |
 | `scripts/sync-edge-shared.mjs` | Regenerates Edge Function mirrors of shared modules |
 | `web/src/lib/asana.ts` | Web wrapper: shared client bound to VITE_ASANA_PAT |
 | `agent/briefing/src/index.ts` | Sunday agent orchestrator |
@@ -337,3 +347,4 @@ to Node and consume `shared/` like the web app and briefing agent do. Out of sco
 | 2026-04-27 | Swapped narrative pass from Gemini to Claude Opus 4.7 via @anthropic-ai/sdk |
 | 2026-09-07 | **Gus invites rebuilt on deterministic event IDs.** Fixes duplicate invites + missing cancellations. Extracted `shared/src/calendar/gus-sync.ts` (mirrored into the Edge Function, drift-tested); paginated every `events.list`; reads now throw instead of returning empty; sync refuses to write from degraded data; dashboard effect keyed on gusCare content to kill a self-driving resync loop; Nat-only gate removed so Caitie's overrides sync too. Added `cleanup-gus` backlog purge |
 | 2026-09-07 | AMION `Research` is a passive non-clinical day — new `research` amion_kind, Caitie keeps both Gus slots |
+| 2026-11-18 | **Hosting moved from GitHub Pages to Vercel** so the repo can go private. `base: '/'`, `web/vercel.json` SPA rewrite, Pages 404 hack and `deploy.yml` removed. Edge-function CORS extracted to `shared/src/cors.ts` (mirrored, tested); default is localhost only, production origin comes from the `ALLOWED_ORIGINS` secret. Log-hygiene policy reworded for a private repo |
