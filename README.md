@@ -62,8 +62,9 @@ npm run dev                  # http://localhost:5173
 |---|---|
 | `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
 | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
-| `VITE_ASANA_PAT` | https://app.asana.com/0/my-apps |
-| `VITE_ASANA_WORKSPACE_GID` | Your Asana workspace GID |
+| `VITE_ALLOWED_EMAILS` | Comma-separated emails allowed to log in |
+
+Asana runs through the `asana-ops` Edge Function (`ASANA_PAT` / `ASANA_WORKSPACE_GID` Supabase secrets); no browser variable.
 
 ### Hosting (Vercel)
 

@@ -14,6 +14,10 @@ describe('parseAllowedOrigins', () => {
     ])
   })
 
+  it('strips a trailing slash so a pasted URL still matches the browser Origin', () => {
+    expect(parseAllowedOrigins('https://a.vercel.app/')).toEqual(['https://a.vercel.app'])
+  })
+
   it('an empty secret allows nothing rather than falling back to the default', () => {
     expect(parseAllowedOrigins('')).toEqual([])
   })
@@ -37,7 +41,7 @@ describe('corsHeaders', () => {
   })
 
   it('never allows the retired GitHub Pages origin under the default list', () => {
-    const h = corsHeaders('https://ncduncan.github.io', parseAllowedOrigins(undefined))
+    const h = corsHeaders('https://example.github.io', parseAllowedOrigins(undefined))
     expect(h['Access-Control-Allow-Origin']).toBeUndefined()
   })
 

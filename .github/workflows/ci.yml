@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Informational only, as in deploy.yml: advisories in build tooling land
+      # Informational only: advisories in build tooling land
       # independent of our code and shouldn't block unrelated merges.
       - name: Audit dependencies
         run: npm audit --audit-level=high

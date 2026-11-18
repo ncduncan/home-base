@@ -13,7 +13,8 @@ export const DEFAULT_ALLOWED_ORIGINS = 'http://localhost:5173'
 export function parseAllowedOrigins(secret: string | undefined): string[] {
   return (secret ?? DEFAULT_ALLOWED_ORIGINS)
     .split(',')
-    .map(o => o.trim())
+    // Browsers send Origin with no trailing slash, so tolerate one in the secret.
+    .map(o => o.trim().replace(/\/+$/, ''))
     .filter(Boolean)
 }
 

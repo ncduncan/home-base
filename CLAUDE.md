@@ -295,7 +295,8 @@ project env vars (not GH secrets). The production bundle is publicly fetchable
 
 Edge-function CORS lives in `shared/src/cors.ts`, mirrored into both functions by
 `npm run sync:edge-shared`. Allowed origins come from the `ALLOWED_ORIGINS`
-function secret (the Vercel production origin); unset means local dev only.
+function secret (the Vercel production origin, e.g. `https://<project>.vercel.app`);
+unset means local dev only.
 Exact match only — Vercel preview URLs are intentionally refused.
 
 Asana calls go through the `asana-ops` Edge Function; the PAT never reaches the browser.
@@ -329,7 +330,7 @@ to Node and consume `shared/` like the web app and briefing agent do. Out of sco
 | `shared/src/cors.ts` | **Zero-import** Edge Function CORS allowlist, mirrored into `calendar-ops/` and `asana-ops/` |
 | `web/vercel.json` | Vercel build + SPA rewrite |
 | `scripts/sync-edge-shared.mjs` | Regenerates Edge Function mirrors of shared modules |
-| `web/src/lib/asana.ts` | Web wrapper: shared client bound to VITE_ASANA_PAT |
+| `web/src/lib/asana.ts` | Web wrapper: RPC client for the asana-ops Edge Function (PAT held server-side) |
 | `agent/briefing/src/index.ts` | Sunday agent orchestrator |
 | `agent/briefing/src/google-token.ts` | Refresh-token → access-token flow |
 | `.github/workflows/weekly_briefing.yml` | Cron `0 11 * * 0` (7am EST / 8am EDT) |
