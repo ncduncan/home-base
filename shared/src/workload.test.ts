@@ -11,6 +11,7 @@ import {
   type WorkloadSettings,
 } from './workload'
 import { computeGusCare } from './gus-care'
+import { processAmionEvents } from './calendar/process'
 import type { AsanaTask, CalendarEvent, GusOverride, GusResponsibility } from './types'
 
 // Invented fixtures only (public repo). 2026-07-05 is a Sunday.
@@ -60,6 +61,18 @@ describe('computeWorkload — work hours', () => {
       ],
     })
     expect(r.weeks[0].byOwner.caitie.work).toBe(8)
+  })
+
+  it('counts a Vacation or Leave day as 0 h: the AMION processor emits no shift for it', () => {
+    const raw = (summary: string, date: string, end: string) =>
+      ({ summary, status: 'confirmed', start: { date }, end: { date: end } })
+    const events = processAmionEvents([
+      raw('Vacation', '2026-07-06', '2026-07-07'),
+      raw('Leave', '2026-07-07', '2026-07-08'),
+      raw('CICU', '2026-07-08', '2026-07-09'), // a regular weekday rotation day
+    ])
+    const r = run({ events })
+    expect(r.weeks[0].byOwner.caitie.work).toBe(10) // only the rotation day
   })
 
   it('credits a shift crossing midnight to the day it starts', () => {
@@ -185,6 +198,18 @@ describe('computeWorkload — empty inputs', () => {
       expect(w.byOwner.caitie.remaining).toBe(7 * 16)
       expect(w.byOwner.nat.remaining).toBe(7 * 16 - 45)
     }
+  })
+
+  it('with default settings, meals are the only home hours and come out of remaining', () => {
+    const r = computeWorkload({
+      events: [], gusCare: [], completedTasks: [], assigneeOwners: {}, settings: DEFAULT_WORKLOAD_SETTINGS,
+      weekStarts: [SUN],
+    })
+    const c = r.weeks[0].byOwner.caitie
+    const meals = ((7 * 45) / 60 + 1) / 2 // half the cooking and half the planning
+    expect(c.home.meals).toBeCloseTo(meals)
+    expect(c.home.total).toBeCloseTo(meals)
+    expect(c.remaining).toBeCloseTo(7 * 16 - meals)
   })
 })
 
