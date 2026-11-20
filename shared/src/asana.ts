@@ -11,6 +11,7 @@ export type AsanaConfig = {
 export type AsanaClient = {
   fetchTasks: () => Promise<AsanaTask[]>
   fetchAllOpenTasks: () => Promise<AsanaTask[]>
+  fetchCompletedTasksInRange: (startISO: string, endISO: string) => Promise<AsanaTask[]>
   fetchWorkspaceUsers: () => Promise<AsanaUser[]>
   fetchMe: () => Promise<AsanaUser>
   createTask: (fields: { name: string; due_on?: string; assignee?: string; notes?: string }) => Promise<AsanaTask>
@@ -263,6 +264,39 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
     return all
   }
 
+  /**
+   * Every task completed in [startISO, endISO), for every allowed user
+   * (workload history, #13). Asana's `completed_since` returns open tasks
+   * plus those completed since the start, paginated; we keep only completed
+   * ones whose `completed_at` falls in the range. Unassigned tasks can't be
+   * listed by assignee, so they never appear here.
+   */
+  async function fetchCompletedTasksInRange(startISO: string, endISO: string): Promise<AsanaTask[]> {
+    const { workspaceGid: resolvedGid, users: allUsers } = await resolveWorkspace()
+
+    const userGids = allUsers.map(u => u.gid)
+    if (userGids.length === 0) userGids.push('me')
+
+    const start = Date.parse(startISO)
+    const end = Date.parse(endISO)
+
+    const seen = new Set<string>()
+    const all: AsanaTask[] = []
+
+    for (const gid of userGids) {
+      const tasks = await fetchTasksForUser(gid, resolvedGid, new Date(start).toISOString())
+      for (const t of tasks) {
+        if (seen.has(t.gid) || !t.completed || !t.completed_at) continue
+        const at = Date.parse(t.completed_at)
+        if (at < start || at >= end) continue
+        seen.add(t.gid)
+        all.push(t)
+      }
+    }
+
+    return all
+  }
+
   async function fetchWorkspaceUsers(): Promise<AsanaUser[]> {
     const { users } = await resolveWorkspace()
     return users
@@ -310,6 +344,7 @@ export function createAsanaClient(config: AsanaConfig): AsanaClient {
   return {
     fetchTasks,
     fetchAllOpenTasks,
+    fetchCompletedTasksInRange,
     fetchWorkspaceUsers,
     fetchMe,
     createTask,

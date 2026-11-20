@@ -119,14 +119,27 @@ export async function fetchCalendarEvents(weekOffset = 0): Promise<CalendarFetch
 }
 
 export async function fetchCalendarEventsRange(startISO: string, endISO: string): Promise<CalendarEvent[]> {
+  return (await fetchCalendarEventsRangeDetailed(startISO, endISO)).events
+}
+
+/**
+ * Events from startISO (inclusive) to endISO (exclusive), midnight local time,
+ * with the number of calendar sources that failed to read. Use this when an
+ * incomplete list must be flagged rather than shown as lower totals (the
+ * workload history, #13).
+ */
+export async function fetchCalendarEventsRangeDetailed(startISO: string, endISO: string): Promise<CalendarFetchResult> {
   const timeMin = new Date(`${startISO}T00:00:00`)
   const timeMax = new Date(`${endISO}T00:00:00`)
-  const { sources } = await callOp<{ sources: RawCalendarSource[] }>({
+  const { sources, failedSources = 0 } = await callOp<{
+    sources: RawCalendarSource[]
+    failedSources?: number
+  }>({
     op: 'listCalendarEvents',
     timeMinISO: timeMin.toISOString(),
     timeMaxISO: timeMax.toISOString(),
   })
-  return parseCalendarSources(sources)
+  return { events: parseCalendarSources(sources), failedSources }
 }
 
 export async function syncGusCareInvites(gusCare: GusResponsibility[]): Promise<boolean> {
