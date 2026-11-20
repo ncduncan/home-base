@@ -7,6 +7,7 @@
 
 import { parseISO } from 'date-fns'
 import type { CalendarEvent } from '@home-base/shared/types'
+import { NAT_WORK_START_HOUR, NAT_WORK_END_HOUR } from '@home-base/shared/work-block'
 
 export interface BusyBlock {
   startISO: string
@@ -16,9 +17,6 @@ export interface BusyBlock {
   /** Optional title shown above the time range (e.g. "Work" for Nat M–F). */
   label?: string
 }
-
-const NAT_WORK_START_HOUR = 8
-const NAT_WORK_END_HOUR = 17
 
 export function computeRangeBlock(events: CalendarEvent[], label?: string): BusyBlock | null {
   if (events.length === 0) return null

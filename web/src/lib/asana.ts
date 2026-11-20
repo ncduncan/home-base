@@ -58,6 +58,10 @@ export const fetchTasks = (): Promise<AsanaTask[]> =>
 export const fetchAllOpenTasks = (): Promise<AsanaTask[]> =>
   callOp<AsanaTask[]>({ op: 'fetchAllOpenTasks' })
 
+// Every task completed in [startISO, endISO), for the workload history (#13).
+export const fetchCompletedTasksInRange = (startISO: string, endISO: string): Promise<AsanaTask[]> =>
+  callOp<AsanaTask[]>({ op: 'fetchCompletedTasksInRange', startISO, endISO })
+
 export const fetchWorkspaceUsers = (): Promise<AsanaUser[]> =>
   callOp<AsanaUser[]>({ op: 'fetchWorkspaceUsers' })
 

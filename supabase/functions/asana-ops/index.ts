@@ -17,6 +17,7 @@
 // Ops (request body `{op: "...", ...}`):
 //   fetchTasks         → AsanaTask[]
 //   fetchAllOpenTasks  → AsanaTask[]
+//   fetchCompletedTasksInRange → {startISO, endISO} → AsanaTask[] (completed in [start, end))
 //   fetchWorkspaceUsers→ AsanaUser[]
 //   fetchMe            → AsanaUser
 //   createTask         → {fields:{name,due_on?,assignee?,notes?}} → AsanaTask
@@ -221,6 +222,28 @@ async function fetchAllOpenTasks(): Promise<AsanaTask[]> {
   return all
 }
 
+// Workload history (#13). Port of shared/src/asana.ts fetchCompletedTasksInRange.
+async function fetchCompletedTasksInRange(startISO: string, endISO: string): Promise<AsanaTask[]> {
+  const { workspaceGid: resolvedGid, users } = await resolveWorkspace()
+  const userGids = users.map(u => u.gid)
+  if (userGids.length === 0) userGids.push('me')
+
+  const start = Date.parse(startISO)
+  const end = Date.parse(endISO)
+  const seen = new Set<string>()
+  const all: AsanaTask[] = []
+  for (const gid of userGids) {
+    for (const t of await fetchTasksForUser(gid, resolvedGid, new Date(start).toISOString())) {
+      if (seen.has(t.gid) || !t.completed || !t.completed_at) continue
+      const at = Date.parse(t.completed_at)
+      if (at < start || at >= end) continue
+      seen.add(t.gid)
+      all.push(t)
+    }
+  }
+  return all
+}
+
 async function fetchWorkspaceUsers(): Promise<AsanaUser[]> {
   return (await resolveWorkspace()).users
 }
@@ -292,6 +315,15 @@ Deno.serve(async (req) => {
     switch (body.op) {
       case 'fetchTasks':          result = await fetchTasks(); break
       case 'fetchAllOpenTasks':   result = await fetchAllOpenTasks(); break
+      case 'fetchCompletedTasksInRange': {
+        const { startISO, endISO } = body as { startISO?: unknown; endISO?: unknown }
+        if (typeof startISO !== 'string' || typeof endISO !== 'string'
+            || Number.isNaN(Date.parse(startISO)) || Number.isNaN(Date.parse(endISO))) {
+          throw new Error('fetchCompletedTasksInRange requires startISO and endISO')
+        }
+        result = await fetchCompletedTasksInRange(startISO, endISO)
+        break
+      }
       case 'fetchWorkspaceUsers': result = await fetchWorkspaceUsers(); break
       case 'fetchMe':             result = await fetchMe(); break
       case 'createTask': {

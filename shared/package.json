@@ -20,7 +20,11 @@
     "./overrides": "./src/overrides.ts",
     "./homebase-events": "./src/homebase-events.ts",
     "./asana": "./src/asana.ts",
-    "./owner-config": "./src/owner-config.ts"
+    "./owner-config": "./src/owner-config.ts",
+    "./work-block": "./src/work-block.ts",
+    "./workload": "./src/workload.ts",
+    "./workload-settings": "./src/workload-settings.ts",
+    "./workload-history": "./src/workload-history.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",

@@ -83,3 +83,32 @@ describe('createAsanaClient — resolveWorkspace', () => {
     expect(users).toEqual([{ gid: 'me', name: 'Nat', email: 'nat@x' }])
   })
 })
+
+describe('createAsanaClient — fetchCompletedTasksInRange', () => {
+  it('keeps only tasks completed inside [start, end), once each, across users and pages', async () => {
+    const raw = (gid: string, completed: boolean, at: string | null) =>
+      ({ gid, name: `t${gid}`, completed, completed_at: at, assignee: { gid: '1', name: 'A' } })
+    const f = mockFetch(url => {
+      if (url.includes('/workspaces/PERSONAL/users')) {
+        return { ok: true, body: { data: [{ gid: '1', name: 'A', email: 'a@x' }, { gid: '2', name: 'B', email: 'b@x' }] } }
+      }
+      if (url.includes('/tasks?') && url.includes('assignee=1') && !url.includes('offset=')) {
+        return { ok: true, body: { data: [raw('a', true, '2026-07-06T12:00:00.000Z'), raw('open', false, null)], next_page: { offset: 'p2' } } }
+      }
+      if (url.includes('/tasks?') && url.includes('assignee=1') && url.includes('offset=p2')) {
+        return { ok: true, body: { data: [raw('late', true, '2026-07-20T00:00:00.000Z')], next_page: null } }
+      }
+      if (url.includes('/tasks?') && url.includes('assignee=2')) {
+        return { ok: true, body: { data: [raw('a', true, '2026-07-06T12:00:00.000Z'), raw('early', true, '2026-06-01T00:00:00.000Z'), raw('b', true, '2026-07-01T00:00:00.000Z')], next_page: null } }
+      }
+      return null
+    })
+    vi.stubGlobal('fetch', f)
+
+    const tasks = await createAsanaClient({ pat: 'p', workspaceGid: 'PERSONAL' })
+      .fetchCompletedTasksInRange('2026-07-01T00:00:00.000Z', '2026-07-13T00:00:00.000Z')
+
+    expect(tasks.map(t => t.gid).sort()).toEqual(['a', 'b'])
+    expect(f.mock.calls.some(([u]) => String(u).includes('completed_since=2026-07-01T00%3A00%3A00.000Z'))).toBe(true)
+  })
+})
